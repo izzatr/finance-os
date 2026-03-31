@@ -1,0 +1,32 @@
+{
+  "name": "finance-os",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Open-source, AI-ready personal finance engine with wallet-based accounting and asset tracking.",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "dependencies": {
+    "better-auth": "^1.5.6"
+  },
+  "scripts": {
+    "dev": "npm run dev:api",
+    "dev:api": "npm run dev --workspace @finance-os/api",
+    "dev:docs": "npm run dev --workspace @finance-os/docs",
+    "db:generate": "npm run db:generate --workspace @finance-os/db",
+    "db:migrate": "npm run db:migrate --workspace @finance-os/db",
+    "db:studio": "npm run db:studio --workspace @finance-os/db",
+    "db:seed": "npm run db:seed --workspace @finance-os/db",
+    "lint": "npm run lint --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspace @finance-os/domain"
+  },
+  "engines": {
+    "node": ">=20.11.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/pg": "^8.15.1"
+  }
+}

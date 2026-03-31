@@ -1,0 +1,12 @@
+node_modules
+.git
+.env
+.env.local
+.DS_Store
+dist
+build
+coverage
+.vite
+.tanstack
+.playwright-mcp
+*.md

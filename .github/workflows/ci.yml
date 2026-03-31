@@ -1,0 +1,38 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: finance_os_test
+          POSTGRES_USER: finance
+          POSTGRES_PASSWORD: finance
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgres://finance:finance@localhost:5432/finance_os_test
+      BETTER_AUTH_SECRET: test-secret-for-ci-only-min-32-chars
+      SKIP_AUTH: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run build --workspace @finance-os/web
+      - run: npm run db:generate --workspace @finance-os/db
+      - run: npm run db:migrate --workspace @finance-os/db

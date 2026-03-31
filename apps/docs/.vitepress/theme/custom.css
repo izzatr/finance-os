@@ -1,0 +1,229 @@
+/* ── Finance OS — VitePress Theme Override ── */
+
+/* ── Color palette (ice-blue) ── */
+:root {
+  /* Brand / primary — ice blue */
+  --vp-c-brand-1: #5ba4d4;
+  --vp-c-brand-2: #4a93c3;
+  --vp-c-brand-3: #3a82b2;
+  --vp-c-brand-soft: rgba(91, 164, 212, 0.12);
+
+  /* Backgrounds */
+  --vp-c-bg: #f4f9fc;
+  --vp-c-bg-alt: #eaf3fa;
+  --vp-c-bg-elv: #ffffff;
+  --vp-c-bg-soft: rgba(198, 222, 240, 0.12);
+
+  /* Accent overrides */
+  --vp-c-green-1: #3aac6a;
+  --vp-c-green-2: #2e9a5b;
+  --vp-c-green-3: #228a4d;
+  --vp-c-green-soft: rgba(58, 172, 106, 0.12);
+
+  --vp-c-red-1: #d95050;
+  --vp-c-red-2: #c74545;
+  --vp-c-red-3: #b53a3a;
+
+  /* Borders — softer, ice-blue tinted */
+  --vp-c-border: rgba(180, 210, 235, 0.35);
+  --vp-c-divider: rgba(180, 210, 235, 0.25);
+  --vp-c-gutter: rgba(180, 210, 235, 0.15);
+
+  /* Text */
+  --vp-c-text-1: #1a2233;
+  --vp-c-text-2: #546478;
+  --vp-c-text-3: #8296a8;
+
+  /* Typography */
+  --vp-font-family-base: 'Switzer', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --vp-font-family-mono: 'JetBrains Mono', 'SFMono-Regular', ui-monospace, monospace;
+
+  /* Sidebar */
+  --vp-sidebar-bg-color: #f8fbfe;
+
+  /* Code blocks */
+  --vp-code-bg: rgba(198, 222, 240, 0.15);
+  --vp-code-color: #1a2233;
+}
+
+/* ── Dark mode ── */
+.dark {
+  --vp-c-brand-1: #7bbde8;
+  --vp-c-brand-2: #5ba4d4;
+  --vp-c-brand-3: #4a93c3;
+  --vp-c-brand-soft: rgba(91, 164, 212, 0.15);
+
+  --vp-c-bg: #0a0f18;
+  --vp-c-bg-alt: #0f1520;
+  --vp-c-bg-elv: #141c2a;
+  --vp-c-bg-soft: rgba(91, 164, 212, 0.08);
+
+  --vp-c-border: rgba(91, 164, 212, 0.15);
+  --vp-c-divider: rgba(91, 164, 212, 0.1);
+
+  --vp-c-text-1: #e8edf2;
+  --vp-c-text-2: #8fa4b8;
+  --vp-c-text-3: #5a7088;
+
+  --vp-sidebar-bg-color: #0c1219;
+
+  --vp-code-bg: rgba(91, 164, 212, 0.1);
+  --vp-code-color: #c8d8e8;
+}
+
+/* ── Hero section — editorial style ── */
+.VPHero .name {
+  font-family: 'Cormorant Garamond', Georgia, serif !important;
+  font-style: italic;
+  font-weight: 400;
+  letter-spacing: -0.02em;
+}
+
+.VPHero .text {
+  font-family: 'Cormorant Garamond', Georgia, serif !important;
+  font-style: italic;
+  font-weight: 300;
+  letter-spacing: -0.01em;
+}
+
+.VPHero .tagline {
+  font-family: 'Switzer', ui-sans-serif, system-ui, sans-serif;
+  font-weight: 300;
+  color: var(--vp-c-text-2);
+}
+
+/* ── Brand gradient on hero name ── */
+.VPHero .name .clip {
+  background: linear-gradient(135deg, #5ba4d4 0%, #3aac6a 50%, #5ba4d4 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+
+/* ── Feature cards — softer, ice-blue ── */
+.VPFeature {
+  border-color: var(--vp-c-border) !important;
+  transition: border-color 0.3s, transform 0.3s, box-shadow 0.3s;
+}
+
+.VPFeature:hover {
+  border-color: var(--vp-c-brand-1) !important;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(91, 164, 212, 0.12);
+}
+
+.VPFeature .title {
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+
+/* ── Sidebar refinements ── */
+.VPSidebar {
+  border-right-color: var(--vp-c-border) !important;
+}
+
+.VPSidebarItem .text {
+  font-size: 0.9rem;
+  letter-spacing: -0.005em;
+}
+
+.VPSidebarItem.is-active > .item > .link > .text {
+  color: var(--vp-c-brand-1);
+  font-weight: 500;
+}
+
+/* ── Nav bar ── */
+.VPNav {
+  border-bottom-color: var(--vp-c-border) !important;
+}
+
+.VPNavBar .title {
+  font-family: var(--vp-font-family-mono);
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* ── Content — better heading typography ── */
+.vp-doc h1 {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-style: italic;
+  font-weight: 400;
+  letter-spacing: -0.02em;
+  font-size: 2.2rem;
+}
+
+.vp-doc h2 {
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  border-bottom-color: var(--vp-c-border);
+}
+
+.vp-doc h3 {
+  font-weight: 500;
+}
+
+/* ── Code blocks — mono label ── */
+.vp-doc div[class*="language-"] > span.lang {
+  font-family: var(--vp-font-family-mono);
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+/* ── Custom containers — ice-blue tint ── */
+.vp-doc .custom-block.tip {
+  border-color: var(--vp-c-brand-1);
+  background-color: var(--vp-c-brand-soft);
+}
+
+.vp-doc .custom-block.info {
+  border-color: rgba(91, 164, 212, 0.4);
+  background-color: rgba(91, 164, 212, 0.06);
+}
+
+/* ── Footer ── */
+.VPFooter {
+  border-top-color: var(--vp-c-border) !important;
+}
+
+/* ── Buttons — brand accent ── */
+.VPButton.brand {
+  background-color: var(--vp-c-brand-1);
+  border-color: var(--vp-c-brand-1);
+}
+
+.VPButton.brand:hover {
+  background-color: var(--vp-c-brand-2);
+  border-color: var(--vp-c-brand-2);
+}
+
+/* ── Subtle background gradient wash (like the dashboard) ── */
+body {
+  background-image:
+    radial-gradient(ellipse 70% 50% at 50% -10%, rgba(198, 226, 245, 0.3) 0%, transparent 65%),
+    radial-gradient(ellipse 50% 40% at 85% 5%, rgba(180, 210, 240, 0.15) 0%, transparent 60%);
+  background-attachment: fixed;
+}
+
+.dark body {
+  background-image:
+    radial-gradient(ellipse 70% 50% at 50% -10%, rgba(91, 164, 212, 0.08) 0%, transparent 65%),
+    radial-gradient(ellipse 50% 40% at 85% 5%, rgba(91, 164, 212, 0.05) 0%, transparent 60%);
+}
+
+/* ── Search modal ── */
+.VPLocalSearchBox .search-input {
+  font-family: var(--vp-font-family-base);
+}
+
+/* ── Smooth transitions ── */
+* {
+  transition-property: color, background-color, border-color, box-shadow;
+  transition-duration: 0.15s;
+  transition-timing-function: ease;
+}
+
+a, button {
+  transition-duration: 0.2s;
+}
