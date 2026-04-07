@@ -14,8 +14,8 @@ Add a `.mcp.json` file to your project root (or the directory where you run Clau
 {
   "mcpServers": {
     "finance-os": {
-      "command": "npx",
-      "args": ["tsx", "packages/cli/src/mcp.ts"],
+      "command": "npm",
+      "args": ["run", "mcp:finance"],
       "cwd": "/path/to/finance-os",
       "env": {
         "FINANCE_API_URL": "http://localhost:27032"

@@ -46,7 +46,7 @@ This applies all Drizzle migrations from `packages/db/drizzle/`.
 npm run db:seed
 ```
 
-This creates the three base assets (IDR, EUR, USD) and safe sample wallets.
+This creates the three base assets (IDR, EUR, USD) plus default categories. It does **not** create fake wallets or transactions.
 
 ## Start Dev Servers
 
@@ -55,8 +55,8 @@ This creates the three base assets (IDR, EUR, USD) and safe sample wallets.
 npm run dev
 
 # Or start them individually
-npm run dev:api   # API on http://localhost:27032
-npm run dev:docs  # Docs on http://localhost:5173
+npm run dev:api   # API on `http://localhost:27032`
+npm run dev:docs  # Docs on `http://localhost:5173`
 ```
 
 The API runs with `tsx watch` for auto-reload on file changes.
@@ -126,7 +126,7 @@ docker compose up -d
 
 This builds the API container, starts PostgreSQL, and brings the local stack up. Access:
 
-- API: http://localhost:27032
+- API: `http://localhost:27032`
 - Postgres: localhost:27033
 
 ## Generating Migrations

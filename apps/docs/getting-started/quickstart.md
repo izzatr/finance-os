@@ -15,12 +15,13 @@ cd finance-os
 docker compose up -d
 ```
 
-This starts two containers:
+This starts three services:
 
-| Service    | URL                    | Description                    |
-|------------|------------------------|--------------------------------|
-| **API**    | http://localhost:27032 | REST API + OpenAPI spec        |
-| **Postgres** | localhost:27033      | Database (port 5432 internal)  |
+| Service      | URL / Port              | Description                          |
+|--------------|-------------------------|--------------------------------------|
+| **Web**      | `http://localhost:27031`  | Landing page + dashboard             |
+| **API**      | `http://localhost:27032`  | REST API + OpenAPI spec              |
+| **Postgres** | localhost:27033         | Database (port 5432 internal)        |
 
 ::: tip
 The default Docker Compose config sets `SKIP_AUTH=1` so no login is required for local development. See [Self-Hosting](/getting-started/self-hosting) for production auth setup.
@@ -40,15 +41,21 @@ Expected response:
 { "ok": true }
 ```
 
-## Seed the Database
+## Optional Baseline Seed
 
-If you do not have existing data yet, seed with safe sample assets and wallets:
+If you want the product to start with safe reference data, seed the base setup:
 
 ```bash
 npm run db:seed
 ```
 
-This creates the three base currencies (IDR, EUR, USD) and a few generic sample wallets.
+This creates baseline currencies/assets and default categories. It does **not** create fake personal finance data.
+
+If you want demo wallets and a sample transaction for screenshots or sandbox testing, use the explicit demo seed:
+
+```bash
+npm run db:seed:demo
+```
 
 ## Access the MCP Server
 
@@ -77,23 +84,23 @@ The MCP server exposes 16 tools that let AI agents check balances, add transacti
 # Set the API URL (defaults to http://localhost:27032)
 export FINANCE_API_URL=http://localhost:27032
 
-# Run CLI commands via npx
-npx tsx packages/cli/src/cli.ts balance
-npx tsx packages/cli/src/cli.ts recent
-npx tsx packages/cli/src/cli.ts help
+# Run CLI commands from the monorepo
+npm run finance -- balance
+npm run finance -- recent
+npm run finance -- help
 ```
 
 See [CLI Reference](/ai-integration/cli) for all available commands.
 
 ## Explore the API
 
-The OpenAPI spec is available at:
+The raw OpenAPI spec is available at:
 
 ```
-http://localhost:27032/doc
+http://localhost:27032/openapi.json
 ```
 
-Or fetch the raw spec:
+Fetch it directly with:
 
 ```bash
 curl http://localhost:27032/openapi.json

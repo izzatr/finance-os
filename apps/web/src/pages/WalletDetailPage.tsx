@@ -173,7 +173,7 @@ export function WalletDetailPage() {
                             borderRadius: 12,
                             fontSize: 13,
                           }}
-                          labelFormatter={(d: string) => formatDate(d)}
+                          labelFormatter={(label) => formatDate(String(label ?? ''))}
                           formatter={(value) => [chartFmt(value as number), 'Balance']}
                         />
                         <Area

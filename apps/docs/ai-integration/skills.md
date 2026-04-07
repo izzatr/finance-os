@@ -1,6 +1,6 @@
 # Claude Code Skills
 
-Finance OS includes six [Claude Code skills](https://docs.anthropic.com/en/docs/claude-code/skills) that activate automatically based on user intent. Skills are stored in `.claude/skills/` and give Claude Code structured instructions for common finance tasks.
+Finance OS documents six example [Claude Code skills](https://docs.anthropic.com/en/docs/claude-code/skills) you can add to your own setup for common finance tasks. These are reference patterns for agent workflows — the repo does **not** ship a tracked `.claude/skills/` directory by default.
 
 ## How Skills Work
 

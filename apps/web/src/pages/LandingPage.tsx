@@ -85,7 +85,7 @@ function HeroSection() {
             View on GitHub
           </Button>
           <Button variant="outline" size="lg" render={<a href="/dashboard" />}>
-            Try Cloud →
+            Open App →
           </Button>
         </div>
       </div>
@@ -236,11 +236,14 @@ const FEATURES = [
   {
     icon: (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-        <path d="M21 12a9 9 0 0 1-9 9m9-9a9 9 0 0 0-9-9m9 9H3m9 9a9 9 0 0 1-9-9m9 9c1.66 0 3-4.03 3-9s-1.34-9-3-9m0 18c-1.66 0-3-4.03-3-9s1.34-9 3-9m-9 9a9 9 0 0 1 9-9" />
+        <path d="M4 4h16v16H4z" />
+        <path d="M8 8h8" />
+        <path d="M8 12h8" />
+        <path d="M8 16h5" />
       </svg>
     ),
-    title: 'Cloud option',
-    desc: 'Managed hosting for those who don\'t want to run infrastructure. Same MCP interface, zero setup.',
+    title: 'API-first',
+    desc: 'One product surface across dashboard, CLI, and MCP. Build on stable APIs instead of one-off UI hacks.',
   },
 ]
 
@@ -275,60 +278,45 @@ function FeaturesGrid() {
   )
 }
 
-/* ── Pricing Comparison ── */
-function PricingComparison() {
+/* ── Shipping Status ── */
+function ShippingStatus() {
   const reveal = useScrollReveal()
 
   return (
     <section className="landing-section">
       <div className="landing-section-inner">
         <div ref={reveal.ref} className={`landing-reveal ${reveal.visible ? 'visible' : ''}`}>
-          <Badge variant="secondary" className="landing-eyebrow-badge mb-4">Deploy your way</Badge>
+          <Badge variant="secondary" className="landing-eyebrow-badge mb-4">Shipping carefully</Badge>
           <h2 className="landing-section-headline">
-            Self-host or let us<br />handle the infrastructure.
+            One codebase.<br />One product surface.
           </h2>
           <p className="landing-section-sub">
-            Same engine, same MCP interface. Choose what works for you.
+            Finance OS is currently focused on a maintainable self-hosted release. The goal is to make the dashboard, CLI, and MCP experience feel like one coherent product before any hosted offering goes public.
           </p>
         </div>
         <div className={`landing-pricing-grid landing-reveal ${reveal.visible ? 'visible' : ''}`} style={{ animationDelay: '0.3s' }}>
-          <Card className="landing-pricing-card">
-            <CardHeader>
-              <Badge variant="outline" className="w-fit">Open Source</Badge>
-              <div className="landing-pricing-price">Free</div>
-              <CardDescription>Self-host on your own infrastructure. Full control over your data and deployment.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ul className="landing-pricing-list">
-                <li><span className="landing-check">✓</span> Full source code access</li>
-                <li><span className="landing-check">✓</span> MIT licensed</li>
-                <li><span className="landing-check">✓</span> CLI + MCP interface</li>
-                <li><span className="landing-check">✓</span> Community support</li>
-                <li><span className="landing-check">✓</span> Your server, your data</li>
-              </ul>
-              <Button variant="outline" className="w-full" render={<a href="https://github.com" target="_blank" rel="noopener noreferrer" />}>
-                View on GitHub
-              </Button>
-            </CardContent>
-          </Card>
-
           <Card className="landing-pricing-card landing-pricing-featured">
             <CardHeader>
-              <Badge className="w-fit">Cloud</Badge>
-              <div className="landing-pricing-price">Coming soon</div>
-              <CardDescription>Managed hosting with zero setup. Connect your agent and start managing finances in minutes.</CardDescription>
+              <Badge className="w-fit">Self-hosted release</Badge>
+              <div className="landing-pricing-price">Available now</div>
+              <CardDescription>Run the stack yourself today with the same REST API, CLI, and MCP interface that power the product internally.</CardDescription>
             </CardHeader>
             <CardContent>
               <ul className="landing-pricing-list">
-                <li><span className="landing-check">✓</span> Zero infrastructure</li>
-                <li><span className="landing-check">✓</span> Same MCP interface</li>
-                <li><span className="landing-check">✓</span> Automatic backups</li>
-                <li><span className="landing-check">✓</span> Priority support</li>
-                <li><span className="landing-check">✓</span> Team collaboration</li>
+                <li><span className="landing-check">✓</span> Shared web + API architecture</li>
+                <li><span className="landing-check">✓</span> Dashboard, wallets, reports, and transactions</li>
+                <li><span className="landing-check">✓</span> Agent workflows through MCP and CLI</li>
+                <li><span className="landing-check">✓</span> Open-source code and self-hosted control</li>
+                <li><span className="landing-check">✓</span> Safer path to a future hosted version</li>
               </ul>
-              <Button className="w-full" render={<a href="/dashboard" />}>
-                Join Waitlist
-              </Button>
+              <div className="landing-cta-group">
+                <Button render={<a href="/dashboard" />}>
+                  Open App
+                </Button>
+                <Button variant="outline" render={<a href="https://github.com" target="_blank" rel="noopener noreferrer" />}>
+                  View on GitHub
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </div>
@@ -379,7 +367,7 @@ export function LandingPage() {
       <HeroSection />
       <AgentNativeSection />
       <FeaturesGrid />
-      <PricingComparison />
+      <ShippingStatus />
       <LandingFooter />
     </div>
   )

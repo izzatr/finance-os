@@ -1,0 +1,68 @@
+import 'dotenv/config'
+
+import { fileURLToPath } from 'node:url'
+import { eq } from 'drizzle-orm'
+import { drizzle } from 'drizzle-orm/node-postgres'
+import { Pool } from 'pg'
+import { assets, transactionEntries, transactions, wallets } from './schema'
+import { seedBase } from './seed-base'
+
+const connectionString = process.env.DATABASE_URL ?? 'postgres://finance:finance@localhost:27033/finance_os'
+const pool = new Pool({ connectionString })
+const db = drizzle(pool)
+
+async function seedDemo() {
+  await seedBase()
+
+  const [eur] = await db.select().from(assets).where(eq(assets.code, 'EUR'))
+  const [usd] = await db.select().from(assets).where(eq(assets.code, 'USD'))
+  const [idr] = await db.select().from(assets).where(eq(assets.code, 'IDR'))
+
+  if (!eur || !usd || !idr) {
+    throw new Error('Failed to prepare demo assets.')
+  }
+
+  const [checkingEur] = await db.insert(wallets).values({
+    name: 'Main Checking EUR',
+    walletType: 'bank',
+    institution: 'Example Bank',
+    assetId: eur.id,
+  }).returning()
+
+  const [savingsUsd] = await db.insert(wallets).values({
+    name: 'Savings USD',
+    walletType: 'bank',
+    institution: 'Example Bank',
+    assetId: usd.id,
+  }).returning()
+
+  const [cashIdr] = await db.insert(wallets).values({
+    name: 'Cash IDR',
+    walletType: 'cash',
+    institution: null,
+    assetId: idr.id,
+  }).returning()
+
+  const [salaryTx] = await db.insert(transactions).values({
+    transactionDate: new Date(),
+    type: 'income',
+    description: 'Sample income payment',
+  }).returning()
+
+  await db.insert(transactionEntries).values([
+    { transactionId: salaryTx.id, walletId: checkingEur.id, assetId: eur.id, amount: '2500.00' },
+    { transactionId: salaryTx.id, walletId: savingsUsd.id, assetId: usd.id, amount: '0.00' },
+    { transactionId: salaryTx.id, walletId: cashIdr.id, assetId: idr.id, amount: '0.00' },
+  ])
+
+  console.log('Seeded Finance OS with demo wallets and a sample transaction.')
+}
+
+const isDirectRun = process.argv[1] === fileURLToPath(import.meta.url)
+
+if (isDirectRun) {
+  seedDemo().catch((error) => {
+    console.error(error)
+    process.exit(1)
+  })
+}

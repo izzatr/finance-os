@@ -29,8 +29,11 @@ cd finance-os
 docker compose up -d
 ```
 
-API: [http://localhost:27032](http://localhost:27032)
-OpenAPI: [http://localhost:27032/openapi.json](http://localhost:27032/openapi.json)
+This starts the self-hosted Finance OS stack:
+- Web: [http://localhost:27031](http://localhost:27031)
+- API: [http://localhost:27032](http://localhost:27032)
+- OpenAPI: [http://localhost:27032/openapi.json](http://localhost:27032/openapi.json)
+- Database: `localhost:27033`
 
 ## Architecture
 
@@ -38,7 +41,8 @@ OpenAPI: [http://localhost:27032/openapi.json](http://localhost:27032/openapi.js
 finance-os/
 ├── apps/
 │   ├── api/          Hono REST API (Node.js)
-│   └── docs/         Astro Starlight documentation
+│   ├── web/          React/Vite dashboard + landing app
+│   └── docs/         VitePress documentation
 ├── packages/
 │   ├── db/           Drizzle ORM schema + migrations
 │   ├── domain/       Shared Zod schemas + types
@@ -56,21 +60,23 @@ finance-os/
 npm install
 docker compose up -d                      # Start Postgres
 npm run db:generate && npm run db:migrate # Run migrations
-npm run db:seed                           # Seed sample data
+npm run db:seed                           # Seed base assets + categories only
+npm run db:seed:demo                      # Optional demo wallets + sample transaction
 npm run dev:api                           # API on :27032
+npm run dev:web                           # Web on :3000 for local frontend dev
 npm run dev:docs                          # Docs on :5173
 ```
 
 ## CLI
 
 ```bash
-npm run finance balance          # Wallet balances
-npm run finance recent           # Last 50 transactions
-npm run finance search groceries # Search transactions
-npm run finance month 2026-03    # Monthly report
-npm run finance spend            # Category breakdown
-npm run finance reconcile "Main Checking EUR" 2212.90
-npm run finance export --from=2026-03-01 --to=2026-03-31
+npm run finance -- balance                            # Wallet balances
+npm run finance -- recent                             # Last 50 transactions
+npm run finance -- search groceries                   # Search transactions
+npm run finance -- month 2026-03                      # Monthly report
+npm run finance -- spend                              # Category breakdown
+npm run finance -- reconcile "Main Checking EUR" 2212.90
+npm run finance -- export --from=2026-03-01 --to=2026-03-31
 ```
 
 ## MCP Server
@@ -81,8 +87,9 @@ Add to your Claude Code project's `.mcp.json`:
 {
   "mcpServers": {
     "finance-os": {
-      "command": "npx",
-      "args": ["tsx", "packages/cli/src/mcp.ts"],
+      "command": "npm",
+      "args": ["run", "mcp:finance"],
+      "cwd": "/path/to/finance-os",
       "env": { "FINANCE_API_URL": "http://localhost:27032" }
     }
   }

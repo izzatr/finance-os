@@ -12,7 +12,13 @@ export FINANCE_API_URL=http://localhost:27032
 
 If not set, it defaults to `http://localhost:27032`.
 
-Run commands with:
+Run commands from the monorepo root with:
+
+```bash
+npm run finance -- <command> [options]
+```
+
+You can also run the source entry directly if you prefer:
 
 ```bash
 npx tsx packages/cli/src/cli.ts <command> [options]

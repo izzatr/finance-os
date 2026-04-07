@@ -3,6 +3,8 @@
   "compilerOptions": {
     "jsx": "react-jsx",
     "types": ["vite/client"],
+    "skipLibCheck": true,
+    "allowImportingTsExtensions": true,
     "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"],

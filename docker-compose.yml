@@ -26,16 +26,27 @@ services:
     ports:
       - "27032:27032"
     environment:
-      DATABASE_URL: postgres://finance:***@postgres:5432/finance_os
+      DATABASE_URL: postgres://finance:finance@postgres:5432/finance_os
       PORT: "27032"
       FINANCE_OS_EDITION: community
       BETTER_AUTH_SECRET: dev-secret-change-in-production-min-32-chars
       SKIP_AUTH: "1"
       BETTER_AUTH_URL: http://localhost:27032
-      WEB_ORIGIN: http://localhost:5173
+      WEB_ORIGIN: http://localhost:27031
     depends_on:
       postgres:
         condition: service_healthy
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    container_name: finance-os-web
+    restart: unless-stopped
+    ports:
+      - "27031:3000"
+    depends_on:
+      - api
 
 volumes:
   finance_os_postgres_data:

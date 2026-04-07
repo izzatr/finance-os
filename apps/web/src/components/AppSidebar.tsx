@@ -4,9 +4,6 @@ import {
   BarChart3,
   CreditCard,
   Globe,
-  ArrowLeftRight,
-  Download,
-  Plus,
   ChevronsLeft,
   Search,
 } from 'lucide-react'
@@ -16,25 +13,18 @@ import {
   SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
   useSidebar,
 } from '@/components/ui/sidebar'
-import { Button } from '@/components/ui/button'
 
 const NAV_ITEMS = [
   { label: 'Dashboard', icon: LayoutGrid, path: '/dashboard', activePath: '/dashboard' },
   { label: 'Reports', icon: BarChart3, path: '/reports', activePath: '/reports' },
   { label: 'Wallets', icon: CreditCard, path: '/wallets', activePath: '/wallets' },
   { label: 'Currencies', icon: Globe, path: '/currencies', activePath: '/currencies' },
-]
-
-const QUICK_ACTIONS = [
-  { label: 'Transfer', icon: ArrowLeftRight, path: '/dashboard' },
-  { label: 'Export', icon: Download, path: '/dashboard' },
 ]
 
 function SidebarToggle() {
@@ -106,40 +96,9 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
-
-        <SidebarGroup>
-          <SidebarGroupLabel>Quick Actions</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {QUICK_ACTIONS.map((item) => (
-                <SidebarMenuItem key={item.label}>
-                  <SidebarMenuButton
-                    tooltip={item.label}
-                    render={<Link to={item.path} />}
-                    className="h-9 text-[13px] font-normal text-muted-foreground"
-                  >
-                    <item.icon className="size-[18px]" />
-                    <span>{item.label}</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
       </SidebarContent>
 
       <SidebarFooter className="p-2">
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              tooltip="Add Transaction"
-              className="h-9 text-[13px] font-medium bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground data-[state=open]:bg-primary"
-            >
-              <Plus className="size-[18px]" />
-              <span>Add Transaction</span>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
         <div className="flex items-center gap-2 px-2 pt-2 text-[11px] text-muted-foreground group-data-[collapsible=icon]:justify-center">
           <span className="size-1.5 rounded-full bg-[var(--positive)] shadow-[0_0_8px_rgba(58,172,106,0.35)]" />
           <span className="group-data-[collapsible=icon]:hidden">System Online</span>

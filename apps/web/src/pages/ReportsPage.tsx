@@ -118,6 +118,7 @@ export function ReportsPage() {
 
   const effectiveTrend = isAll && rates ? convertTrendToCurrency(trendData, rates, defaultCurrency) : trendData
   const effectiveCategories = isAll && rates ? convertCategoriesToCurrency(categoryData, rates, defaultCurrency) : categoryData
+  const hasReportData = Boolean(summaryQuery.data?.data.transactionCount)
 
   return (
     <main className="relative z-1 w-full px-8 md:px-12 pt-12 pb-24">
@@ -145,6 +146,13 @@ export function ReportsPage() {
         </Tabs>
         <DateRangeFilter value={dateRange} onChange={setDateRange} />
       </div>
+
+      {!summaryQuery.isLoading && !hasReportData && (
+        <div className="mb-6 rounded-3xl border border-border/60 bg-white/75 px-6 py-7 text-sm text-muted-foreground shadow-[var(--shadow-card)]">
+          <p className="mb-2 text-[11px] font-medium tracking-[0.18em] uppercase text-[#5ba4d4]">No report data yet</p>
+          <p>Reports will populate after you create a wallet and record transactions. Until then, this page stays intentionally empty instead of showing misleading charts.</p>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {/* Asset Growth - full width */}

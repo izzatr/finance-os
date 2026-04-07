@@ -50,7 +50,14 @@ export function WalletsPage() {
       {walletsQuery.error && (
         <p className="py-8 text-center font-mono text-xs text-muted-foreground">{walletsQuery.error.message}</p>
       )}
-      {walletsQuery.data && (
+      {walletsQuery.data && walletsQuery.data.data.length === 0 && (
+        <div className="rounded-3xl border border-border/60 bg-white/75 px-6 py-7 text-sm text-muted-foreground shadow-[var(--shadow-card)]">
+          <p className="mb-2 text-[11px] font-medium tracking-[0.18em] uppercase text-[#5ba4d4]">No wallets yet</p>
+          <p className="mb-4 max-w-[640px]">Create your first wallet to start tracking balances, connect reports, and give the dashboard real visual context.</p>
+          <Button onClick={() => setShowCreate(true)} className="gap-1.5"><Plus size={14} /> Create your first wallet</Button>
+        </div>
+      )}
+      {walletsQuery.data && walletsQuery.data.data.length > 0 && (
         <WalletsGrid wallets={walletsQuery.data.data} formatCurrency={formatCurrency} />
       )}
 

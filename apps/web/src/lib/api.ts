@@ -1,7 +1,9 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8787'
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '')
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+  const target = `${API_BASE_URL}${path}`
+  const response = await fetch(target, {
+    credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
       ...(init?.headers ?? {}),
@@ -9,9 +11,16 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     ...init,
   })
 
+  const contentType = response.headers.get('content-type') ?? ''
+  const isJson = contentType.includes('application/json')
+
   if (!response.ok) {
-    const payload = await response.json().catch(() => null)
-    throw new Error(payload?.error?.message ?? `Request failed with status ${response.status}`)
+    const payload = isJson ? await response.json().catch(() => null) : null
+    throw new Error(payload?.error?.message ?? payload?.message ?? `Request failed with status ${response.status}`)
+  }
+
+  if (!isJson) {
+    throw new Error(`Expected JSON response from ${target}`)
   }
 
   return response.json() as Promise<T>

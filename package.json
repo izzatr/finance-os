@@ -4,20 +4,23 @@
   "private": true,
   "description": "Open-source, AI-ready personal finance engine with wallet-based accounting and asset tracking.",
   "workspaces": [
-    "apps/*",
+    "apps/api",
+    "apps/web",
     "packages/*"
   ],
-  "dependencies": {
-    "better-auth": "^1.5.6"
-  },
+  "dependencies": {},
   "scripts": {
     "dev": "npm run dev:api",
     "dev:api": "npm run dev --workspace @finance-os/api",
-    "dev:docs": "npm run dev --workspace @finance-os/docs",
+    "dev:web": "npm run dev --workspace @finance-os/web",
+    "dev:docs": "npm --prefix apps/docs run dev",
     "db:generate": "npm run db:generate --workspace @finance-os/db",
     "db:migrate": "npm run db:migrate --workspace @finance-os/db",
     "db:studio": "npm run db:studio --workspace @finance-os/db",
     "db:seed": "npm run db:seed --workspace @finance-os/db",
+    "db:seed:demo": "npm run db:seed:demo --workspace @finance-os/db",
+    "finance": "tsx packages/cli/src/cli.ts",
+    "mcp:finance": "tsx packages/cli/src/mcp.ts",
     "lint": "npm run lint --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm run test --workspace @finance-os/domain"

@@ -19,7 +19,7 @@ This guide covers deploying Finance OS to a production environment.
 | Variable             | Description                                     | Default                   |
 |----------------------|-------------------------------------------------|---------------------------|
 | `SKIP_AUTH`          | Set to `1` to disable auth (dev only)           | _(unset, auth enabled)_   |
-| `VITE_API_BASE_URL`  | API URL for the web build (build-time arg)      | `http://localhost:27032`  |
+| `VITE_API_BASE_URL`  | API URL for the web build (optional if using same-origin proxying) | _(empty / same origin)_ |
 
 ### OAuth Providers (Optional)
 
@@ -153,10 +153,10 @@ Use `pg_dump` for regular backups:
 
 ```bash
 # Backup
-docker exec finance-os-postgres pg_dump -U finance finance_os > backup.sql
+docker compose exec -T postgres pg_dump -U finance finance_os > backup.sql
 
 # Restore
-cat backup.sql | docker exec -i finance-os-postgres psql -U finance finance_os
+cat backup.sql | docker compose exec -T postgres psql -U finance finance_os
 ```
 
 ### Automated Backups
@@ -164,7 +164,7 @@ cat backup.sql | docker exec -i finance-os-postgres psql -U finance finance_os
 Set up a cron job for daily backups:
 
 ```bash
-0 2 * * * docker exec finance-os-postgres pg_dump -U finance finance_os | gzip > /backups/finance_os_$(date +\%Y\%m\%d).sql.gz
+0 2 * * * cd /path/to/finance-os && docker compose exec -T postgres pg_dump -U finance finance_os | gzip > /backups/finance_os_$(date +\%Y\%m\%d).sql.gz
 ```
 
 ::: tip

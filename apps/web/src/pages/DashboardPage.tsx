@@ -63,12 +63,13 @@ export function DashboardPage() {
     queryKey: ['summary-monthly', monthRange.from],
     queryFn: () => getSummary({ from: monthRange.from, to: monthRange.to }),
   })
-  const categoryQuery = useQuery({ queryKey: ['categories'], queryFn: getCategoryBreakdown })
+  const categoryQuery = useQuery({ queryKey: ['categories'], queryFn: () => getCategoryBreakdown() })
   const ratesQuery = useQuery({ queryKey: ['exchange-rates'], queryFn: getExchangeRates, staleTime: 1000 * 60 * 30 })
 
   const summary = summaryQuery.data?.data
   const monthlySummary = monthlySummaryQuery.data?.data
   const rates = ratesQuery.data?.rates
+  const hasFinanceData = Boolean(summary && (summary.walletCount > 0 || summary.transactionCount > 0))
 
   // Convert any currency amount to the default currency using EUR-based rates
   const toDefaultRate = rates ? (defaultCurrency === 'EUR' ? 1 : (rates[defaultCurrency] ?? 1)) : 1
@@ -154,6 +155,23 @@ export function DashboardPage() {
           { label: 'Net Income Rate', value: `${savingsRate}%` },
         ]}
       />
+
+      {!summaryQuery.isLoading && !hasFinanceData && (
+        <section className="mb-10 rounded-3xl border border-border/60 bg-white/75 px-6 py-7 shadow-[var(--shadow-card)] backdrop-blur-sm">
+          <div className="text-[11px] font-medium tracking-[0.18em] uppercase text-[#5ba4d4] mb-3">First run</div>
+          <h2 className="font-['Cormorant_Garamond',Georgia,serif] text-[32px] italic leading-tight text-[#0a0f18] mb-3">
+            Your dashboard is ready — now add your real finance data.
+          </h2>
+          <p className="text-sm text-muted-foreground max-w-[700px] mb-5">
+            Start by creating a wallet, then add your first transaction or import a statement. Finance OS does not require fake demo balances to be useful.
+          </p>
+          <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+            <span className="rounded-full border border-border/60 bg-background/70 px-3 py-1.5">1. Create wallet</span>
+            <span className="rounded-full border border-border/60 bg-background/70 px-3 py-1.5">2. Add transaction</span>
+            <span className="rounded-full border border-border/60 bg-background/70 px-3 py-1.5">3. Review reports</span>
+          </div>
+        </section>
+      )}
 
       {/* Level 2: Per Currency */}
       {summary && summary.byCurrency.length > 0 && (
