@@ -477,7 +477,7 @@ export const financeTools: FinanceTool[] = [
   },
   {
     name: 'finance_add_recurring_rule',
-    description: 'Create a recurring transaction rule. Propose-scoped credentials can only create inbox-mode rules (each occurrence still needs approval).',
+    description: 'Create a recurring transaction rule. Requires a write-scoped credential.',
     kind: 'write',
     schema: z.object({
       name: z.string().min(1).describe('Rule name, e.g. "Rent"'),
@@ -490,12 +490,12 @@ export const financeTools: FinanceTool[] = [
       autoBook: z.boolean().optional().describe('Book occurrences automatically instead of via the approval inbox (requires a write-scoped credential)'),
     }),
     execute: async (ctx, args) => {
-      if (ctx.scope === 'read') throw new ToolError('This credential is read-only — it cannot create rules.')
+      // Rule creation is a direct write (rules are not proposals), so it demands
+      // write scope outright — otherwise a propose-scoped chat model could plant
+      // rules that bypass the approval inbox.
+      requireWrite(ctx, 'create recurring rules')
       const wallet = await resolveWallet(ctx, args.walletName as string)
       const wantsAuto = args.autoBook === true
-      if (wantsAuto && ctx.scope !== 'write') {
-        throw new ToolError('Auto-booking rules require a write-scoped credential. Create it without autoBook — occurrences will wait in the approval inbox.')
-      }
       const amount = args.amount as string
       const template: Record<string, unknown> = {
         type: args.type,

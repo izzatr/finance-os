@@ -100,7 +100,13 @@ export function registerAiRoutes(app: OpenAPIHono) {
     if (history.length === 0 || history[history.length - 1].role !== 'user') {
       return c.json({ error: { code: 'INVALID_MESSAGES', message: 'Send a messages array ending with a user message' } }, 400)
     }
-    const model = typeof body?.model === 'string' && body.model.length > 0 ? body.model : defaultModel()
+    const requested = typeof body?.model === 'string' && body.model.length > 0 ? body.model : defaultModel()
+    // The server's OpenRouter key funds every call — only curated models are billable.
+    const allowed = new Set([defaultModel(), ...CURATED_MODELS])
+    if (!allowed.has(requested)) {
+      return c.json({ error: { code: 'MODEL_NOT_ALLOWED', message: 'Pick a model from /api/ai/status' } }, 400)
+    }
+    const model = requested
 
     const ctx: FinanceToolContext = {
       baseUrl: loopbackBase(),

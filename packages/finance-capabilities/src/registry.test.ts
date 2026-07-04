@@ -108,18 +108,46 @@ describe('tool registry', () => {
     expect(calls.filter((c) => c.method === 'POST')).toHaveLength(0)
   })
 
-  it('propose scope cannot create auto-booking rules, but draft rules are fine', async () => {
+  it('rule creation demands write scope (rules are direct writes, not proposals)', async () => {
     const tool = getTool('finance_add_recurring_rule')!
     await expect(tool.execute(ctx('propose'), {
-      name: 'Rent', type: 'expense', amount: '800', walletName: 'Main Bank', freq: 'monthly', startDate: '2026-08-01', autoBook: true,
+      name: 'Rent', type: 'expense', amount: '800', walletName: 'Main Bank', freq: 'monthly', startDate: '2026-08-01',
     })).rejects.toThrow(/write-scoped/)
+    expect(calls.filter((c) => c.method === 'POST')).toHaveLength(0)
 
-    const result = (await tool.execute(ctx('propose'), {
+    const result = (await tool.execute(ctx('write'), {
       name: 'Rent', type: 'expense', amount: '800', walletName: 'Main Bank', freq: 'monthly', startDate: '2026-08-01',
     })) as { mode: string }
     expect(result.mode).toBe('draft')
-    const post = calls.find((c) => c.method === 'POST' && c.url.includes('/api/recurring-rules'))!
-    expect((post.body as { mode: string }).mode).toBe('draft')
+  })
+
+  // Structural invariant: with a propose-scoped context, NO write tool may touch any
+  // mutating endpoint other than the proposals intake. This is the guard that keeps
+  // future tools honest — the chat path has no server-side backstop.
+  it('propose scope can never reach a mutating endpoint other than /api/proposals', async () => {
+    const writeTools = financeTools.filter((t) => t.kind === 'write')
+    const samples: Record<string, Record<string, unknown>> = {
+      finance_add_transaction: { date: '2026-07-05', type: 'expense', description: 'x', amount: '1', walletName: 'Main Bank' },
+      finance_transfer: { date: '2026-07-05', amount: '1', fromWallet: 'Main Bank', toWallet: 'Main Bank' },
+      finance_add_recurring_rule: { name: 'R', type: 'expense', amount: '1', walletName: 'Main Bank', freq: 'monthly', startDate: '2026-08-01' },
+      finance_settle_person: { personName: 'Sam', walletName: 'Main Bank' },
+      finance_edit_transaction: { id: '00000000-0000-0000-0000-000000000001', description: 'x' },
+      finance_delete_transaction: { id: '00000000-0000-0000-0000-000000000001' },
+      finance_restore_transaction: { id: '00000000-0000-0000-0000-000000000001' },
+      finance_create_wallet: { name: 'W', walletType: 'bank', currency: 'EUR' },
+      finance_edit_wallet: { walletName: 'Main Bank', newName: 'X' },
+      finance_reconcile: { walletName: 'Main Bank', expectedBalance: '0', autoAdjust: true },
+      finance_add_asset_price: { assetCode: 'XAU_G', price: '1', currency: 'EUR' },
+      finance_approve_proposal: { id: '00000000-0000-0000-0000-000000000001' },
+      finance_reject_proposal: { id: '00000000-0000-0000-0000-000000000001' },
+    }
+    for (const tool of writeTools) {
+      expect(samples, `add a sample invocation for new write tool ${tool.name}`).toHaveProperty(tool.name)
+      stubFetch()
+      await tool.execute(ctx('propose'), samples[tool.name]).catch(() => undefined)
+      const mutating = calls.filter((c) => c.method !== 'GET' && !c.url.includes('/api/proposals'))
+      expect(mutating, `${tool.name} leaked a mutating call: ${JSON.stringify(mutating)}`).toHaveLength(0)
+    }
   })
 
   it('settle and approve demand write scope', async () => {
