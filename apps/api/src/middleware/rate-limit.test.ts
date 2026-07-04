@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { Hono } from 'hono'
 import { rateLimit } from './rate-limit'
 
@@ -25,5 +25,19 @@ describe('rateLimit', () => {
     await app.request('/limited/x', { headers: { 'x-forwarded-for': '1.1.1.1' } })
     const res = await app.request('/limited/x', { headers: { 'x-forwarded-for': '2.2.2.2' } })
     expect(res.status).toBe(200)
+  })
+
+  it('re-allows requests after the window expires', async () => {
+    vi.useFakeTimers()
+    try {
+      const app = appWith(1)
+      const hdrs = { headers: { 'x-forwarded-for': '9.9.9.9' } }
+      expect((await app.request('/limited/x', hdrs)).status).toBe(200)
+      expect((await app.request('/limited/x', hdrs)).status).toBe(429)
+      vi.advanceTimersByTime(61_000)
+      expect((await app.request('/limited/x', hdrs)).status).toBe(200)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
