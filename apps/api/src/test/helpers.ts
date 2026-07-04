@@ -46,7 +46,7 @@ export async function truncateAll(): Promise<void> {
   const pool = new Pool({ connectionString: TEST_DATABASE_URL })
   await pool.query(`
     TRUNCATE TABLE
-      transaction_entries, transactions, wallets, categories, statement_imports,
+      transaction_entries, transaction_splits, people, transactions, wallets, categories, statement_imports,
       audit_logs, subscriptions, billing_customers,
       api_keys, sessions, accounts, verifications, users
     CASCADE

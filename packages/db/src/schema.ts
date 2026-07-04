@@ -88,6 +88,33 @@ export const transactionEntries = pgTable('transaction_entries', {
   transactionEntryWalletIdx: index('transaction_entry_wallet_idx').on(table.walletId),
 }))
 
+export const people = pgTable('people', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userId: varchar('user_id', { length: 255 }).notNull().references(() => users.id),
+  name: varchar('name', { length: 120 }).notNull(),
+  email: varchar('email', { length: 255 }),
+  notes: text('notes'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  deletedAt: timestamp('deleted_at', { withTimezone: true }),
+}, (table) => ({
+  peopleUserIdx: index('people_user_idx').on(table.userId),
+  peopleUserNameUnique: unique('people_user_name_unique').on(table.userId, table.name),
+}))
+
+export const transactionSplits = pgTable('transaction_splits', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  transactionId: uuid('transaction_id').notNull().references(() => transactions.id, { onDelete: 'cascade' }),
+  personId: uuid('person_id').notNull().references(() => people.id),
+  assetId: uuid('asset_id').notNull().references(() => assets.id),
+  amount: numeric('amount', { precision: 20, scale: 8 }).notNull(), // positive = person owes the user
+  settledAt: timestamp('settled_at', { withTimezone: true }),
+  settlementTransactionId: uuid('settlement_transaction_id').references(() => transactions.id),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  splitTxIdx: index('split_tx_idx').on(table.transactionId),
+  splitPersonIdx: index('split_person_idx').on(table.personId),
+}))
+
 export const statementImports = pgTable('statement_imports', {
   id: uuid('id').defaultRandom().primaryKey(),
   userId: varchar('user_id', { length: 255 }).notNull().references(() => users.id),

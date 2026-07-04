@@ -9,6 +9,7 @@ import { registerSystemRoutes } from './routes/system'
 import { registerWalletRoutes } from './routes/wallets'
 import { registerTransactionRoutes } from './routes/transactions'
 import { registerCategoryRoutes } from './routes/categories'
+import { registerPeopleRoutes } from './routes/people'
 import { registerAnalyticsRoutes } from './routes/analytics'
 import { registerDashboardRoutes } from './routes/dashboard'
 import { registerImportRoutes } from './routes/imports'
@@ -40,6 +41,7 @@ registerSystemRoutes(app)
 registerWalletRoutes(app)
 registerTransactionRoutes(app)
 registerCategoryRoutes(app)
+registerPeopleRoutes(app)
 registerAnalyticsRoutes(app)
 registerDashboardRoutes(app)
 registerImportRoutes(app)
