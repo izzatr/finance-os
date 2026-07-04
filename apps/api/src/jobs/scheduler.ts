@@ -2,6 +2,7 @@ import cron from 'node-cron'
 import { materializeDueRules } from './materialize-recurring'
 import { fetchDailyRates } from './fetch-rates'
 import { generateWeeklyDigests } from './weekly-digest'
+import { bootstrapRatesIfEmpty } from './fetch-rates'
 
 /**
  * Hourly recurring-rule materialization (minute 7, to stay off the top-of-hour
@@ -10,6 +11,14 @@ import { generateWeeklyDigests } from './weekly-digest'
  * so tests importing the app never spin up cron.
  */
 export function startScheduler(): void {
+  // Fresh deployments have no FX rates until the first daily run — fetch now
+  // so multi-currency totals work from the first minute.
+  void bootstrapRatesIfEmpty()
+    .then(({ fetched, skipped }) => {
+      if (!skipped) console.log(`[scheduler] cold-start fx bootstrap: fetched=${fetched}`)
+    })
+    .catch((err) => console.error('[scheduler] fx bootstrap failed:', err))
+
   cron.schedule('7 * * * *', async () => {
     try {
       const { posted, drafted, errors } = await materializeDueRules(new Date())

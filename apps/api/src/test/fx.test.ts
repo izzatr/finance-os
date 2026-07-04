@@ -67,3 +67,24 @@ describe('getLatestRates', () => {
     expect(rates.has('IDR')).toBe(false)
   })
 })
+
+describe('rates cold-start bootstrap', () => {
+  beforeEach(async () => {
+    await truncateAll()
+  })
+
+  it('fetches on an empty table and skips once rates exist', async () => {
+    const { bootstrapRatesIfEmpty } = await import('../jobs/fetch-rates')
+    const stub = (async () =>
+      new Response(JSON.stringify({ base: 'EUR', date: '2026-07-05', rates: { USD: 1.09, IDR: 17650 } }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })) as typeof fetch
+
+    const first = await bootstrapRatesIfEmpty(stub)
+    expect(first).toMatchObject({ skipped: false, fetched: 2 })
+
+    const second = await bootstrapRatesIfEmpty(stub)
+    expect(second).toMatchObject({ skipped: true, fetched: 0 })
+  })
+})
