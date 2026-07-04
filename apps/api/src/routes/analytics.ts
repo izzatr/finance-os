@@ -1,7 +1,8 @@
 import { createRoute, z } from '@hono/zod-openapi'
 import type { OpenAPIHono } from '@hono/zod-openapi'
-import { db, assets, categories, transactionEntries, transactions, wallets } from '@finance-os/db'
-import { and, eq, gte, isNull, lte, sql } from 'drizzle-orm'
+import { db, assetPrices, assets, categories, exchangeRates, transactionEntries, transactions, wallets } from '@finance-os/db'
+import { and, desc, eq, gte, inArray, isNull, lte, sql } from 'drizzle-orm'
+import { convertAmount, getLatestRates } from '../lib/fx'
 
 export function registerAnalyticsRoutes(app: OpenAPIHono) {
   const monthlyTrendRoute = createRoute({
@@ -104,6 +105,37 @@ export function registerAnalyticsRoutes(app: OpenAPIHono) {
                   fee: z.number(),
                   net: z.number(),
                 })),
+              }),
+            }),
+          },
+        },
+      },
+    },
+  })
+
+  const netWorthRoute = createRoute({
+    method: 'get',
+    path: '/api/analytics/net-worth',
+    tags: ['analytics'],
+    request: {
+      query: z.object({
+        currency: z.string().optional(),
+        months: z.coerce.number().int().optional(),
+      }),
+    },
+    responses: {
+      200: {
+        description: 'Net worth over time, converted into a single display currency',
+        content: {
+          'application/json': {
+            schema: z.object({
+              data: z.object({
+                currency: z.string(),
+                asOf: z.string(),
+                total: z.number(),
+                series: z.array(z.object({ month: z.string(), total: z.number() })),
+                staleRates: z.boolean(),
+                missing: z.array(z.string()),
               }),
             }),
           },
@@ -310,6 +342,137 @@ export function registerAnalyticsRoutes(app: OpenAPIHono) {
           to: dateRange?.maxDate ?? null,
         },
         byCurrency,
+      },
+    }, 200)
+  })
+
+  app.openapi(netWorthRoute, async (c) => {
+    const user = c.get('user')
+    const { currency: rawCurrency, months: rawMonths } = c.req.valid('query')
+    const currency = (rawCurrency ?? 'EUR').toUpperCase()
+    const months = Math.min(60, Math.max(1, rawMonths ?? 12))
+
+    const now = new Date()
+    // The `months` calendar months ending at (and including) the current UTC month.
+    const targetMonths: string[] = []
+    for (let i = months - 1; i >= 0; i -= 1) {
+      const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - i, 1))
+      targetMonths.push(`${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`)
+    }
+
+    // Per-asset monthly net movement, over ALL history (not just the window) — a month
+    // with no activity still carries forward the balance built up in earlier months, so
+    // the cumulative sum has to start from the asset's very first transaction.
+    const rows = await db
+      .select({
+        assetId: transactionEntries.assetId,
+        assetCode: assets.code,
+        assetUnit: assets.unit,
+        month: sql<string>`to_char(date_trunc('month', ${transactions.transactionDate}), 'YYYY-MM')`,
+        // Numeric string straight from SQL — kept as a string until the cumulative-sum
+        // step below, which is this route's Number() conversion boundary. This is
+        // analytics display math, not ledger-of-record math, so double precision here
+        // is an accepted tradeoff.
+        total: sql<string>`sum(${transactionEntries.amount})`,
+      })
+      .from(transactions)
+      .innerJoin(transactionEntries, eq(transactionEntries.transactionId, transactions.id))
+      .innerJoin(assets, eq(assets.id, transactionEntries.assetId))
+      .where(and(eq(transactions.userId, user.id), isNull(transactions.deletedAt)))
+      .groupBy(transactionEntries.assetId, assets.code, assets.unit, sql`date_trunc('month', ${transactions.transactionDate})`)
+      .orderBy(transactionEntries.assetId, sql`date_trunc('month', ${transactions.transactionDate})`)
+
+    type AssetSeries = { code: string; unit: string | null; monthly: { month: string; cumulative: number }[] }
+    const byAsset = new Map<string, AssetSeries>()
+    for (const row of rows) {
+      if (!byAsset.has(row.assetId)) byAsset.set(row.assetId, { code: row.assetCode, unit: row.assetUnit, monthly: [] })
+      const series = byAsset.get(row.assetId)!
+      const prevCumulative = series.monthly.length > 0 ? series.monthly[series.monthly.length - 1].cumulative : 0
+      series.monthly.push({ month: row.month, cumulative: prevCumulative + Number(row.total) })
+    }
+
+    // Cumulative balance as of the end of `targetMonth` — the last data point at or
+    // before it (months are sorted ascending, so this is a running carry-forward).
+    function balanceAsOf(monthly: AssetSeries['monthly'], targetMonth: string): number {
+      let balance = 0
+      for (const entry of monthly) {
+        if (entry.month > targetMonth) break
+        balance = entry.cumulative
+      }
+      return balance
+    }
+
+    const rates = await getLatestRates()
+
+    // Simplification (documented): the whole series is converted using TODAY's latest
+    // rates, not the rate that was in effect at each historical month. Good enough for
+    // a display chart; a historically-accurate series would need a rate lookup per month.
+    function canConvert(from: string, to: string): boolean {
+      return from === to || (rates.has(from) && rates.has(to))
+    }
+
+    // Freshness of the EUR-based rate set used above.
+    const [{ maxAsOf }] = await db
+      .select({ maxAsOf: sql<string | null>`max(${exchangeRates.asOf})` })
+      .from(exchangeRates)
+      .where(eq(exchangeRates.base, 'EUR'))
+    const asOfDate = maxAsOf ? new Date(maxAsOf) : now
+    const staleRates = now.getTime() - asOfDate.getTime() > 7 * 24 * 60 * 60 * 1000
+
+    // Quantity assets (assets.unit set, e.g. XAU_G) are valued via the latest known
+    // asset_prices row instead of an exchange rate: value = qty * price, with the
+    // price's own currency converted into the display currency.
+    const quantityAssetIds = [...byAsset.entries()].filter(([, s]) => s.unit !== null).map(([id]) => id)
+    const priceByAsset = new Map<string, { price: number; currency: string }>()
+    if (quantityAssetIds.length > 0) {
+      const priceRows = await db
+        .select()
+        .from(assetPrices)
+        .where(inArray(assetPrices.assetId, quantityAssetIds))
+        .orderBy(desc(assetPrices.asOf))
+      for (const p of priceRows) {
+        if (!priceByAsset.has(p.assetId)) priceByAsset.set(p.assetId, { price: Number(p.price), currency: p.currency })
+      }
+    }
+
+    const missing = new Set<string>()
+    const seriesTotals = targetMonths.map(() => 0)
+
+    for (const [assetId, series] of byAsset) {
+      if (series.unit !== null) {
+        const priceInfo = priceByAsset.get(assetId)
+        if (!priceInfo || !canConvert(priceInfo.currency, currency)) {
+          missing.add(series.code)
+          continue
+        }
+        const priceInDisplay = convertAmount(priceInfo.price, priceInfo.currency, currency, rates)
+        targetMonths.forEach((month, i) => {
+          const qty = balanceAsOf(series.monthly, month)
+          seriesTotals[i] += qty * priceInDisplay
+        })
+      } else {
+        if (!canConvert(series.code, currency)) {
+          missing.add(series.code)
+          continue
+        }
+        targetMonths.forEach((month, i) => {
+          const balance = balanceAsOf(series.monthly, month)
+          seriesTotals[i] += convertAmount(balance, series.code, currency, rates)
+        })
+      }
+    }
+
+    const series = targetMonths.map((month, i) => ({ month, total: Math.round(seriesTotals[i] * 100) / 100 }))
+    const total = series.length > 0 ? series[series.length - 1].total : 0
+
+    return c.json({
+      data: {
+        currency,
+        asOf: asOfDate.toISOString(),
+        total,
+        series,
+        staleRates,
+        missing: [...missing].sort(),
       },
     }, 200)
   })
