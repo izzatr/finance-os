@@ -46,4 +46,15 @@ describe('auth', () => {
     })
     expect(res.status).toBe(200)
   })
+
+  it('returns the current session at GET /auth/get-session', async () => {
+    const { cookie, userId } = await createTestUser(app)
+    const res = await app.request('/auth/get-session', {
+      headers: { cookie },
+    })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { user: { id: string } | null }
+    expect(body.user).not.toBeNull()
+    expect(body.user?.id).toBe(userId)
+  })
 })

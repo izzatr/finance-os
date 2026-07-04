@@ -42,8 +42,13 @@ export function SignUpPage() {
     }
   }
 
-  function handleGoogleSignIn() {
-    signInWithGoogle()
+  async function handleGoogleSignIn() {
+    setError(null)
+    try {
+      await signInWithGoogle()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Google sign-in failed')
+    }
   }
 
   return (

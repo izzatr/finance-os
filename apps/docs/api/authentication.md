@@ -10,7 +10,7 @@ The web dashboard authenticates via session cookies. Better Auth manages session
 
 - `POST /auth/sign-up/email` -- create a new account
 - `POST /auth/sign-in/email` -- sign in with email/password
-- `GET /auth/session` -- get current session
+- `GET /auth/get-session` -- get current session
 - `POST /auth/sign-out` -- sign out
 
 Session cookies are set automatically and sent with subsequent requests.

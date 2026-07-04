@@ -60,7 +60,7 @@ async function authFetch<T>(path: string, init?: RequestInit): Promise<T> {
 
 export async function getSession(): Promise<{ user: AuthUser; session: AuthSession } | null> {
   try {
-    const data = await authFetch<{ user: AuthUser; session: AuthSession }>('/auth/session')
+    const data = await authFetch<{ user: AuthUser; session: AuthSession }>('/auth/get-session')
     return data
   } catch {
     return null
@@ -85,9 +85,16 @@ export async function signIn(payload: { email: string; password: string }) {
 
 // ── OAuth ────────────────────────────────────────────────────────────────────
 
-/** Redirects to Google sign-in (Better Auth handles callback) */
-export function signInWithGoogle() {
-  window.location.href = `${API_BASE}/auth/sign-in/google`
+/** Starts Google OAuth (Better Auth handles callback) and redirects to the provider's consent screen */
+export async function signInWithGoogle(): Promise<void> {
+  const data = await authFetch<{ url: string }>('/auth/sign-in/social', {
+    method: 'POST',
+    body: JSON.stringify({
+      provider: 'google',
+      callbackURL: `${window.location.origin}/dashboard`,
+    }),
+  })
+  window.location.href = data.url
 }
 
 // ── Sign Out ─────────────────────────────────────────────────────────────────
