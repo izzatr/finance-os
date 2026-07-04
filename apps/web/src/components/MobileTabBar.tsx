@@ -4,12 +4,14 @@ import {
   BarChart3,
   CreditCard,
   Globe,
+  CalendarClock,
   Inbox as InboxIcon,
   LayoutGrid,
   ListOrdered,
   Menu,
   Plus,
   Settings,
+  Tags,
   Users,
 } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
@@ -27,6 +29,8 @@ const MORE_LINKS = [
   { label: 'Wallets', icon: CreditCard, path: '/wallets' },
   { label: 'People', icon: Users, path: '/people' },
   { label: 'Inbox', icon: InboxIcon, path: '/inbox' },
+  { label: 'Recurring', icon: CalendarClock, path: '/recurring' },
+  { label: 'Categories', icon: Tags, path: '/categories' },
   { label: 'Currencies', icon: Globe, path: '/currencies' },
   { label: 'Settings', icon: Settings, path: '/settings/account' },
 ] as const
