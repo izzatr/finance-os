@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { Plus, ArrowLeftRight, BarChart3 } from 'lucide-react'
 import { AddTransactionForm } from '../components/AddTransactionForm'
+import { InboxNudge } from '../components/InboxNudge'
 import { OverviewHero } from '../components/OverviewHero'
 import { StatsRow } from '../components/StatsRow'
 import { TransferForm } from '../components/TransferForm'
@@ -111,7 +112,10 @@ export function DashboardPage() {
   )
 
   return (
-    <main className="max-w-[960px] px-8 md:px-12 pb-24">
+    <main className="max-w-[960px] px-4 lg:px-12 pb-24">
+      <div className="pt-4">
+        <InboxNudge />
+      </div>
       {/* Level 1: Overview */}
       <OverviewHero
         totalBalance={totalBalance !== null ? formatCurrency(totalBalance, defaultCurrency) : '\u2014'}
