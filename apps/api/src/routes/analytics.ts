@@ -112,8 +112,9 @@ export function registerAnalyticsRoutes(app: OpenAPIHono) {
   })
 
   app.openapi(monthlyTrendRoute, async (c) => {
+    const user = c.get('user')
     const { from, to } = c.req.valid('query')
-    const dateFilters = [isNull(transactions.deletedAt)]
+    const dateFilters = [eq(transactions.userId, user.id), isNull(transactions.deletedAt)]
     if (from) dateFilters.push(gte(transactions.transactionDate, new Date(from)))
     if (to) dateFilters.push(lte(transactions.transactionDate, new Date(to)))
     const dateCondition = and(...dateFilters)
@@ -162,8 +163,9 @@ export function registerAnalyticsRoutes(app: OpenAPIHono) {
   })
 
   app.openapi(categoryBreakdownRoute, async (c) => {
+    const user = c.get('user')
     const { from, to } = c.req.valid('query')
-    const dateFilters = [isNull(transactions.deletedAt)]
+    const dateFilters = [eq(transactions.userId, user.id), isNull(transactions.deletedAt)]
     if (from) dateFilters.push(gte(transactions.transactionDate, new Date(from)))
     if (to) dateFilters.push(lte(transactions.transactionDate, new Date(to)))
     const dateCondition = and(...dateFilters)
@@ -200,9 +202,10 @@ export function registerAnalyticsRoutes(app: OpenAPIHono) {
   })
 
   app.openapi(summaryRoute, async (c) => {
+    const user = c.get('user')
     const { from, to } = c.req.valid('query')
 
-    const dateFilters = [isNull(transactions.deletedAt)]
+    const dateFilters = [eq(transactions.userId, user.id), isNull(transactions.deletedAt)]
     if (from) dateFilters.push(gte(transactions.transactionDate, new Date(from)))
     if (to) dateFilters.push(lte(transactions.transactionDate, new Date(to)))
     const dateCondition = and(...dateFilters)
@@ -230,7 +233,7 @@ export function registerAnalyticsRoutes(app: OpenAPIHono) {
       .innerJoin(assets, eq(assets.id, wallets.assetId))
       .leftJoin(transactionEntries, eq(transactionEntries.walletId, wallets.id))
       .leftJoin(transactions, eq(transactions.id, transactionEntries.transactionId))
-      .where(and(isNull(wallets.deletedAt), isNull(transactions.deletedAt)))
+      .where(and(eq(wallets.userId, user.id), isNull(wallets.deletedAt), isNull(transactions.deletedAt)))
       .groupBy(assets.code)
 
     const balanceByCurrency = new Map(balanceRows.map((r) => [r.currency, Number(r.balance)]))
@@ -280,8 +283,8 @@ export function registerAnalyticsRoutes(app: OpenAPIHono) {
 
     // Counts
     const [txCount] = await db.select({ count: sql<number>`count(*)` }).from(transactions).where(dateCondition)
-    const [wCount] = await db.select({ count: sql<number>`count(*)` }).from(wallets).where(isNull(wallets.deletedAt))
-    const [catCount] = await db.select({ count: sql<number>`count(*)` }).from(categories)
+    const [wCount] = await db.select({ count: sql<number>`count(*)` }).from(wallets).where(and(eq(wallets.userId, user.id), isNull(wallets.deletedAt)))
+    const [catCount] = await db.select({ count: sql<number>`count(*)` }).from(categories).where(eq(categories.userId, user.id))
 
     // Date range
     const [dateRange] = await db
@@ -290,7 +293,7 @@ export function registerAnalyticsRoutes(app: OpenAPIHono) {
         maxDate: sql<string>`max(${transactions.transactionDate})`,
       })
       .from(transactions)
-      .where(isNull(transactions.deletedAt))
+      .where(and(eq(transactions.userId, user.id), isNull(transactions.deletedAt)))
 
     return c.json({
       data: {

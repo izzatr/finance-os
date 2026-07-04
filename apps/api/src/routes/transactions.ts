@@ -2,7 +2,17 @@ import { createRoute, z } from '@hono/zod-openapi'
 import type { OpenAPIHono } from '@hono/zod-openapi'
 import { db, assets, categories, transactionEntries, transactions, wallets } from '@finance-os/db'
 import { transactionSchema } from '@finance-os/domain'
-import { and, desc, eq, gte, isNull, isNotNull, lte, sql } from 'drizzle-orm'
+import { and, desc, eq, gte, inArray, isNull, isNotNull, lte, sql } from 'drizzle-orm'
+
+/** All referenced wallets must exist, be live, and belong to the user. */
+async function userOwnsWallets(userId: string, walletIds: string[]): Promise<boolean> {
+  const uniqueIds = [...new Set(walletIds)]
+  const owned = await db
+    .select({ id: wallets.id })
+    .from(wallets)
+    .where(and(inArray(wallets.id, uniqueIds), eq(wallets.userId, userId), isNull(wallets.deletedAt)))
+  return owned.length === uniqueIds.length
+}
 
 export function registerTransactionRoutes(app: OpenAPIHono) {
   const listTransactionsRoute = createRoute({
@@ -59,6 +69,14 @@ export function registerTransactionRoutes(app: OpenAPIHono) {
                 message: z.string(),
               }),
             }),
+          },
+        },
+      },
+      404: {
+        description: 'Referenced wallet not found',
+        content: {
+          'application/json': {
+            schema: z.object({ error: z.object({ code: z.string(), message: z.string() }) }),
           },
         },
       },
@@ -228,12 +246,28 @@ export function registerTransactionRoutes(app: OpenAPIHono) {
           },
         },
       },
+      404: {
+        description: 'Referenced wallet not found',
+        content: {
+          'application/json': {
+            schema: z.object({ error: z.object({ code: z.string(), message: z.string() }) }),
+          },
+        },
+      },
     },
   })
 
   app.openapi(patchTransactionRoute, async (c) => {
+    const user = c.get('user')
     const { id } = c.req.valid('param')
     const payload = c.req.valid('json')
+
+    // Verify ownership first — entries are only reachable through an owned transaction
+    const [existing] = await db.select({ id: transactions.id }).from(transactions)
+      .where(and(eq(transactions.id, id), eq(transactions.userId, user.id), isNull(transactions.deletedAt)))
+    if (!existing) {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Transaction not found' } }, 404)
+    }
 
     // Update transaction header fields
     const txUpdates: Record<string, unknown> = {}
@@ -244,10 +278,7 @@ export function registerTransactionRoutes(app: OpenAPIHono) {
     if (payload.categoryId !== undefined) txUpdates.categoryId = payload.categoryId
 
     if (Object.keys(txUpdates).length > 0) {
-      const [row] = await db.update(transactions).set(txUpdates).where(and(eq(transactions.id, id), isNull(transactions.deletedAt))).returning()
-      if (!row) {
-        return c.json({ error: { code: 'NOT_FOUND', message: 'Transaction not found' } }, 404)
-      }
+      await db.update(transactions).set(txUpdates).where(and(eq(transactions.id, id), eq(transactions.userId, user.id), isNull(transactions.deletedAt)))
     }
 
     // Update entry amount if provided (updates first entry)
@@ -259,7 +290,7 @@ export function registerTransactionRoutes(app: OpenAPIHono) {
     }
 
     // Return updated transaction
-    const [updated] = await db.select().from(transactions).where(and(eq(transactions.id, id), isNull(transactions.deletedAt)))
+    const [updated] = await db.select().from(transactions).where(and(eq(transactions.id, id), eq(transactions.userId, user.id), isNull(transactions.deletedAt)))
     if (!updated) {
       return c.json({ error: { code: 'NOT_FOUND', message: 'Transaction not found' } }, 404)
     }
@@ -276,8 +307,21 @@ export function registerTransactionRoutes(app: OpenAPIHono) {
   })
 
   app.openapi(listTransactionsRoute, async (c) => {
-    const txRows = await db.select().from(transactions).where(isNull(transactions.deletedAt)).orderBy(desc(transactions.transactionDate))
-    const entryRows = await db.select().from(transactionEntries)
+    const user = c.get('user')
+    const txRows = await db.select().from(transactions)
+      .where(and(eq(transactions.userId, user.id), isNull(transactions.deletedAt)))
+      .orderBy(desc(transactions.transactionDate))
+    const entryRows = await db
+      .select({
+        transactionId: transactionEntries.transactionId,
+        walletId: transactionEntries.walletId,
+        assetId: transactionEntries.assetId,
+        amount: transactionEntries.amount,
+        notes: transactionEntries.notes,
+      })
+      .from(transactionEntries)
+      .innerJoin(transactions, eq(transactions.id, transactionEntries.transactionId))
+      .where(eq(transactions.userId, user.id))
 
     const data = txRows.map((row) => ({
       ...row,
@@ -295,6 +339,7 @@ export function registerTransactionRoutes(app: OpenAPIHono) {
   })
 
   app.openapi(createTransactionRoute, async (c) => {
+    const user = c.get('user')
     const payload = c.req.valid('json')
 
     if (payload.type === 'transfer' && payload.entries.length < 2) {
@@ -306,7 +351,13 @@ export function registerTransactionRoutes(app: OpenAPIHono) {
       }, 400)
     }
 
+    // Every referenced wallet must belong to the acting user
+    if (!(await userOwnsWallets(user.id, payload.entries.map((e) => e.walletId)))) {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Wallet not found' } }, 404)
+    }
+
     const [txRow] = await db.insert(transactions).values({
+      userId: user.id,
       transactionDate: new Date(payload.transactionDate),
       type: payload.type,
       description: payload.description,
@@ -328,9 +379,10 @@ export function registerTransactionRoutes(app: OpenAPIHono) {
   })
 
   app.openapi(deleteTransactionRoute, async (c) => {
+    const user = c.get('user')
     const { id } = c.req.valid('param')
     const now = new Date()
-    const [row] = await db.update(transactions).set({ deletedAt: now }).where(and(eq(transactions.id, id), isNull(transactions.deletedAt))).returning()
+    const [row] = await db.update(transactions).set({ deletedAt: now }).where(and(eq(transactions.id, id), eq(transactions.userId, user.id), isNull(transactions.deletedAt))).returning()
     if (!row) {
       return c.json({ error: { code: 'NOT_FOUND', message: 'Transaction not found' } }, 404)
     }
@@ -338,8 +390,9 @@ export function registerTransactionRoutes(app: OpenAPIHono) {
   })
 
   app.openapi(restoreTransactionRoute, async (c) => {
+    const user = c.get('user')
     const { id } = c.req.valid('param')
-    const [row] = await db.update(transactions).set({ deletedAt: null }).where(and(eq(transactions.id, id), isNotNull(transactions.deletedAt))).returning()
+    const [row] = await db.update(transactions).set({ deletedAt: null }).where(and(eq(transactions.id, id), eq(transactions.userId, user.id), isNotNull(transactions.deletedAt))).returning()
     if (!row) {
       return c.json({ error: { code: 'NOT_FOUND', message: 'Transaction not found' } }, 404)
     }
@@ -347,9 +400,10 @@ export function registerTransactionRoutes(app: OpenAPIHono) {
   })
 
   app.openapi(searchTransactionsRoute, async (c) => {
+    const user = c.get('user')
     const { q, wallet, category, from, to, includeDeleted } = c.req.valid('query')
 
-    const filters = []
+    const filters = [eq(transactions.userId, user.id)]
     if (includeDeleted !== 'true') {
       filters.push(isNull(transactions.deletedAt))
     }
@@ -369,7 +423,7 @@ export function registerTransactionRoutes(app: OpenAPIHono) {
       filters.push(lte(transactions.transactionDate, new Date(to)))
     }
 
-    const condition = filters.length > 0 ? and(...filters) : undefined
+    const condition = and(...filters)
 
     const rows = await db
       .select({
@@ -408,11 +462,20 @@ export function registerTransactionRoutes(app: OpenAPIHono) {
   })
 
   app.openapi(bulkCreateTransactionsRoute, async (c) => {
+    const user = c.get('user')
     const payload = c.req.valid('json')
+
+    // Every referenced wallet across the batch must belong to the acting user
+    const allWalletIds = payload.transactions.flatMap((tx) => tx.entries.map((e) => e.walletId))
+    if (!(await userOwnsWallets(user.id, allWalletIds))) {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Wallet not found' } }, 404)
+    }
+
     const ids: string[] = []
 
     for (const tx of payload.transactions) {
       const [txRow] = await db.insert(transactions).values({
+        userId: user.id,
         transactionDate: new Date(tx.transactionDate),
         type: tx.type,
         description: tx.description,

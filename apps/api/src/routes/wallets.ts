@@ -238,8 +238,10 @@ export function registerWalletRoutes(app: OpenAPIHono) {
   })
 
   app.openapi(createWalletRoute, async (c) => {
+    const user = c.get('user')
     const payload = c.req.valid('json')
     const [row] = await db.insert(wallets).values({
+      userId: user.id,
       name: payload.name,
       walletType: payload.walletType,
       institution: payload.institution ?? null,
@@ -251,6 +253,7 @@ export function registerWalletRoutes(app: OpenAPIHono) {
   })
 
   app.openapi(listWalletsRoute, async (c) => {
+    const user = c.get('user')
     const rows = await db
       .select({
         id: wallets.id,
@@ -266,7 +269,7 @@ export function registerWalletRoutes(app: OpenAPIHono) {
       .innerJoin(assets, eq(assets.id, wallets.assetId))
       .leftJoin(transactionEntries, eq(transactionEntries.walletId, wallets.id))
       .leftJoin(transactions, eq(transactions.id, transactionEntries.transactionId))
-      .where(and(isNull(wallets.deletedAt), isNull(transactions.deletedAt)))
+      .where(and(eq(wallets.userId, user.id), isNull(wallets.deletedAt), isNull(transactions.deletedAt)))
       .groupBy(wallets.id, assets.code)
       .orderBy(wallets.name)
 
@@ -274,6 +277,7 @@ export function registerWalletRoutes(app: OpenAPIHono) {
   })
 
   app.openapi(walletTransactionsRoute, async (c) => {
+    const user = c.get('user')
     const { id } = c.req.valid('param')
 
     // Get wallet with balance
@@ -290,7 +294,7 @@ export function registerWalletRoutes(app: OpenAPIHono) {
       .innerJoin(assets, eq(assets.id, wallets.assetId))
       .leftJoin(transactionEntries, eq(transactionEntries.walletId, wallets.id))
       .leftJoin(transactions, eq(transactions.id, transactionEntries.transactionId))
-      .where(and(eq(wallets.id, id), isNull(wallets.deletedAt), isNull(transactions.deletedAt)))
+      .where(and(eq(wallets.id, id), eq(wallets.userId, user.id), isNull(wallets.deletedAt), isNull(transactions.deletedAt)))
       .groupBy(wallets.id, assets.code)
 
     if (!wallet) {
@@ -317,7 +321,7 @@ export function registerWalletRoutes(app: OpenAPIHono) {
       ))
       .innerJoin(assets, eq(assets.id, transactionEntries.assetId))
       .leftJoin(categories, eq(categories.id, transactions.categoryId))
-      .where(isNull(transactions.deletedAt))
+      .where(and(eq(transactions.userId, user.id), isNull(transactions.deletedAt)))
       .orderBy(desc(transactions.transactionDate))
 
     const txData = rows.map((r) => ({
@@ -341,6 +345,7 @@ export function registerWalletRoutes(app: OpenAPIHono) {
   })
 
   app.openapi(patchWalletRoute, async (c) => {
+    const user = c.get('user')
     const { id } = c.req.valid('param')
     const payload = c.req.valid('json')
 
@@ -354,7 +359,7 @@ export function registerWalletRoutes(app: OpenAPIHono) {
       return c.json({ error: { code: 'NO_CHANGES', message: 'No fields to update' } }, 404)
     }
 
-    const [row] = await db.update(wallets).set(updates).where(and(eq(wallets.id, id), isNull(wallets.deletedAt))).returning()
+    const [row] = await db.update(wallets).set(updates).where(and(eq(wallets.id, id), eq(wallets.userId, user.id), isNull(wallets.deletedAt))).returning()
 
     if (!row) {
       return c.json({ error: { code: 'NOT_FOUND', message: 'Wallet not found' } }, 404)
@@ -364,9 +369,10 @@ export function registerWalletRoutes(app: OpenAPIHono) {
   })
 
   app.openapi(deleteWalletRoute, async (c) => {
+    const user = c.get('user')
     const { id } = c.req.valid('param')
     const now = new Date()
-    const [row] = await db.update(wallets).set({ deletedAt: now }).where(and(eq(wallets.id, id), isNull(wallets.deletedAt))).returning()
+    const [row] = await db.update(wallets).set({ deletedAt: now }).where(and(eq(wallets.id, id), eq(wallets.userId, user.id), isNull(wallets.deletedAt))).returning()
     if (!row) {
       return c.json({ error: { code: 'NOT_FOUND', message: 'Wallet not found' } }, 404)
     }
@@ -374,8 +380,9 @@ export function registerWalletRoutes(app: OpenAPIHono) {
   })
 
   app.openapi(restoreWalletRoute, async (c) => {
+    const user = c.get('user')
     const { id } = c.req.valid('param')
-    const [row] = await db.update(wallets).set({ deletedAt: null }).where(and(eq(wallets.id, id), isNotNull(wallets.deletedAt))).returning()
+    const [row] = await db.update(wallets).set({ deletedAt: null }).where(and(eq(wallets.id, id), eq(wallets.userId, user.id), isNotNull(wallets.deletedAt))).returning()
     if (!row) {
       return c.json({ error: { code: 'NOT_FOUND', message: 'Wallet not found' } }, 404)
     }
@@ -383,6 +390,7 @@ export function registerWalletRoutes(app: OpenAPIHono) {
   })
 
   app.openapi(walletMonthlySummaryRoute, async (c) => {
+    const user = c.get('user')
     const { id } = c.req.valid('param')
 
     const [wallet] = await db
@@ -393,7 +401,7 @@ export function registerWalletRoutes(app: OpenAPIHono) {
       })
       .from(wallets)
       .innerJoin(assets, eq(assets.id, wallets.assetId))
-      .where(and(eq(wallets.id, id), isNull(wallets.deletedAt)))
+      .where(and(eq(wallets.id, id), eq(wallets.userId, user.id), isNull(wallets.deletedAt)))
 
     if (!wallet) {
       return c.json({ error: { code: 'NOT_FOUND', message: 'Wallet not found' } }, 404)
@@ -407,7 +415,7 @@ export function registerWalletRoutes(app: OpenAPIHono) {
       })
       .from(transactions)
       .innerJoin(transactionEntries, eq(transactionEntries.transactionId, transactions.id))
-      .where(and(eq(transactionEntries.walletId, id), isNull(transactions.deletedAt)))
+      .where(and(eq(transactionEntries.walletId, id), eq(transactions.userId, user.id), isNull(transactions.deletedAt)))
       .groupBy(sql`to_char(${transactions.transactionDate}, 'YYYY-MM')`, transactions.type)
       .orderBy(sql`to_char(${transactions.transactionDate}, 'YYYY-MM')`)
 

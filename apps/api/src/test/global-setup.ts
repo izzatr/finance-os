@@ -24,5 +24,15 @@ export default async function setup() {
   await migrate(db, {
     migrationsFolder: path.resolve(__dirname, '../../../../packages/db/drizzle'),
   })
+
+  // Seed base assets (shared reference data; idempotent, survives truncateAll)
+  await pool.query(`
+    INSERT INTO assets (code, name, type, precision) VALUES
+      ('EUR', 'Euro', 'currency', 2),
+      ('USD', 'US Dollar', 'currency', 2),
+      ('IDR', 'Indonesian Rupiah', 'currency', 2)
+    ON CONFLICT (code) DO NOTHING
+  `)
+
   await pool.end()
 }

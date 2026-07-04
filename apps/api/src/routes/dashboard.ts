@@ -84,10 +84,12 @@ export function registerDashboardRoutes(app: OpenAPIHono) {
   })
 
   app.openapi(dashboardRoute, async (c) => {
-    const [walletRow] = await db.select({ count: sql<number>`count(*)` }).from(wallets).where(isNull(wallets.deletedAt))
+    const user = c.get('user')
+    const [walletRow] = await db.select({ count: sql<number>`count(*)` }).from(wallets).where(and(eq(wallets.userId, user.id), isNull(wallets.deletedAt)))
+    // Assets are shared reference data — the count stays global
     const [assetRow] = await db.select({ count: sql<number>`count(*)` }).from(assets)
-    const [transactionRow] = await db.select({ count: sql<number>`count(*)` }).from(transactions).where(isNull(transactions.deletedAt))
-    const [importRow] = await db.select({ count: sql<number>`count(*)` }).from(statementImports)
+    const [transactionRow] = await db.select({ count: sql<number>`count(*)` }).from(transactions).where(and(eq(transactions.userId, user.id), isNull(transactions.deletedAt)))
+    const [importRow] = await db.select({ count: sql<number>`count(*)` }).from(statementImports).where(eq(statementImports.userId, user.id))
 
     return c.json({
       data: {
@@ -100,6 +102,7 @@ export function registerDashboardRoutes(app: OpenAPIHono) {
   })
 
   app.openapi(recentTransactionsRoute, async (c) => {
+    const user = c.get('user')
     const rows = await db
       .select({
         id: transactions.id,
@@ -117,7 +120,7 @@ export function registerDashboardRoutes(app: OpenAPIHono) {
       .innerJoin(assets, eq(assets.id, transactionEntries.assetId))
       .innerJoin(wallets, eq(wallets.id, transactionEntries.walletId))
       .leftJoin(categories, eq(categories.id, transactions.categoryId))
-      .where(and(isNull(transactions.deletedAt), isNull(wallets.deletedAt)))
+      .where(and(eq(transactions.userId, user.id), isNull(transactions.deletedAt), isNull(wallets.deletedAt)))
       .orderBy(desc(transactions.transactionDate))
       .limit(50)
 
@@ -137,6 +140,7 @@ export function registerDashboardRoutes(app: OpenAPIHono) {
   })
 
   app.openapi(assetGrowthRoute, async (c) => {
+    const user = c.get('user')
     // Always compute cumulative from all time — from/to only filters the output range
     const rows = await db.execute(sql`
       SELECT
@@ -152,6 +156,7 @@ export function registerDashboardRoutes(app: OpenAPIHono) {
         INNER JOIN transaction_entries te ON te.transaction_id = t.id
         INNER JOIN assets a ON a.id = te.asset_id
         WHERE t.deleted_at IS NULL
+          AND t.user_id = ${user.id}
         GROUP BY to_char(t.transaction_date, 'YYYY-MM'), a.code
       ) monthly
       ORDER BY month, currency

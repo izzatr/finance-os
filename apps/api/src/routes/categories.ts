@@ -1,7 +1,7 @@
 import { createRoute, z } from '@hono/zod-openapi'
 import type { OpenAPIHono } from '@hono/zod-openapi'
 import { db, categories } from '@finance-os/db'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 
 export function registerCategoryRoutes(app: OpenAPIHono) {
   const listCategoriesRoute = createRoute({
@@ -86,26 +86,29 @@ export function registerCategoryRoutes(app: OpenAPIHono) {
   })
 
   app.openapi(listCategoriesRoute, async (c) => {
-    const rows = await db.select().from(categories).orderBy(categories.name)
+    const user = c.get('user')
+    const rows = await db.select().from(categories).where(eq(categories.userId, user.id)).orderBy(categories.name)
     return c.json({ data: rows }, 200)
   })
 
   app.openapi(createCategoryRoute, async (c) => {
+    const user = c.get('user')
     const { name } = c.req.valid('json')
     const slug = name.toLowerCase().replace(/[&]/g, 'and').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
 
-    const [row] = await db.insert(categories).values({ name, slug }).onConflictDoNothing().returning()
+    const [row] = await db.insert(categories).values({ userId: user.id, name, slug }).onConflictDoNothing().returning()
 
     if (row) {
       return c.json({ data: { id: row.id, name: row.name, slug: row.slug } }, 201)
     }
 
-    // Conflict — return existing
-    const [existing] = await db.select().from(categories).where(eq(categories.slug, slug))
+    // Conflict — return this user's existing category
+    const [existing] = await db.select().from(categories).where(and(eq(categories.slug, slug), eq(categories.userId, user.id)))
     return c.json({ data: { id: existing.id, name: existing.name, slug: existing.slug } }, 201)
   })
 
   app.openapi(patchCategoryRoute, async (c) => {
+    const user = c.get('user')
     const { id } = c.req.valid('param')
     const payload = c.req.valid('json')
 
@@ -114,7 +117,7 @@ export function registerCategoryRoutes(app: OpenAPIHono) {
     }
 
     const slug = payload.name.toLowerCase().replace(/[&]/g, 'and').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
-    const [row] = await db.update(categories).set({ name: payload.name, slug }).where(eq(categories.id, id)).returning()
+    const [row] = await db.update(categories).set({ name: payload.name, slug }).where(and(eq(categories.id, id), eq(categories.userId, user.id))).returning()
 
     if (!row) {
       return c.json({ error: { code: 'NOT_FOUND', message: 'Category not found' } }, 404)

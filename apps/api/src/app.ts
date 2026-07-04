@@ -1,3 +1,4 @@
+import './types'
 import { OpenAPIHono } from '@hono/zod-openapi'
 import { cors } from 'hono/cors'
 import { auth } from '@finance-os/db'
