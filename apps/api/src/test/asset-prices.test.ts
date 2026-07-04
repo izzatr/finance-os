@@ -89,7 +89,7 @@ describe('asset prices and wallet valuation', () => {
   it('values a quantity-asset wallet at balance x latest price', async () => {
     const { cookie } = await createTestUser(app)
     const gold = await getAsset(cookie, 'XAU_G')
-    const walletId = await createWallet(cookie, 'Emas', gold.id)
+    const walletId = await createWallet(cookie, 'Gold Stash', gold.id)
     await addEntry(cookie, walletId, gold.id, '10') // 10 grams
 
     await postPrice(cookie, { assetId: gold.id, price: '90', currency: 'EUR', asOf: '2026-06-01T00:00:00.000Z' })
@@ -111,7 +111,7 @@ describe('asset prices and wallet valuation', () => {
   it('quantity-asset wallet without any price has null valuation', async () => {
     const { cookie } = await createTestUser(app)
     const gold = await getAsset(cookie, 'XAU_G')
-    const walletId = await createWallet(cookie, 'Emas', gold.id)
+    const walletId = await createWallet(cookie, 'Gold Stash', gold.id)
     await addEntry(cookie, walletId, gold.id, '5')
 
     const res = await app.request('/api/wallets', { headers: { cookie } })
@@ -134,7 +134,7 @@ describe('asset prices and wallet valuation', () => {
   it('wallet detail also carries the valuation', async () => {
     const { cookie } = await createTestUser(app)
     const gold = await getAsset(cookie, 'XAU_G')
-    const walletId = await createWallet(cookie, 'Emas', gold.id)
+    const walletId = await createWallet(cookie, 'Gold Stash', gold.id)
     await addEntry(cookie, walletId, gold.id, '2.5')
     await postPrice(cookie, { assetId: gold.id, price: '100', currency: 'EUR' })
 
