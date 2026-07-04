@@ -64,14 +64,10 @@ describe('recurring rules', () => {
     expect(data.mode).toBe('draft')
     expect(data.isActive).toBe(true)
 
-    // nextRunAt must be the first occurrence strictly after "now" — computed
-    // independently against the domain function as the source of truth.
-    const expectedFirst = nextOccurrences(
-      { freq: 'monthly', interval: 1, startAt },
-      new Date(),
-      1,
-    )[0]
-    expect(new Date(data.nextRunAt).toISOString()).toBe(expectedFirst.toISOString())
+    // nextRunAt is the first *unbooked* occurrence — the first one strictly after
+    // lastRunAt (null on create), i.e. startAt itself. For a past startAt that is a
+    // past-due instant: correct, the materializer books the backlog on its next tick.
+    expect(new Date(data.nextRunAt).toISOString()).toBe(startAt.toISOString())
   })
 
   it('sets nextRunAt to startAt itself when startAt is in the future', async () => {
@@ -184,6 +180,33 @@ describe('recurring rules', () => {
     const { data } = (await res.json()) as { data: { mode: string; isActive: boolean } }
     expect(data.mode).toBe('auto_post')
     expect(data.isActive).toBe(false)
+  })
+
+  it('patching an unrelated field on a past-due rule does not defer nextRunAt', async () => {
+    const { cookie } = await createTestUser(app)
+    const { walletId, assetId } = await createWallet(cookie, 'Checking')
+    const startAt = new Date(Date.UTC(2020, 0, 15)) // past-due: never materialized
+
+    const created = (await (
+      await createRule(cookie, {
+        name: 'Rent',
+        template: rentTemplate(walletId, assetId),
+        freq: 'monthly',
+        interval: 1,
+        startAt: startAt.toISOString(),
+      })
+    ).json()) as { data: { id: string; nextRunAt: string } }
+    expect(new Date(created.data.nextRunAt).toISOString()).toBe(startAt.toISOString())
+
+    const res = await app.request(`/api/recurring-rules/${created.data.id}`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json', cookie },
+      body: JSON.stringify({ isActive: true }),
+    })
+    expect(res.status).toBe(200)
+    const { data } = (await res.json()) as { data: { nextRunAt: string } }
+    // Still the pending (past-due) occurrence — the patch must not push it a cycle out.
+    expect(new Date(data.nextRunAt).toISOString()).toBe(startAt.toISOString())
   })
 
   it('deletes a rule so it no longer appears in the list', async () => {

@@ -100,14 +100,14 @@ async function validateTemplateOwnership(
   return null
 }
 
-/** First occurrence strictly after now, except when startAt is itself in the future —
- * then startAt IS the first occurrence. */
-function computeNextRunAt(schedule: RecurringSchedule): Date {
-  const now = new Date()
-  if (schedule.startAt.getTime() > now.getTime()) {
-    return schedule.startAt
-  }
-  const [occurrence] = nextOccurrences(schedule, now, 1)
+/** The first *unbooked* occurrence: strictly after lastRunAt, or — when the rule has
+ * never run — the first occurrence at all (startAt itself, via the startAt-1ms anchor).
+ * Deliberately NOT anchored on `now`: a past-due nextRunAt is correct and means the
+ * materializer owes a booking; anchoring on now would silently defer it a full cycle
+ * whenever an unrelated field is patched. A future startAt falls out naturally. */
+function computeNextRunAt(schedule: RecurringSchedule, lastRunAt: Date | null): Date {
+  const anchor = lastRunAt ?? new Date(schedule.startAt.getTime() - 1)
+  const [occurrence] = nextOccurrences(schedule, anchor, 1)
   return occurrence ?? schedule.startAt
 }
 
@@ -252,7 +252,7 @@ export function registerRecurringRoutes(app: OpenAPIHono) {
       startAt: new Date(body.startAt),
       endAt: body.endAt ? new Date(body.endAt) : null,
     }
-    const nextRunAt = computeNextRunAt(schedule)
+    const nextRunAt = computeNextRunAt(schedule, null)
 
     const [row] = await db.insert(recurringRules).values({
       userId: user.id,
@@ -301,7 +301,7 @@ export function registerRecurringRoutes(app: OpenAPIHono) {
       startAt: payload.startAt ? new Date(payload.startAt) : existing.startAt,
       endAt: payload.endAt !== undefined ? (payload.endAt ? new Date(payload.endAt) : null) : existing.endAt,
     }
-    const nextRunAt = computeNextRunAt(schedule)
+    const nextRunAt = computeNextRunAt(schedule, existing.lastRunAt)
 
     const updateSet: Partial<typeof recurringRules.$inferInsert> = {
       startAt: schedule.startAt,
