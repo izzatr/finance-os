@@ -3,7 +3,7 @@ import type { OpenAPIHono } from '@hono/zod-openapi'
 import { db, assets, people, transactionEntries, transactions, transactionSplits } from '@finance-os/db'
 import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { recordAudit } from '../lib/audit'
-import { userOwnsWallets } from './transactions'
+import { userOwnsWallets } from '../lib/create-transaction'
 
 const personShape = z.object({
   id: z.string().uuid(),

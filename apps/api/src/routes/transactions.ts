@@ -1,29 +1,10 @@
 import { createRoute, z } from '@hono/zod-openapi'
 import type { OpenAPIHono } from '@hono/zod-openapi'
-import { db, assets, categories, people, transactionEntries, transactionSplits, transactions, wallets } from '@finance-os/db'
+import { db, assets, categories, transactionEntries, transactionSplits, transactions, wallets } from '@finance-os/db'
 import { transactionSchema } from '@finance-os/domain'
 import { and, desc, eq, gte, inArray, isNull, isNotNull, lte, sql } from 'drizzle-orm'
 import { recordAudit } from '../lib/audit'
-
-/** All referenced wallets must exist, be live, and belong to the user. */
-export async function userOwnsWallets(userId: string, walletIds: string[]): Promise<boolean> {
-  const uniqueIds = [...new Set(walletIds)]
-  const owned = await db
-    .select({ id: wallets.id })
-    .from(wallets)
-    .where(and(inArray(wallets.id, uniqueIds), eq(wallets.userId, userId), isNull(wallets.deletedAt)))
-  return owned.length === uniqueIds.length
-}
-
-/** All referenced people must exist, be live, and belong to the user. */
-async function userOwnsPeople(userId: string, personIds: string[]): Promise<boolean> {
-  const uniqueIds = [...new Set(personIds)]
-  const owned = await db
-    .select({ id: people.id })
-    .from(people)
-    .where(and(inArray(people.id, uniqueIds), eq(people.userId, userId), isNull(people.deletedAt)))
-  return owned.length === uniqueIds.length
-}
+import { createTransactionForUser, CreateTransactionError, userOwnsWallets } from '../lib/create-transaction'
 
 const splitInputSchema = z.object({
   personId: z.string().uuid(),
@@ -414,77 +395,24 @@ export function registerTransactionRoutes(app: OpenAPIHono) {
     const user = c.get('user')
     const payload = c.req.valid('json')
 
-    if (payload.type === 'transfer' && payload.entries.length < 2) {
-      return c.json({
-        error: {
-          code: 'INVALID_TRANSFER',
-          message: 'Transfer transactions must include at least two entries.',
-        },
-      }, 400)
-    }
-
-    // Every referenced wallet must belong to the acting user
-    if (!(await userOwnsWallets(user.id, payload.entries.map((e) => e.walletId)))) {
-      return c.json({ error: { code: 'NOT_FOUND', message: 'Wallet not found' } }, 404)
-    }
-
-    // Every referenced person (for splits) must belong to the acting user — checked before
-    // any writes so a foreign personId leaves nothing behind.
-    if (payload.splits && payload.splits.length > 0) {
-      if (!(await userOwnsPeople(user.id, payload.splits.map((s) => s.personId)))) {
-        return c.json({ error: { code: 'NOT_FOUND', message: 'Person not found' } }, 404)
+    let created: { id: string }
+    try {
+      created = await createTransactionForUser(payload, { userId: user.id, actorType: c.get('authMethod') ?? 'user' })
+    } catch (err) {
+      if (err instanceof CreateTransactionError) {
+        return c.json({ error: { code: err.code, message: err.message } }, err.status as 400 | 404)
       }
+      throw err
     }
 
-    const defaultAssetId = payload.entries[0].assetId
-
-    const { txRow, splitRows } = await db.transaction(async (tx) => {
-      const [txRow] = await tx.insert(transactions).values({
-        userId: user.id,
-        transactionDate: new Date(payload.transactionDate),
-        type: payload.type,
-        description: payload.description,
-        notes: payload.notes ?? null,
-        externalRef: payload.externalRef ?? null,
-      }).returning()
-
-      await tx.insert(transactionEntries).values(
-        payload.entries.map((entry) => ({
-          transactionId: txRow.id,
-          walletId: entry.walletId,
-          assetId: entry.assetId,
-          amount: entry.amount,
-          notes: entry.notes ?? null,
-        })),
-      )
-
-      let splitRows: (typeof transactionSplits.$inferSelect)[] = []
-      if (payload.splits && payload.splits.length > 0) {
-        splitRows = await tx.insert(transactionSplits).values(
-          payload.splits.map((split) => ({
-            transactionId: txRow.id,
-            personId: split.personId,
-            assetId: split.assetId ?? defaultAssetId,
-            amount: split.amount,
-          })),
-        ).returning()
-      }
-
-      return { txRow, splitRows }
-    })
-
-    await recordAudit({
-      actorType: c.get('authMethod') ?? 'user',
-      actorId: user.id,
-      action: 'transaction.create',
-      resourceType: 'transaction',
-      resourceId: txRow.id,
-    })
+    // Splits are inserted by the lib; re-select them here to shape the response
+    // exactly as before (id, settledAt, settlementTransactionId included).
+    const splitRows = await db.select().from(transactionSplits).where(eq(transactionSplits.transactionId, created.id))
 
     return c.json({
       data: {
         ...payload,
-        id: txRow.id,
+        id: created.id,
         splits: splitRows.map((split) => ({
           id: split.id,
           personId: split.personId,
@@ -610,38 +538,13 @@ export function registerTransactionRoutes(app: OpenAPIHono) {
 
     const ids: string[] = []
 
+    // Sequential, non-atomic across items (matches prior behavior): each item is inserted
+    // independently, so an item failing partway through does not roll back items already
+    // committed earlier in the batch. Any thrown error (validation or DB) propagates
+    // uncaught, aborting the request — same as before this refactor.
     for (const tx of payload.transactions) {
-      const [txRow] = await db.insert(transactions).values({
-        userId: user.id,
-        transactionDate: new Date(tx.transactionDate),
-        type: tx.type,
-        description: tx.description,
-        notes: tx.notes ?? null,
-        externalRef: tx.externalRef ?? null,
-      }).returning()
-
-      await db.insert(transactionEntries).values(
-        tx.entries.map((entry) => ({
-          transactionId: txRow.id,
-          walletId: entry.walletId,
-          assetId: entry.assetId,
-          amount: entry.amount,
-          notes: entry.notes ?? null,
-        })),
-      )
-
-      ids.push(txRow.id)
-    }
-
-    if (ids.length > 0) {
-      await recordAudit({
-        actorType: c.get('authMethod') ?? 'user',
-        actorId: user.id,
-        action: 'transaction.bulk_create',
-        resourceType: 'transaction',
-        resourceId: ids[0],
-        metadata: { count: ids.length },
-      })
+      const { id } = await createTransactionForUser(tx, { userId: user.id, actorType: c.get('authMethod') ?? 'user' })
+      ids.push(id)
     }
 
     return c.json({ data: { created: ids.length, ids } }, 201)

@@ -1,7 +1,7 @@
 import { db, auditLogs } from '@finance-os/db'
 
 export type AuditInput = {
-  actorType: 'user' | 'api_key'
+  actorType: 'user' | 'api_key' | 'scheduler' | 'ai_chat'
   actorId: string
   action: string // e.g. 'wallet.create'
   resourceType: string // e.g. 'wallet'
