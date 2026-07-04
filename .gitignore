@@ -40,3 +40,9 @@ packages/db/src/*.xls
 
 # Docker volumes (local overrides)
 .env.docker
+.gstack/
+
+# Database backups / dumps (contain real financial data)
+backups/
+*.sql
+!packages/db/drizzle/**/*.sql
