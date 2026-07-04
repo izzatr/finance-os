@@ -50,6 +50,17 @@ describe('exchange rates routes', () => {
     expect((await postRate(cookie, { base: 'EUR', quote: 'USD', rate: 'abc' })).status).toBe(400)
   })
 
+  it('returns 409 DUPLICATE_RATE for an exact (base, quote, asOf) duplicate', async () => {
+    const { cookie } = await createTestUser(app)
+    const asOf = '2026-07-01T00:00:00.000Z'
+    expect((await postRate(cookie, { base: 'EUR', quote: 'USD', rate: '1.09', asOf })).status).toBe(201)
+
+    const dup = await postRate(cookie, { base: 'EUR', quote: 'USD', rate: '1.10', asOf })
+    expect(dup.status).toBe(409)
+    const { error } = (await dup.json()) as { error: { code: string } }
+    expect(error.code).toBe('DUPLICATE_RATE')
+  })
+
   it('lists the latest rate per pair', async () => {
     const { cookie } = await createTestUser(app)
     await postRate(cookie, { base: 'EUR', quote: 'USD', rate: '1.05', asOf: '2026-06-01T00:00:00.000Z' })

@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
+import { db, assetPrices } from '@finance-os/db'
 import app from '../app'
 import { createTestUser, truncateAll } from './helpers'
 
@@ -116,6 +117,68 @@ describe('GET /api/analytics/net-worth', () => {
     // 1000.00 EUR -> 15,000,000 IDR, plus the native 15,000,000 IDR balance = 30,000,000.
     expect(data.series).toEqual([{ month: currentMonthLabel, total: 30_000_000 }])
     expect(data.total).toBe(30_000_000)
+  })
+
+  it('values a quantity asset from its latest price, converting the price currency, hand-computed', async () => {
+    const { cookie } = await createTestUser(app)
+    const eurAssetId = await getAssetId(cookie, 'EUR')
+    const goldAssetId = await getAssetId(cookie, 'XAU_G')
+
+    const eurWallet = await createWallet(cookie, 'EUR checking', eurAssetId)
+    const goldWallet = await createWallet(cookie, 'Gold stash', goldAssetId)
+
+    // 1 EUR = 2 USD — round, so the USD-priced gold below converts by hand.
+    await postRate(cookie, 'EUR', 'USD', '2')
+
+    // EUR wallet: flat 100.00 from the previous month onward.
+    await post(cookie, eurWallet, eurAssetId, '100.00', previousMonthDate)
+
+    // Gold: +10 g previous month, +5 g current month (cumulative 10 g -> 15 g).
+    await post(cookie, goldWallet, goldAssetId, '10', previousMonthDate)
+    await post(cookie, goldWallet, goldAssetId, '5', currentMonthDate)
+
+    // Two dated price rows in a NON-display currency: the newest (100 USD/g) must win
+    // over the older 90 USD/g for the entire series (documented latest-price method).
+    await db.insert(assetPrices).values([
+      { assetId: goldAssetId, price: '90', currency: 'USD', asOf: previousMonthDate, source: 'manual' },
+      { assetId: goldAssetId, price: '100', currency: 'USD', asOf: currentMonthDate, source: 'manual' },
+    ])
+
+    const res = await app.request('/api/analytics/net-worth?currency=EUR&months=2', { headers: { cookie } })
+    expect(res.status).toBe(200)
+    const { data } = (await res.json()) as {
+      data: { total: number; series: { month: string; total: number }[]; missing: string[] }
+    }
+
+    // 100 USD/g -> 50 EUR/g at the 1 EUR = 2 USD rate.
+    // Previous month: 100 EUR + 10 g x 50 EUR = 600. Current month: 100 EUR + 15 g x 50 EUR = 850.
+    expect(data.missing).toEqual([])
+    expect(data.series).toEqual([
+      { month: previousMonthLabel, total: 600 },
+      { month: currentMonthLabel, total: 850 },
+    ])
+    expect(data.total).toBe(850)
+  })
+
+  it('puts a quantity asset with no price row into missing and excludes it from totals', async () => {
+    const { cookie } = await createTestUser(app)
+    const eurAssetId = await getAssetId(cookie, 'EUR')
+    const goldAssetId = await getAssetId(cookie, 'XAU_G')
+
+    const eurWallet = await createWallet(cookie, 'EUR checking', eurAssetId)
+    const goldWallet = await createWallet(cookie, 'Gold stash', goldAssetId)
+
+    await post(cookie, eurWallet, eurAssetId, '100.00', currentMonthDate)
+    await post(cookie, goldWallet, goldAssetId, '10', currentMonthDate) // no asset_prices row anywhere
+
+    const res = await app.request('/api/analytics/net-worth?currency=EUR&months=1', { headers: { cookie } })
+    const { data } = (await res.json()) as {
+      data: { total: number; series: { month: string; total: number }[]; missing: string[] }
+    }
+
+    expect(data.missing).toEqual(['XAU_G'])
+    expect(data.series).toEqual([{ month: currentMonthLabel, total: 100 }])
+    expect(data.total).toBe(100)
   })
 
   it('flags staleRates when the newest EUR rate is older than 7 days', async () => {

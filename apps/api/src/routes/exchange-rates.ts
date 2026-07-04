@@ -70,6 +70,14 @@ export function registerExchangeRateRoutes(app: OpenAPIHono) {
           },
         },
       },
+      409: {
+        description: 'A rate for this base/quote/asOf already exists',
+        content: {
+          'application/json': {
+            schema: z.object({ error: z.object({ code: z.string(), message: z.string() }) }),
+          },
+        },
+      },
     },
   })
 
@@ -95,6 +103,8 @@ export function registerExchangeRateRoutes(app: OpenAPIHono) {
     const user = c.get('user')
     const { base, quote, rate, asOf } = c.req.valid('json')
 
+    // onConflictDoNothing against rate_base_quote_asof_unique: an exact duplicate
+    // (base, quote, asOf) returns no row, which we surface as a 409 instead of a 500.
     const [row] = await db
       .insert(exchangeRates)
       .values({
@@ -104,7 +114,12 @@ export function registerExchangeRateRoutes(app: OpenAPIHono) {
         asOf: asOf ? new Date(asOf) : new Date(),
         source: 'manual',
       })
+      .onConflictDoNothing()
       .returning()
+
+    if (!row) {
+      return c.json({ error: { code: 'DUPLICATE_RATE', message: 'A rate for this base, quote, and asOf already exists' } }, 409)
+    }
 
     await recordAudit({
       actorType: c.get('authMethod') ?? 'user',
