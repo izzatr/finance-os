@@ -3,14 +3,8 @@ import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar'
 import { AppSidebar } from './AppSidebar'
 import { CommandPalette } from './CommandPalette'
 import { MobileTabBar } from './MobileTabBar'
-import { QuickAddProvider, useQuickAdd } from '@/contexts/QuickAddContext'
-import { AddTransactionForm } from './AddTransactionForm'
-
-function QuickAddHost() {
-  const { isOpen, closeQuickAdd } = useQuickAdd()
-  if (!isOpen) return null
-  return <AddTransactionForm onClose={closeQuickAdd} />
-}
+import { QuickAddProvider } from '@/contexts/QuickAddContext'
+import { QuickAddSheet } from './QuickAddSheet'
 
 export function DashboardLayout() {
   return (
@@ -21,7 +15,7 @@ export function DashboardLayout() {
           <Outlet />
         </SidebarInset>
         <MobileTabBar />
-        <QuickAddHost />
+        <QuickAddSheet />
         <CommandPalette />
       </SidebarProvider>
     </QuickAddProvider>
