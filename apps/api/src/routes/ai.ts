@@ -135,4 +135,66 @@ export function registerAiRoutes(app: OpenAPIHono) {
       }
     })
   })
+
+  // Natural-language quick-add: one non-streaming completion, strict JSON out.
+  app.post('/api/ai/parse-transaction', async (c) => {
+    if (!aiEnabled()) {
+      return c.json({ error: { code: 'AI_DISABLED', message: 'Set OPENROUTER_API_KEY to enable the assistant' } }, 404)
+    }
+    if (c.get('authMethod') !== 'user') {
+      return c.json({ error: { code: 'SESSION_REQUIRED', message: 'Sessions only' } }, 403)
+    }
+    const body = (await c.req.json().catch(() => null)) as { text?: string } | null
+    const text = typeof body?.text === 'string' ? body.text.trim().slice(0, 300) : ''
+    if (!text) {
+      return c.json({ error: { code: 'INVALID_TEXT', message: 'Send { text } describing the transaction' } }, 400)
+    }
+
+    // Ground the model in the user's real wallets/categories so names resolve.
+    const ctx: FinanceToolContext = { baseUrl: loopbackBase(), cookie: c.req.header('cookie'), scope: 'read' }
+    const [wallets, categories] = await Promise.all([
+      financeTools.find((t) => t.name === 'finance_wallets')!.execute(ctx, {}) as Promise<Array<{ name: string; currency: string }>>,
+      financeTools.find((t) => t.name === 'finance_categories')!.execute(ctx, {}) as Promise<Array<{ name: string; type: string }>>,
+    ])
+
+    const prompt = [
+      'Parse this natural-language transaction into strict JSON. Respond with ONLY the JSON object, no prose, no code fences.',
+      'Schema: {"type":"expense"|"income","amount":"<positive decimal string>","description":"<short>","walletName":<one of the wallets or null>,"categoryName":<one of the categories or null>}',
+      'Shorthand: "35k" means 35000; "1.2m" means 1200000. Currency hints may select the wallet.',
+      `Wallets: ${wallets.map((w) => `${w.name} (${w.currency})`).join(', ') || 'none'}`,
+      `Categories: ${categories.filter((cat) => cat.type !== 'transfer').map((cat) => `${cat.name} [${cat.type}]`).join(', ') || 'none'}`,
+      `Text: ${text}`,
+    ].join('\n')
+
+    const res = await fetch(`${(process.env.OPENROUTER_BASE_URL ?? 'https://openrouter.ai/api/v1').replace(/\/$/, '')}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
+        'x-title': 'Finance OS',
+      },
+      body: JSON.stringify({ model: defaultModel(), messages: [{ role: 'user', content: prompt }], stream: false }),
+    })
+    if (!res.ok) {
+      return c.json({ error: { code: 'MODEL_FAILED', message: `Model request failed (${res.status})` } }, 502)
+    }
+    const completion = (await res.json()) as { choices?: Array<{ message?: { content?: string } }> }
+    const raw = completion.choices?.[0]?.message?.content ?? ''
+    const jsonText = raw.replace(/^```(json)?/m, '').replace(/```\s*$/m, '').trim()
+
+    const parsedSchema = z.object({
+      type: z.enum(['expense', 'income']),
+      amount: z.string().regex(/^\d+(\.\d+)?$/),
+      description: z.string().min(1).max(255),
+      walletName: z.string().nullable().optional(),
+      categoryName: z.string().nullable().optional(),
+    })
+    let parsed: z.infer<typeof parsedSchema>
+    try {
+      parsed = parsedSchema.parse(JSON.parse(jsonText))
+    } catch {
+      return c.json({ error: { code: 'UNPARSEABLE', message: 'Could not understand that — try the manual fields' } }, 422)
+    }
+    return c.json({ data: parsed }, 200)
+  })
 }

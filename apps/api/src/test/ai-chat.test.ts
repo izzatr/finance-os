@@ -13,6 +13,7 @@ let appServer: ServerType
 let appBase: string
 let mock: Server
 let mockScript: string[][] = [] // each element: SSE data payloads for one completions call
+let mockJson: string[] = [] // scripted contents for non-streaming (stream:false) calls
 let mockCalls: Array<{ model: string; toolCount: number }> = []
 
 function sse(events: unknown[]): string[] {
@@ -32,8 +33,14 @@ beforeAll(async () => {
     let body = ''
     req.on('data', (chunk) => { body += chunk })
     req.on('end', () => {
-      const parsed = JSON.parse(body) as { model: string; tools: unknown[] }
-      mockCalls.push({ model: parsed.model, toolCount: parsed.tools.length })
+      const parsed = JSON.parse(body) as { model: string; tools?: unknown[]; stream?: boolean }
+      mockCalls.push({ model: parsed.model, toolCount: parsed.tools?.length ?? 0 })
+      if (parsed.stream === false) {
+        const content = mockJson.shift() ?? '{}'
+        res.writeHead(200, { 'content-type': 'application/json' })
+        res.end(JSON.stringify({ choices: [{ message: { content } }] }))
+        return
+      }
       const frames = mockScript.shift() ?? sse([{ choices: [{ delta: { content: 'No script.' }, finish_reason: 'stop' }] }])
       res.writeHead(200, { 'content-type': 'text/event-stream' })
       for (const frame of frames) res.write(`data: ${frame}\n\n`)
@@ -84,6 +91,7 @@ describe('ai chat', () => {
   beforeEach(async () => {
     await truncateAll()
     mockScript = []
+    mockJson = []
     mockCalls = []
   })
 
@@ -150,6 +158,33 @@ describe('ai chat', () => {
 
     const txs = await app.request('/api/transactions', { headers: { cookie } })
     expect(((await txs.json()) as { data: unknown[] }).data).toEqual([])
+  })
+
+  it('parses natural-language text into a prefill', async () => {
+    const { cookie } = await setup()
+    mockJson = [JSON.stringify({
+      type: 'expense', amount: '35000', description: 'Kopi', walletName: 'Main Bank', categoryName: null,
+    })]
+
+    const res = await fetch(`${appBase}/api/ai/parse-transaction`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie },
+      body: JSON.stringify({ text: 'kopi 35k main bank' }),
+    })
+    expect(res.status).toBe(200)
+    const { data } = (await res.json()) as { data: { type: string; amount: string; walletName: string } }
+    expect(data).toMatchObject({ type: 'expense', amount: '35000', walletName: 'Main Bank' })
+  })
+
+  it('rejects unparseable model output cleanly', async () => {
+    const { cookie } = await setup()
+    mockJson = ['sorry, I cannot help with that']
+    const res = await fetch(`${appBase}/api/ai/parse-transaction`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie },
+      body: JSON.stringify({ text: 'gibberish' }),
+    })
+    expect(res.status).toBe(422)
   })
 
   it('rejects api-key callers', async () => {

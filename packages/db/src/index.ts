@@ -4,6 +4,7 @@ import { drizzle } from 'drizzle-orm/node-postgres'
 import { Pool } from 'pg'
 
 export * from './schema'
+export * from './auth-schema'
 export * from './auth-setup'
 export * from './billing-schema'
 export * from './audit-schema'

@@ -6,13 +6,16 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
   createTransaction,
+  getAiStatus,
   getCategories,
   getPeople,
   getRecentTransactions,
   getWallets,
+  parseTransactionText,
   type Category,
   type Wallet,
 } from '@/lib/api'
+import { Sparkles } from 'lucide-react'
 import { useQuickAdd } from '@/contexts/QuickAddContext'
 import { localDateKey, parseAmountInput } from '@/lib/money'
 
@@ -64,7 +67,10 @@ export function QuickAddSheet() {
   const [splitPersonId, setSplitPersonId] = useState<string | null>(null)
   const [splitAmount, setSplitAmount] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [magicText, setMagicText] = useState('')
+  const [parsing, setParsing] = useState(false)
 
+  const aiStatusQuery = useQuery({ queryKey: ['ai-status'], queryFn: getAiStatus, enabled: isOpen, staleTime: 5 * 60_000 })
   const walletsQuery = useQuery({ queryKey: ['wallets'], queryFn: getWallets, enabled: isOpen })
   // NOTE: existing pages use ['categories'] for the category BREAKDOWN — this is the raw list.
   const categoriesQuery = useQuery({ queryKey: ['category-list'], queryFn: getCategories, enabled: isOpen })
@@ -105,6 +111,34 @@ export function QuickAddSheet() {
     setSplitPersonId(null)
     setSplitAmount('')
     setError(null)
+  }
+
+  async function magicFill() {
+    const text = magicText.trim()
+    if (!text || parsing) return
+    setParsing(true)
+    setError(null)
+    try {
+      const { data } = await parseTransactionText(text)
+      setKind(data.type)
+      setAmount(data.amount)
+      setDescription(data.description)
+      if (data.walletName) {
+        const match = wallets.find((w) => w.name.toLowerCase() === data.walletName!.toLowerCase())
+        if (match) setWalletId(match.id)
+      }
+      if (data.categoryName) {
+        const match = (categoriesQuery.data?.data ?? []).find(
+          (cat) => cat.name.toLowerCase() === data.categoryName!.toLowerCase(),
+        )
+        setCategoryId(match?.id ?? null)
+      }
+      setMagicText('')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not parse that')
+    } finally {
+      setParsing(false)
+    }
   }
 
   function submit() {
@@ -169,6 +203,29 @@ export function QuickAddSheet() {
             ))}
           </div>
         </SheetHeader>
+
+        {/* Natural-language quick fill (needs OPENROUTER_API_KEY on the server) */}
+        {aiStatusQuery.data?.data.enabled && (
+          <div className="flex gap-1.5 pb-1">
+            <input
+              value={magicText}
+              onChange={(e) => setMagicText(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void magicFill() } }}
+              placeholder='Try "kopi 35k cash"'
+              aria-label="Describe the transaction"
+              className="h-9 flex-1 rounded-full border border-dashed border-[var(--border-medium)] bg-transparent px-3.5 text-sm outline-none focus-visible:border-[var(--accent-blue)]"
+            />
+            <button
+              type="button"
+              onClick={() => void magicFill()}
+              disabled={parsing || !magicText.trim()}
+              aria-label="Fill from text"
+              className="flex size-9 items-center justify-center rounded-full bg-[var(--accent-dim)] text-[var(--accent-blue)] transition-transform active:scale-95 disabled:opacity-40"
+            >
+              <Sparkles className={`size-4 ${parsing ? 'animate-pulse' : ''}`} />
+            </button>
+          </div>
+        )}
 
         {/* Amount — the hero */}
         <div className="flex items-baseline justify-center gap-2 py-2">

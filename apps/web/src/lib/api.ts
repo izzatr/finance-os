@@ -523,3 +523,18 @@ export type AiStatus = { enabled: boolean; defaultModel: string | null; models: 
 export function getAiStatus() {
   return request<{ data: AiStatus }>('/api/ai/status')
 }
+
+export type ParsedTransaction = {
+  type: 'expense' | 'income'
+  amount: string
+  description: string
+  walletName?: string | null
+  categoryName?: string | null
+}
+
+export function parseTransactionText(text: string) {
+  return request<{ data: ParsedTransaction }>('/api/ai/parse-transaction', {
+    method: 'POST',
+    body: JSON.stringify({ text }),
+  })
+}
