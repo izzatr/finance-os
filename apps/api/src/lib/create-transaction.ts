@@ -49,15 +49,12 @@ async function userOwnsPeople(userId: string, personIds: string[]): Promise<bool
 }
 
 /**
- * Validates ownership (wallets, category, people), inserts tx+entries+splits atomically, audits.
- * Throws CreateTransactionError with {status, code, message} on validation failure.
- * Pass opts.skipAudit when the caller emits its own audit row (e.g. bulk's single summary row).
+ * Ownership + consistency checks for a would-be transaction, without writing anything.
+ * Shared by the direct write path and the proposals intake (a proposal must be valid
+ * at intake so approving it later cannot fail on bad references).
+ * Throws CreateTransactionError with {status, code, message} on failure.
  */
-export async function createTransactionForUser(
-  input: NewTransactionInput,
-  actor: CreateTxActor,
-  opts?: { skipAudit?: boolean },
-): Promise<{ id: string }> {
+export async function validateNewTransaction(input: NewTransactionInput, userId: string): Promise<void> {
   if (input.type === 'transfer' && input.entries.length < 2) {
     throw new CreateTransactionError(400, 'INVALID_TRANSFER', 'Transfer transactions must include at least two entries.')
   }
@@ -69,7 +66,7 @@ export async function createTransactionForUser(
   const ownedWallets = await db
     .select({ id: wallets.id, assetId: wallets.assetId })
     .from(wallets)
-    .where(and(inArray(wallets.id, uniqueWalletIds), eq(wallets.userId, actor.userId), isNull(wallets.deletedAt)))
+    .where(and(inArray(wallets.id, uniqueWalletIds), eq(wallets.userId, userId), isNull(wallets.deletedAt)))
   if (ownedWallets.length !== uniqueWalletIds.length) {
     throw new CreateTransactionError(404, 'NOT_FOUND', 'Wallet not found')
   }
@@ -83,7 +80,7 @@ export async function createTransactionForUser(
   // A referenced category must belong to the acting user
   if (input.categoryId) {
     const [category] = await db.select({ id: categories.id }).from(categories)
-      .where(and(eq(categories.id, input.categoryId), eq(categories.userId, actor.userId)))
+      .where(and(eq(categories.id, input.categoryId), eq(categories.userId, userId)))
     if (!category) {
       throw new CreateTransactionError(404, 'NOT_FOUND', 'Category not found')
     }
@@ -92,10 +89,23 @@ export async function createTransactionForUser(
   // Every referenced person (for splits) must belong to the acting user — checked before
   // any writes so a foreign personId leaves nothing behind.
   if (input.splits && input.splits.length > 0) {
-    if (!(await userOwnsPeople(actor.userId, input.splits.map((s) => s.personId)))) {
+    if (!(await userOwnsPeople(userId, input.splits.map((s) => s.personId)))) {
       throw new CreateTransactionError(404, 'NOT_FOUND', 'Person not found')
     }
   }
+}
+
+/**
+ * Validates ownership (wallets, category, people), inserts tx+entries+splits atomically, audits.
+ * Throws CreateTransactionError with {status, code, message} on validation failure.
+ * Pass opts.skipAudit when the caller emits its own audit row (e.g. bulk's single summary row).
+ */
+export async function createTransactionForUser(
+  input: NewTransactionInput,
+  actor: CreateTxActor,
+  opts?: { skipAudit?: boolean },
+): Promise<{ id: string }> {
+  await validateNewTransaction(input, actor.userId)
 
   const defaultAssetId = input.entries[0].assetId
 

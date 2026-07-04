@@ -15,6 +15,7 @@ import { registerDashboardRoutes } from './routes/dashboard'
 import { registerImportRoutes } from './routes/imports'
 import { registerRecurringRoutes } from './routes/recurring'
 import { registerInboxRoutes } from './routes/inbox'
+import { registerProposalRoutes } from './routes/proposals'
 import { registerExchangeRateRoutes } from './routes/exchange-rates'
 import { registerAssetPriceRoutes } from './routes/asset-prices'
 
@@ -51,6 +52,7 @@ registerDashboardRoutes(app)
 registerImportRoutes(app)
 registerRecurringRoutes(app)
 registerInboxRoutes(app)
+registerProposalRoutes(app)
 registerExchangeRateRoutes(app)
 registerAssetPriceRoutes(app)
 
