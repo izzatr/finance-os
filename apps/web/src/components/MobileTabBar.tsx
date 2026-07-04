@@ -4,12 +4,16 @@ import {
   BarChart3,
   CreditCard,
   Globe,
+  Inbox as InboxIcon,
   LayoutGrid,
   ListOrdered,
   Menu,
   Plus,
   Settings,
+  Users,
 } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
+import { getInbox } from '@/lib/api'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 import { useQuickAdd } from '@/contexts/QuickAddContext'
 
@@ -21,6 +25,8 @@ const TABS = [
 
 const MORE_LINKS = [
   { label: 'Wallets', icon: CreditCard, path: '/wallets' },
+  { label: 'People', icon: Users, path: '/people' },
+  { label: 'Inbox', icon: InboxIcon, path: '/inbox' },
   { label: 'Currencies', icon: Globe, path: '/currencies' },
   { label: 'Settings', icon: Settings, path: '/settings/account' },
 ] as const
@@ -46,6 +52,8 @@ export function MobileTabBar() {
   const { openQuickAdd } = useQuickAdd()
   const [moreOpen, setMoreOpen] = useState(false)
   const location = useLocation()
+  const inboxQuery = useQuery({ queryKey: ['inbox'], queryFn: getInbox, staleTime: 60_000 })
+  const pendingCount = (inboxQuery.data?.data ?? []).filter((p) => p.status === 'pending').length
 
   return (
     <nav
@@ -77,7 +85,17 @@ export function MobileTabBar() {
                 : 'text-[var(--text-tertiary)]'
             }`}
           >
-            <Menu className="size-5" strokeWidth={1.8} />
+            <span className="relative">
+              <Menu className="size-5" strokeWidth={1.8} />
+              {pendingCount > 0 && (
+                <span
+                  aria-label={`${pendingCount} pending approvals`}
+                  className="absolute -right-1.5 -top-1 flex size-3.5 items-center justify-center rounded-full bg-[var(--negative)] text-[8px] font-bold text-white"
+                >
+                  {pendingCount > 9 ? '9+' : pendingCount}
+                </span>
+              )}
+            </span>
             More
           </SheetTrigger>
           <SheetContent side="bottom" className="rounded-t-2xl pb-[max(env(safe-area-inset-bottom),1rem)]">

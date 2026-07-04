@@ -6,6 +6,8 @@ import { SignInPage } from './pages/SignInPage'
 import { SignUpPage } from './pages/SignUpPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { TransactionsPage } from './pages/TransactionsPage'
+import { PeoplePage } from './pages/PeoplePage'
+import { InboxPage } from './pages/InboxPage'
 import { ReportsPage } from './pages/ReportsPage'
 import { WalletsPage } from './pages/WalletsPage'
 import { CurrenciesPage } from './pages/CurrenciesPage'
@@ -36,6 +38,8 @@ export function App() {
       <Route element={<ProtectedRoute><DashboardLayout /></ProtectedRoute>}>
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/transactions" element={<TransactionsPage />} />
+        <Route path="/people" element={<PeoplePage />} />
+        <Route path="/inbox" element={<InboxPage />} />
         <Route path="/reports" element={<ReportsPage />} />
         <Route path="/wallets" element={<WalletsPage />} />
         <Route path="/currencies" element={<CurrenciesPage />} />
