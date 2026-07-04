@@ -1,7 +1,7 @@
 import { createRoute, z } from '@hono/zod-openapi'
 import type { OpenAPIHono } from '@hono/zod-openapi'
 import { db, assets, categories, statementImports, transactionEntries, transactions, wallets } from '@finance-os/db'
-import { and, desc, eq, isNull, sql } from 'drizzle-orm'
+import { and, desc, eq, isNull, lt, sql } from 'drizzle-orm'
 
 export function registerDashboardRoutes(app: OpenAPIHono) {
   const dashboardRoute = createRoute({
@@ -31,6 +31,12 @@ export function registerDashboardRoutes(app: OpenAPIHono) {
     method: 'get',
     path: '/api/analytics/recent',
     tags: ['analytics'],
+    request: {
+      query: z.object({
+        limit: z.coerce.number().int().min(1).max(200).default(50),
+        before: z.string().datetime({ offset: true }).optional(),
+      }),
+    },
     responses: {
       200: {
         description: 'Recent transactions with wallet and category info',
@@ -103,6 +109,7 @@ export function registerDashboardRoutes(app: OpenAPIHono) {
 
   app.openapi(recentTransactionsRoute, async (c) => {
     const user = c.get('user')
+    const { limit, before } = c.req.valid('query')
     const rows = await db
       .select({
         id: transactions.id,
@@ -120,9 +127,14 @@ export function registerDashboardRoutes(app: OpenAPIHono) {
       .innerJoin(assets, eq(assets.id, transactionEntries.assetId))
       .innerJoin(wallets, eq(wallets.id, transactionEntries.walletId))
       .leftJoin(categories, eq(categories.id, transactions.categoryId))
-      .where(and(eq(transactions.userId, user.id), isNull(transactions.deletedAt), isNull(wallets.deletedAt)))
+      .where(and(
+        eq(transactions.userId, user.id),
+        isNull(transactions.deletedAt),
+        isNull(wallets.deletedAt),
+        ...(before ? [lt(transactions.transactionDate, new Date(before))] : []),
+      ))
       .orderBy(desc(transactions.transactionDate))
-      .limit(50)
+      .limit(limit)
 
     const data = rows.map((r) => ({
       id: r.id,
