@@ -15,9 +15,19 @@ import { db } from '@finance-os/db'
 import { billingCustomers, subscriptions, subscriptionPlans } from '@finance-os/db'
 import { eq } from 'drizzle-orm'
 
-export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY ?? '', {
-  apiVersion: '2025-02-24.acacia',
-})
+// Lazily construct the Stripe client so importing this module never crashes
+// when STRIPE_SECRET_KEY is unset (e.g. community edition, or the API booting
+// before billing is configured). The client is only created once it's needed.
+let stripeClient: Stripe | undefined
+
+export function getStripe(): Stripe {
+  if (!stripeClient) {
+    stripeClient = new Stripe(process.env.STRIPE_SECRET_KEY ?? '', {
+      apiVersion: '2025-02-24.acacia',
+    })
+  }
+  return stripeClient
+}
 
 // ── Customer management ────────────────────────────────────────────────────────
 
@@ -31,7 +41,7 @@ export async function getOrCreateStripeCustomer(userId: string, email: string, n
 
   if (existing) return existing
 
-  const customer = await stripe.customers.create({
+  const customer = await getStripe().customers.create({
     email,
     name: name ?? undefined,
     metadata: { userId },
@@ -54,7 +64,7 @@ export async function createCheckoutSession(params: {
   successUrl: string
   cancelUrl: string
 }) {
-  const session = await stripe.checkout.sessions.create({
+  const session = await getStripe().checkout.sessions.create({
     customer: params.customerId,
     payment_method_types: ['card'],
     line_items: [{ price: params.priceId, quantity: 1 }],
@@ -68,7 +78,7 @@ export async function createCheckoutSession(params: {
 // ── Billing portal session ──────────────────────────────────────────────────────
 
 export async function createBillingPortalSession(customerId: string, returnUrl: string) {
-  return stripe.billingPortal.sessions.create({
+  return getStripe().billingPortal.sessions.create({
     customer: customerId,
     return_url: returnUrl,
   })
@@ -77,7 +87,7 @@ export async function createBillingPortalSession(customerId: string, returnUrl: 
 // ── Webhook processing ─────────────────────────────────────────────────────────
 
 export async function handleStripeWebhook(payload: Buffer, sig: string): Promise<void> {
-  const event = stripe.webhooks.constructEvent(payload, sig, process.env.STRIPE_WEBHOOK_SECRET ?? '')
+  const event = getStripe().webhooks.constructEvent(payload, sig, process.env.STRIPE_WEBHOOK_SECRET ?? '')
 
   switch (event.type) {
     case 'checkout.session.completed': {
@@ -94,7 +104,7 @@ export async function handleStripeWebhook(payload: Buffer, sig: string): Promise
         .then(r => r[0] ?? null)
       if (!customer) break
 
-      const sub = await stripe.subscriptions.retrieve(subscriptionId)
+      const sub = await getStripe().subscriptions.retrieve(subscriptionId)
       const priceId = sub.items.data[0]?.price.id
 
       const plan = await db
