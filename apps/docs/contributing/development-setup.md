@@ -62,7 +62,7 @@ npm run dev:docs  # Docs on `http://localhost:5173`
 The API runs with `tsx watch` for auto-reload on file changes.
 
 ::: tip
-The API defaults to `SKIP_AUTH=1` in the Docker Compose config, so you don't need to set up auth for local development.
+Auth is always enforced, including locally. Sign up via `POST /auth/sign-up/email` (or the web UI) and use the returned session cookie or an API key — see [Authentication](/api/authentication).
 :::
 
 ## Available Scripts
@@ -88,7 +88,6 @@ For local development, the Docker Compose file sets these on the API container:
 DATABASE_URL=postgres://finance:***@localhost:27033/finance_os
 PORT=27032
 BETTER_AUTH_SECRET=dev-secret-with-at-least-32-chars
-SKIP_AUTH=1
 BETTER_AUTH_URL=http://localhost:27032
 WEB_ORIGIN=http://localhost:27031
 ```
@@ -99,7 +98,6 @@ If running the API outside Docker (with `npm run dev:api`), create an `.env` fil
 DATABASE_URL=postgres://finance:***@localhost:27033/finance_os
 PORT=27032
 BETTER_AUTH_SECRET=dev-secret-with-at-least-32-chars
-SKIP_AUTH=1
 BETTER_AUTH_URL=http://localhost:27032
 WEB_ORIGIN=http://localhost:5173
 ```

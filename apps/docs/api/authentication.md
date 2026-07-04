@@ -1,6 +1,6 @@
 # Authentication
 
-Finance OS uses [Better Auth](https://www.better-auth.com/) for authentication. All `/api/*` routes require authentication unless `SKIP_AUTH=1` is set.
+Finance OS uses [Better Auth](https://www.better-auth.com/) for authentication. All `/api/*` routes require authentication.
 
 ## Auth Methods
 
@@ -35,28 +35,24 @@ curl http://localhost:27032/api/wallets \
 
 Both `Authorization: Bearer <key>` and `x-api-key: <key>` are checked by the auth middleware. They are equivalent.
 
-### Development Mode (SKIP_AUTH)
-
-For local development, set the `SKIP_AUTH` environment variable to bypass authentication entirely:
+To create an API key, sign in and call the Better Auth API key plugin endpoint:
 
 ```bash
-SKIP_AUTH=1
+curl -X POST http://localhost:27032/auth/api-key/create \
+  -H "Content-Type: application/json" \
+  -b cookies.txt \
+  -d '{"name": "CLI Key"}'
 ```
 
-The default `docker-compose.yml` includes this setting. All API requests will succeed without any auth headers.
-
-::: warning
-Never set `SKIP_AUTH=1` in production. It disables all authentication checks.
-:::
+The response's `key` field is shown only once — store it securely.
 
 ## Auth Middleware
 
 The auth middleware (`/apps/api/src/middleware/auth.ts`) runs on all `/api/*` routes:
 
-1. If `SKIP_AUTH=1` is set, skip all checks.
-2. Check for `x-api-key` header or `Authorization: Bearer` token. If present, validate it and set `user` on the context. If invalid, return `401`.
-3. If no API key, check for a session cookie via Better Auth. If valid, set `user` and `session` on the context.
-4. If no valid auth found, return `401`.
+1. Check for `x-api-key` header or `Authorization: Bearer` token. If present, validate it and set `user` on the context. If invalid, return `401`.
+2. If no API key, check for a session cookie via Better Auth. If valid, set `user` and `session` on the context.
+3. If no valid auth found, return `401`.
 
 ```json
 {

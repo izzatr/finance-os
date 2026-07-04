@@ -99,19 +99,19 @@ export async function signOut() {
 // ── API Keys ─────────────────────────────────────────────────────────────────
 
 export async function listApiKeys(): Promise<ApiKey[]> {
-  return authFetch<ApiKey[]>('/auth/api-keys/list')
+  return authFetch<ApiKey[]>('/auth/api-key/list')
 }
 
 export async function createApiKey(name: string): Promise<ApiKey> {
-  return authFetch<ApiKey>('/auth/api-keys/create', {
+  return authFetch<ApiKey>('/auth/api-key/create', {
     method: 'POST',
     body: JSON.stringify({ name }),
   })
 }
 
 export async function revokeApiKey(id: string): Promise<void> {
-  return authFetch('/auth/api-keys/revoke', {
+  return authFetch('/auth/api-key/delete', {
     method: 'POST',
-    body: JSON.stringify({ id }),
+    body: JSON.stringify({ keyId: id }),
   })
 }

@@ -24,7 +24,6 @@ jobs:
     env:
       DATABASE_URL: postgres://finance:finance@localhost:5432/finance_os_test
       BETTER_AUTH_SECRET: test-secret-for-ci-only-min-32-chars
-      SKIP_AUTH: "1"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

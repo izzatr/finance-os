@@ -148,4 +148,3 @@ New tables added for cloud edition:
 - [ ] Google OAuth redirect URI points to the real API domain
 - [ ] Stripe webhook is live (not test mode)
 - [ ] Database has SSL connections enabled in production
-- [ ] `SKIP_AUTH` is not set (or set to `"0"`) — never skip auth in production

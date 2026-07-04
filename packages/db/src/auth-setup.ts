@@ -9,6 +9,7 @@ import { drizzle } from 'drizzle-orm/node-postgres'
 import { Pool } from 'pg'
 import { betterAuth } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
+import { apiKey } from '@better-auth/api-key'
 import { users, sessions, accounts, verifications, apiKeys } from './auth-schema'
 
 const connectionString = process.env.DATABASE_URL ?? 'postgres://finance:***@localhost:27033/finance_os'
@@ -58,10 +59,7 @@ export const auth = betterAuth({
     },
   },
 
-  apiKey: {
-    enabled: true,
-  },
-
+  plugins: [apiKey()],
 })
 
 export type Session = typeof auth.$Infer.Session

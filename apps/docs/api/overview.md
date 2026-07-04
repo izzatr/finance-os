@@ -19,9 +19,6 @@ The API supports multiple auth methods. See [Authentication](/api/authentication
 | Session cookie  | `Cookie: ...`                 | Browser-based clients |
 | Bearer token    | `Authorization: Bearer <key>` | External clients  |
 | API key header  | `x-api-key: <key>`            | CLI / scripts     |
-| Skip auth       | _(none, env var)_             | Local development |
-
-For local development, set `SKIP_AUTH=1` in your environment to bypass auth entirely. The default Docker Compose config includes this.
 
 ## Response Format
 
