@@ -3,6 +3,7 @@ import type { OpenAPIHono } from '@hono/zod-openapi'
 import { db, assets, categories, transactionEntries, transactions, wallets } from '@finance-os/db'
 import { walletSchema } from '@finance-os/domain'
 import { and, desc, eq, isNull, isNotNull, sql } from 'drizzle-orm'
+import { recordAudit } from '../lib/audit'
 
 export function registerWalletRoutes(app: OpenAPIHono) {
   const createWalletRoute = createRoute({
@@ -249,6 +250,14 @@ export function registerWalletRoutes(app: OpenAPIHono) {
       isActive: payload.isActive ?? true,
     }).returning()
 
+    await recordAudit({
+      actorType: c.get('authMethod') ?? 'user',
+      actorId: user.id,
+      action: 'wallet.create',
+      resourceType: 'wallet',
+      resourceId: row.id,
+    })
+
     return c.json({ data: row }, 201)
   })
 
@@ -365,6 +374,14 @@ export function registerWalletRoutes(app: OpenAPIHono) {
       return c.json({ error: { code: 'NOT_FOUND', message: 'Wallet not found' } }, 404)
     }
 
+    await recordAudit({
+      actorType: c.get('authMethod') ?? 'user',
+      actorId: user.id,
+      action: 'wallet.update',
+      resourceType: 'wallet',
+      resourceId: row.id,
+    })
+
     return c.json({ data: row }, 200)
   })
 
@@ -376,6 +393,15 @@ export function registerWalletRoutes(app: OpenAPIHono) {
     if (!row) {
       return c.json({ error: { code: 'NOT_FOUND', message: 'Wallet not found' } }, 404)
     }
+
+    await recordAudit({
+      actorType: c.get('authMethod') ?? 'user',
+      actorId: user.id,
+      action: 'wallet.delete',
+      resourceType: 'wallet',
+      resourceId: row.id,
+    })
+
     return c.json({ data: { id: row.id, deletedAt: now.toISOString() } }, 200)
   })
 
@@ -386,6 +412,15 @@ export function registerWalletRoutes(app: OpenAPIHono) {
     if (!row) {
       return c.json({ error: { code: 'NOT_FOUND', message: 'Wallet not found' } }, 404)
     }
+
+    await recordAudit({
+      actorType: c.get('authMethod') ?? 'user',
+      actorId: user.id,
+      action: 'wallet.restore',
+      resourceType: 'wallet',
+      resourceId: row.id,
+    })
+
     return c.json({ data: { id: row.id } }, 200)
   })
 

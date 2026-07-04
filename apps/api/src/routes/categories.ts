@@ -2,6 +2,7 @@ import { createRoute, z } from '@hono/zod-openapi'
 import type { OpenAPIHono } from '@hono/zod-openapi'
 import { db, categories } from '@finance-os/db'
 import { and, eq } from 'drizzle-orm'
+import { recordAudit } from '../lib/audit'
 
 export function registerCategoryRoutes(app: OpenAPIHono) {
   const listCategoriesRoute = createRoute({
@@ -99,6 +100,13 @@ export function registerCategoryRoutes(app: OpenAPIHono) {
     const [row] = await db.insert(categories).values({ userId: user.id, name, slug }).onConflictDoNothing().returning()
 
     if (row) {
+      await recordAudit({
+        actorType: c.get('authMethod') ?? 'user',
+        actorId: user.id,
+        action: 'category.create',
+        resourceType: 'category',
+        resourceId: row.id,
+      })
       return c.json({ data: { id: row.id, name: row.name, slug: row.slug } }, 201)
     }
 
@@ -122,6 +130,14 @@ export function registerCategoryRoutes(app: OpenAPIHono) {
     if (!row) {
       return c.json({ error: { code: 'NOT_FOUND', message: 'Category not found' } }, 404)
     }
+
+    await recordAudit({
+      actorType: c.get('authMethod') ?? 'user',
+      actorId: user.id,
+      action: 'category.update',
+      resourceType: 'category',
+      resourceId: row.id,
+    })
 
     return c.json({ data: { id: row.id, name: row.name, slug: row.slug } }, 200)
   })

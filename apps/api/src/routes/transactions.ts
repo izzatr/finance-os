@@ -3,6 +3,7 @@ import type { OpenAPIHono } from '@hono/zod-openapi'
 import { db, assets, categories, transactionEntries, transactions, wallets } from '@finance-os/db'
 import { transactionSchema } from '@finance-os/domain'
 import { and, desc, eq, gte, inArray, isNull, isNotNull, lte, sql } from 'drizzle-orm'
+import { recordAudit } from '../lib/audit'
 
 /** All referenced wallets must exist, be live, and belong to the user. */
 async function userOwnsWallets(userId: string, walletIds: string[]): Promise<boolean> {
@@ -305,6 +306,14 @@ export function registerTransactionRoutes(app: OpenAPIHono) {
       return c.json({ error: { code: 'NOT_FOUND', message: 'Transaction not found' } }, 404)
     }
 
+    await recordAudit({
+      actorType: c.get('authMethod') ?? 'user',
+      actorId: user.id,
+      action: 'transaction.update',
+      resourceType: 'transaction',
+      resourceId: updated.id,
+    })
+
     return c.json({
       data: {
         id: updated.id,
@@ -385,6 +394,14 @@ export function registerTransactionRoutes(app: OpenAPIHono) {
       })),
     )
 
+    await recordAudit({
+      actorType: c.get('authMethod') ?? 'user',
+      actorId: user.id,
+      action: 'transaction.create',
+      resourceType: 'transaction',
+      resourceId: txRow.id,
+    })
+
     return c.json({ data: { ...payload, id: txRow.id } }, 201)
   })
 
@@ -396,6 +413,15 @@ export function registerTransactionRoutes(app: OpenAPIHono) {
     if (!row) {
       return c.json({ error: { code: 'NOT_FOUND', message: 'Transaction not found' } }, 404)
     }
+
+    await recordAudit({
+      actorType: c.get('authMethod') ?? 'user',
+      actorId: user.id,
+      action: 'transaction.delete',
+      resourceType: 'transaction',
+      resourceId: row.id,
+    })
+
     return c.json({ data: { id: row.id, deletedAt: now.toISOString() } }, 200)
   })
 
@@ -406,6 +432,15 @@ export function registerTransactionRoutes(app: OpenAPIHono) {
     if (!row) {
       return c.json({ error: { code: 'NOT_FOUND', message: 'Transaction not found' } }, 404)
     }
+
+    await recordAudit({
+      actorType: c.get('authMethod') ?? 'user',
+      actorId: user.id,
+      action: 'transaction.restore',
+      resourceType: 'transaction',
+      resourceId: row.id,
+    })
+
     return c.json({ data: { id: row.id } }, 200)
   })
 
@@ -504,6 +539,17 @@ export function registerTransactionRoutes(app: OpenAPIHono) {
       )
 
       ids.push(txRow.id)
+    }
+
+    if (ids.length > 0) {
+      await recordAudit({
+        actorType: c.get('authMethod') ?? 'user',
+        actorId: user.id,
+        action: 'transaction.bulk_create',
+        resourceType: 'transaction',
+        resourceId: ids[0],
+        metadata: { count: ids.length },
+      })
     }
 
     return c.json({ data: { created: ids.length, ids } }, 201)

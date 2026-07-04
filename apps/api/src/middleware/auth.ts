@@ -21,6 +21,7 @@ export const checkAuth: MiddlewareHandler = async (c: Context, next) => {
       // our default `references: "user"` config, referenceId is the userId.
       c.set('user', { id: result.key.referenceId })
       c.set('session', null)
+      c.set('authMethod', 'api_key')
       return next()
     }
     return c.json({ error: { code: 'UNAUTHORIZED', message: 'Invalid API key' } }, 401)
@@ -31,6 +32,7 @@ export const checkAuth: MiddlewareHandler = async (c: Context, next) => {
   if (session) {
     c.set('user', session.user)
     c.set('session', session.session)
+    c.set('authMethod', 'user')
     return next()
   }
 
