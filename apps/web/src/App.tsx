@@ -5,6 +5,7 @@ import { LandingPage } from './pages/LandingPage'
 import { SignInPage } from './pages/SignInPage'
 import { SignUpPage } from './pages/SignUpPage'
 import { DashboardPage } from './pages/DashboardPage'
+import { TransactionsPage } from './pages/TransactionsPage'
 import { ReportsPage } from './pages/ReportsPage'
 import { WalletsPage } from './pages/WalletsPage'
 import { CurrenciesPage } from './pages/CurrenciesPage'
@@ -34,6 +35,7 @@ export function App() {
       <Route path="/sign-up" element={<PublicRoute><SignUpPage /></PublicRoute>} />
       <Route element={<ProtectedRoute><DashboardLayout /></ProtectedRoute>}>
         <Route path="/dashboard" element={<DashboardPage />} />
+        <Route path="/transactions" element={<TransactionsPage />} />
         <Route path="/reports" element={<ReportsPage />} />
         <Route path="/wallets" element={<WalletsPage />} />
         <Route path="/currencies" element={<CurrenciesPage />} />

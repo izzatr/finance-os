@@ -174,6 +174,13 @@ export function getRecentTransactions() {
   return request<{ data: RecentTransaction[] }>('/api/analytics/recent')
 }
 
+export function getRecentTransactionsPage(params: { limit?: number; before?: string }) {
+  const searchParams = new URLSearchParams()
+  if (params.limit) searchParams.set('limit', String(params.limit))
+  if (params.before) searchParams.set('before', params.before)
+  return request<{ data: RecentTransaction[] }>(`/api/analytics/recent?${searchParams}`)
+}
+
 export function getSummary(params?: { from?: string; to?: string }) {
   const searchParams = new URLSearchParams()
   if (params?.from) searchParams.set('from', params.from)

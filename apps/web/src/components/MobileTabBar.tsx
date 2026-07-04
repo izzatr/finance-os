@@ -5,6 +5,7 @@ import {
   CreditCard,
   Globe,
   LayoutGrid,
+  ListOrdered,
   Menu,
   Plus,
   Settings,
@@ -14,11 +15,12 @@ import { useQuickAdd } from '@/contexts/QuickAddContext'
 
 const TABS = [
   { label: 'Home', icon: LayoutGrid, path: '/dashboard' },
-  { label: 'Wallets', icon: CreditCard, path: '/wallets' },
+  { label: 'Activity', icon: ListOrdered, path: '/transactions' },
   { label: 'Reports', icon: BarChart3, path: '/reports' },
 ] as const
 
 const MORE_LINKS = [
+  { label: 'Wallets', icon: CreditCard, path: '/wallets' },
   { label: 'Currencies', icon: Globe, path: '/currencies' },
   { label: 'Settings', icon: Settings, path: '/settings/account' },
 ] as const
