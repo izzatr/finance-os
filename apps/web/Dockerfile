@@ -27,6 +27,9 @@ RUN npm run build --workspace @finance-os/web
 FROM nginx:alpine
 
 COPY --from=build /app/apps/web/dist /usr/share/nginx/html
-COPY apps/web/nginx.conf /etc/nginx/conf.d/default.conf
+# The nginx image envsubsts /etc/nginx/templates/*.template into conf.d at boot,
+# so the api upstream stays configurable per environment.
+COPY apps/web/nginx.conf /etc/nginx/templates/default.conf.template
+ENV API_UPSTREAM=http://api:27032
 
 EXPOSE 3000

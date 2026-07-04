@@ -19,15 +19,27 @@ setInterval(() => {
 
 export function rateLimit(opts: { windowMs: number; max: number; keyPrefix: string }): MiddlewareHandler {
   return async (c, next) => {
-    // x-forwarded-for is client-controlled unless a trusted proxy strips/sets it.
-    // Without TRUST_PROXY, fall back to the socket address so limits can't be
-    // rotated away with spoofed headers.
+    // x-forwarded-for entries are APPENDED by each proxy hop, so only the last
+    // TRUST_PROXY_HOPS entries are trustworthy (anything earlier is client-
+    // controlled). The client IP is the entry the OUTERMOST trusted proxy
+    // appended: parts[parts.length - hops]. Without TRUST_PROXY, use the
+    // socket address so limits can't be rotated away with spoofed headers.
     const trustProxy = process.env.TRUST_PROXY === 'true'
     const socketIp = (c.env as { incoming?: { socket?: { remoteAddress?: string } } } | undefined)
       ?.incoming?.socket?.remoteAddress
-    const ip = trustProxy
-      ? (c.req.header('x-forwarded-for')?.split(',')[0]?.trim() ?? c.req.header('x-real-ip') ?? socketIp ?? 'unknown')
-      : (socketIp ?? 'unknown')
+    let ip = socketIp ?? 'unknown'
+    if (trustProxy) {
+      const hops = Math.max(1, Number(process.env.TRUST_PROXY_HOPS ?? '1') || 1)
+      const parts = (c.req.header('x-forwarded-for') ?? '')
+        .split(',')
+        .map((part) => part.trim())
+        .filter(Boolean)
+      if (parts.length > 0) {
+        ip = parts[Math.max(0, parts.length - hops)]
+      } else {
+        ip = c.req.header('x-real-ip') ?? ip
+      }
+    }
     const key = `${opts.keyPrefix}:${ip}`
     const now = Date.now()
     const bucket = store.get(key) ?? { timestamps: [] }
