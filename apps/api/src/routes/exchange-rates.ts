@@ -54,7 +54,7 @@ export function registerExchangeRateRoutes(app: OpenAPIHono) {
             schema: z.object({
               base: codeSchema,
               quote: codeSchema,
-              rate: z.string().regex(/^\d+(\.\d+)?$/, 'Must be a positive decimal string'),
+              rate: z.string().regex(/^\d+(\.\d+)?$/, 'Must be a positive decimal string').refine((v) => Number(v) > 0, 'Rate must be positive'),
               asOf: z.string().datetime({ offset: true }).optional(),
             }),
           },

@@ -1,9 +1,9 @@
 import { createRoute, z } from '@hono/zod-openapi'
 import type { OpenAPIHono } from '@hono/zod-openapi'
-import { db, assets, people, transactionEntries, transactions, transactionSplits } from '@finance-os/db'
+import { db, assets, people, transactionEntries, transactions, transactionSplits, wallets } from '@finance-os/db'
 import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { recordAudit } from '../lib/audit'
-import { userOwnsWallets } from '../lib/create-transaction'
+import { isUniqueViolation } from '../lib/db-errors'
 
 const personShape = z.object({
   id: z.string().uuid(),
@@ -43,15 +43,6 @@ function scaledBigIntToDecimalString(scaled: bigint): string {
   const whole = scaled / factor
   const frac = scaled % factor
   return `${whole}.${frac.toString().padStart(DECIMAL_SCALE, '0')}`
-}
-
-/** True when the error is a Postgres unique-constraint violation (code 23505).
- * Drizzle wraps the underlying pg error in a DrizzleQueryError with `.cause`. */
-function isUniqueViolation(err: unknown): boolean {
-  const code = (err as { code?: unknown } | null)?.code
-  if (code === '23505') return true
-  const cause = (err as { cause?: { code?: unknown } } | null)?.cause
-  return cause?.code === '23505'
 }
 
 export function registerPeopleRoutes(app: OpenAPIHono) {
@@ -464,8 +455,17 @@ export function registerPeopleRoutes(app: OpenAPIHono) {
       return c.json({ error: { code: 'NOT_FOUND', message: 'Person not found' } }, 404)
     }
 
-    if (!(await userOwnsWallets(user.id, [walletId]))) {
+    const [settleWallet] = await db
+      .select({ id: wallets.id, assetId: wallets.assetId })
+      .from(wallets)
+      .where(and(eq(wallets.id, walletId), eq(wallets.userId, user.id), isNull(wallets.deletedAt)))
+    if (!settleWallet) {
       return c.json({ error: { code: 'NOT_FOUND', message: 'Wallet not found' } }, 404)
+    }
+    // The settlement entry lands in this wallet — its asset must match the splits' asset,
+    // or the wallet balance would be silently corrupted with a foreign-currency amount.
+    if (settleWallet.assetId !== assetId) {
+      return c.json({ error: { code: 'ASSET_MISMATCH', message: "Settlement asset does not match the wallet's asset" } }, 400)
     }
 
     // Gather the candidate unsettled splits: either an explicit list (each must belong to

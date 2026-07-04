@@ -4,6 +4,7 @@ import type { RecurringSchedule } from '@finance-os/domain'
 import { and, eq, lte, sql } from 'drizzle-orm'
 import { createTransactionForUser } from '../lib/create-transaction'
 import type { NewTransactionInput } from '../lib/create-transaction'
+import { isUniqueViolation } from '../lib/db-errors'
 
 /** UTC calendar date of an occurrence — the date part of the idempotency key. */
 function dateKey(d: Date): string {
@@ -81,8 +82,14 @@ export async function materializeDueRules(
         }
 
         if (rule.mode === 'auto_post') {
-          await createTransactionForUser(transaction, { userId: rule.userId, actorType: 'scheduler' })
-          posted += 1
+          try {
+            await createTransactionForUser(transaction, { userId: rule.userId, actorType: 'scheduler' })
+            posted += 1
+          } catch (err) {
+            // The partial unique index on (user_id, external_ref) for recurring: refs turns a
+            // concurrent double-materialization into a constraint violation — already booked.
+            if (!isUniqueViolation(err)) throw err
+          }
         } else {
           await db.insert(proposals).values({
             userId: rule.userId,

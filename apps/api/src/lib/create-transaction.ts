@@ -62,9 +62,22 @@ export async function createTransactionForUser(
     throw new CreateTransactionError(400, 'INVALID_TRANSFER', 'Transfer transactions must include at least two entries.')
   }
 
-  // Every referenced wallet must belong to the acting user
-  if (!(await userOwnsWallets(actor.userId, input.entries.map((e) => e.walletId)))) {
+  // Every referenced wallet must belong to the acting user, and every entry's asset
+  // must match its wallet's asset — a USD entry booked into an IDR wallet would
+  // silently corrupt that wallet's balance.
+  const uniqueWalletIds = [...new Set(input.entries.map((e) => e.walletId))]
+  const ownedWallets = await db
+    .select({ id: wallets.id, assetId: wallets.assetId })
+    .from(wallets)
+    .where(and(inArray(wallets.id, uniqueWalletIds), eq(wallets.userId, actor.userId), isNull(wallets.deletedAt)))
+  if (ownedWallets.length !== uniqueWalletIds.length) {
     throw new CreateTransactionError(404, 'NOT_FOUND', 'Wallet not found')
+  }
+  const walletAssetById = new Map(ownedWallets.map((w) => [w.id, w.assetId]))
+  for (const entry of input.entries) {
+    if (walletAssetById.get(entry.walletId) !== entry.assetId) {
+      throw new CreateTransactionError(400, 'ASSET_MISMATCH', "Entry asset does not match the wallet's asset")
+    }
   }
 
   // A referenced category must belong to the acting user

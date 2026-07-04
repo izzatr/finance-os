@@ -5,6 +5,7 @@ import { and, desc, eq, sql } from 'drizzle-orm'
 import { recordAudit } from '../lib/audit'
 import { CreateTransactionError, createTransactionForUser } from '../lib/create-transaction'
 import type { NewTransactionInput } from '../lib/create-transaction'
+import { isUniqueViolation } from '../lib/db-errors'
 
 const proposalShape = z.object({
   id: z.string().uuid(),
@@ -128,10 +129,15 @@ export function registerInboxRoutes(app: OpenAPIHono) {
     }
 
     try {
-      await createTransactionForUser(payload.transaction, { userId: user.id, actorType: 'user' })
+      await createTransactionForUser(payload.transaction, { userId: user.id, actorType: c.get('authMethod') ?? 'user' })
     } catch (err) {
       if (err instanceof CreateTransactionError) {
         return c.json({ error: { code: err.code, message: err.message } }, err.status as 404)
+      }
+      // Lost the race against an auto-post between our check and the insert: the partial
+      // unique index rejected the duplicate ref. Same outcome as the explicit guard above.
+      if (isUniqueViolation(err)) {
+        return c.json({ error: { code: 'ALREADY_MATERIALIZED', message: 'This occurrence was already booked' } }, 409)
       }
       throw err
     }

@@ -9,9 +9,11 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
   uuid,
   varchar,
 } from 'drizzle-orm/pg-core'
+import { sql } from 'drizzle-orm'
 import { users } from './auth-schema'
 
 export const assetTypeEnum = pgEnum('asset_type', ['currency', 'crypto', 'stock', 'commodity', 'custom'])
@@ -76,6 +78,11 @@ export const transactions = pgTable('transactions', {
 }, (table) => ({
   transactionDateIdx: index('transaction_date_idx').on(table.transactionDate),
   transactionUserIdx: index('transaction_user_idx').on(table.userId),
+  // Recurring materialization dedupe: a (rule, occurrence-date) ref may exist at most once
+  // per user. Scoped to the recurring: prefix — import refs legitimately repeat.
+  transactionRecurringRefUnique: uniqueIndex('transaction_user_recurring_ref_unique')
+    .on(table.userId, table.externalRef)
+    .where(sql`external_ref LIKE 'recurring:%'`),
 }))
 
 export const transactionEntries = pgTable('transaction_entries', {
