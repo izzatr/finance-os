@@ -51,10 +51,12 @@ async function userOwnsPeople(userId: string, personIds: string[]): Promise<bool
 /**
  * Validates ownership (wallets, category, people), inserts tx+entries+splits atomically, audits.
  * Throws CreateTransactionError with {status, code, message} on validation failure.
+ * Pass opts.skipAudit when the caller emits its own audit row (e.g. bulk's single summary row).
  */
 export async function createTransactionForUser(
   input: NewTransactionInput,
   actor: CreateTxActor,
+  opts?: { skipAudit?: boolean },
 ): Promise<{ id: string }> {
   if (input.type === 'transfer' && input.entries.length < 2) {
     throw new CreateTransactionError(400, 'INVALID_TRANSFER', 'Transfer transactions must include at least two entries.')
@@ -119,13 +121,15 @@ export async function createTransactionForUser(
     return { txRow }
   })
 
-  await recordAudit({
-    actorType: actor.actorType,
-    actorId: actor.userId,
-    action: 'transaction.create',
-    resourceType: 'transaction',
-    resourceId: txRow.id,
-  })
+  if (!opts?.skipAudit) {
+    await recordAudit({
+      actorType: actor.actorType,
+      actorId: actor.userId,
+      action: 'transaction.create',
+      resourceType: 'transaction',
+      resourceId: txRow.id,
+    })
+  }
 
   return { id: txRow.id }
 }

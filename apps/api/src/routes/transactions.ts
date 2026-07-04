@@ -407,7 +407,10 @@ export function registerTransactionRoutes(app: OpenAPIHono) {
 
     // Splits are inserted by the lib; re-select them here to shape the response
     // exactly as before (id, settledAt, settlementTransactionId included).
-    const splitRows = await db.select().from(transactionSplits).where(eq(transactionSplits.transactionId, created.id))
+    // Ordered by createdAt then id so the response order is deterministic.
+    const splitRows = await db.select().from(transactionSplits)
+      .where(eq(transactionSplits.transactionId, created.id))
+      .orderBy(transactionSplits.createdAt, transactionSplits.id)
 
     return c.json({
       data: {
@@ -539,12 +542,36 @@ export function registerTransactionRoutes(app: OpenAPIHono) {
     const ids: string[] = []
 
     // Sequential, non-atomic across items (matches prior behavior): each item is inserted
-    // independently, so an item failing partway through does not roll back items already
-    // committed earlier in the batch. Any thrown error (validation or DB) propagates
-    // uncaught, aborting the request — same as before this refactor.
+    // independently, so an item failing does not roll back items already committed earlier
+    // in the batch — the request stops at the first failure and returns its error envelope.
+    // skipAudit: bulk writes a single transaction.bulk_create summary row after the loop.
     for (const tx of payload.transactions) {
-      const { id } = await createTransactionForUser(tx, { userId: user.id, actorType: c.get('authMethod') ?? 'user' })
-      ids.push(id)
+      try {
+        const { id } = await createTransactionForUser(
+          tx,
+          { userId: user.id, actorType: c.get('authMethod') ?? 'user' },
+          { skipAudit: true },
+        )
+        ids.push(id)
+      } catch (err) {
+        if (err instanceof CreateTransactionError) {
+          // Cast keeps the typed route contract narrow (schema declares 404); the
+          // actual runtime status is err.status (e.g. 400 for INVALID_TRANSFER).
+          return c.json({ error: { code: err.code, message: err.message } }, err.status as 404)
+        }
+        throw err
+      }
+    }
+
+    if (ids.length > 0) {
+      await recordAudit({
+        actorType: c.get('authMethod') ?? 'user',
+        actorId: user.id,
+        action: 'transaction.bulk_create',
+        resourceType: 'transaction',
+        resourceId: ids[0],
+        metadata: { count: ids.length },
+      })
     }
 
     return c.json({ data: { created: ids.length, ids } }, 201)
