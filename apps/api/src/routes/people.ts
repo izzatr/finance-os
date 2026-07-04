@@ -28,6 +28,23 @@ function toResponseShape(row: typeof people.$inferSelect) {
   }
 }
 
+const DECIMAL_SCALE = 8
+
+/** Parses a decimal string (as validated by the `\d+(\.\d+)?` amount regex) into a scaled
+ * bigint at `numeric(20,8)` precision, so sums/comparisons never suffer float drift. */
+function toScaledBigInt(value: string): bigint {
+  const [whole, frac = ''] = value.split('.')
+  const paddedFrac = (frac + '0'.repeat(DECIMAL_SCALE)).slice(0, DECIMAL_SCALE)
+  return BigInt(whole) * 10n ** BigInt(DECIMAL_SCALE) + BigInt(paddedFrac)
+}
+
+function scaledBigIntToDecimalString(scaled: bigint): string {
+  const factor = 10n ** BigInt(DECIMAL_SCALE)
+  const whole = scaled / factor
+  const frac = scaled % factor
+  return `${whole}.${frac.toString().padStart(DECIMAL_SCALE, '0')}`
+}
+
 /** True when the error is a Postgres unique-constraint violation (code 23505).
  * Drizzle wraps the underlying pg error in a DrizzleQueryError with `.cause`. */
 function isUniqueViolation(err: unknown): boolean {
@@ -479,10 +496,11 @@ export function registerPeopleRoutes(app: OpenAPIHono) {
       return c.json({ error: { code: 'NOTHING_TO_SETTLE', message: 'Nothing to settle' } }, 400)
     }
 
-    const sum = candidates.reduce((acc, s) => acc + Number(s.amount), 0)
-    if (amount !== undefined && Math.abs(Number(amount) - sum) > 1e-9) {
+    const sumScaled = candidates.reduce((acc, s) => acc + toScaledBigInt(s.amount), 0n)
+    if (amount !== undefined && toScaledBigInt(amount) !== sumScaled) {
       return c.json({ error: { code: 'AMOUNT_MISMATCH', message: 'Amount does not match the sum of unsettled splits' } }, 400)
     }
+    const sum = scaledBigIntToDecimalString(sumScaled)
 
     const now = new Date()
     const settledIds = candidates.map((s) => s.id)
@@ -500,7 +518,7 @@ export function registerPeopleRoutes(app: OpenAPIHono) {
         transactionId: txRow.id,
         walletId,
         assetId,
-        amount: sum.toString(),
+        amount: sum,
       })
 
       await tx.update(transactionSplits)
@@ -522,7 +540,7 @@ export function registerPeopleRoutes(app: OpenAPIHono) {
     return c.json({
       data: {
         transactionId: txRow.id,
-        amount: sum.toString(),
+        amount: sum,
         settledSplitIds: settledIds,
       },
     }, 201)
