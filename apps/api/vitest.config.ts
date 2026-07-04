@@ -11,6 +11,7 @@ export default defineConfig({
       BETTER_AUTH_SECRET: 'test-secret-for-tests-only-min-32-chars',
       BETTER_AUTH_URL: 'http://localhost:27032',
       WEB_ORIGIN: 'http://localhost:27031',
+      TRUST_PROXY: 'true',
       STRIPE_SECRET_KEY: 'sk_test_00000000000000000000000000000000',
     },
     fileParallelism: false,

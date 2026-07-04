@@ -1,4 +1,4 @@
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '')
+export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '')
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const target = `${API_BASE_URL}${path}`
@@ -514,4 +514,27 @@ export function getAssetPrices(assetId: string) {
 
 export function createAssetPrice(body: { assetId: string; price: string; currency: string; asOf?: string }) {
   return request<{ data: AssetPrice }>('/api/asset-prices', { method: 'POST', body: JSON.stringify(body) })
+}
+
+// ── AI assistant ─────────────────────────────────────────────────────────
+
+export type AiStatus = { enabled: boolean; defaultModel: string | null; models: string[] }
+
+export function getAiStatus() {
+  return request<{ data: AiStatus }>('/api/ai/status')
+}
+
+export type ParsedTransaction = {
+  type: 'expense' | 'income'
+  amount: string
+  description: string
+  walletName?: string | null
+  categoryName?: string | null
+}
+
+export function parseTransactionText(text: string) {
+  return request<{ data: ParsedTransaction }>('/api/ai/parse-transaction', {
+    method: 'POST',
+    body: JSON.stringify({ text }),
+  })
 }

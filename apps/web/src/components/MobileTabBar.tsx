@@ -11,6 +11,7 @@ import {
   Menu,
   Plus,
   Settings,
+  Sparkles,
   Tags,
   Users,
 } from 'lucide-react'
@@ -28,6 +29,7 @@ const TABS = [
 const MORE_LINKS = [
   { label: 'Wallets', icon: CreditCard, path: '/wallets' },
   { label: 'People', icon: Users, path: '/people' },
+  { label: 'Assistant', icon: Sparkles, path: '/assistant' },
   { label: 'Inbox', icon: InboxIcon, path: '/inbox' },
   { label: 'Recurring', icon: CalendarClock, path: '/recurring' },
   { label: 'Categories', icon: Tags, path: '/categories' },

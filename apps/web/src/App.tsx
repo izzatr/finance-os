@@ -8,6 +8,7 @@ import { DashboardPage } from './pages/DashboardPage'
 import { TransactionsPage } from './pages/TransactionsPage'
 import { PeoplePage } from './pages/PeoplePage'
 import { InboxPage } from './pages/InboxPage'
+import { AssistantPage } from './pages/AssistantPage'
 import { RecurringPage } from './pages/RecurringPage'
 import { CategoriesPage } from './pages/CategoriesPage'
 import { ReportsPage } from './pages/ReportsPage'
@@ -42,6 +43,7 @@ export function App() {
         <Route path="/transactions" element={<TransactionsPage />} />
         <Route path="/people" element={<PeoplePage />} />
         <Route path="/inbox" element={<InboxPage />} />
+        <Route path="/assistant" element={<AssistantPage />} />
         <Route path="/recurring" element={<RecurringPage />} />
         <Route path="/categories" element={<CategoriesPage />} />
         <Route path="/reports" element={<ReportsPage />} />

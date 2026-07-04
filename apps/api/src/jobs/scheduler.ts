@@ -1,6 +1,7 @@
 import cron from 'node-cron'
 import { materializeDueRules } from './materialize-recurring'
 import { fetchDailyRates } from './fetch-rates'
+import { generateWeeklyDigests } from './weekly-digest'
 
 /**
  * Hourly recurring-rule materialization (minute 7, to stay off the top-of-hour
@@ -28,4 +29,14 @@ export function startScheduler(): void {
     }
   })
   console.log('[scheduler] daily fx rate fetch scheduled (05:23)')
+
+  cron.schedule('45 5 * * 1', async () => {
+    try {
+      const { digests } = await generateWeeklyDigests(new Date())
+      console.log(`[scheduler] weekly digests filed: ${digests}`)
+    } catch (err) {
+      console.error('[scheduler] weekly digest tick failed:', err)
+    }
+  })
+  console.log('[scheduler] weekly digest scheduled (Mondays 05:45)')
 }

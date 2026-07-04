@@ -1,9 +1,14 @@
 const BASE = process.env.FINANCE_API_URL ?? 'http://localhost:27032'
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const apiKey = process.env.FINANCE_API_KEY
   const res = await fetch(`${BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json', ...init?.headers },
     ...init,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
+      ...init?.headers,
+    },
   })
   if (!res.ok) {
     const body = await res.text()

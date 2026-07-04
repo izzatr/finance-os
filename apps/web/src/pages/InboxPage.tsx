@@ -4,6 +4,9 @@ import { Button } from '@/components/ui/button'
 import { approveProposal, getInbox, rejectProposal, type Proposal } from '@/lib/api'
 
 function proposalSummary(p: Proposal): { title: string; amount: string | null } {
+  if (p.source === 'digest') {
+    return { title: (p.payload as { digest?: string | null }).digest ?? 'Your weekly money recap is ready.', amount: null }
+  }
   const tx = p.payload.transaction
   const amount = tx?.entries?.[0]?.amount ?? null
   return { title: tx?.description ?? 'Transaction proposal', amount }
@@ -14,6 +17,8 @@ function sourceBadge(source: string): string {
     case 'recurring_draft': return 'Recurring'
     case 'ai_chat': return 'AI assistant'
     case 'mcp': return 'Agent'
+    case 'digest': return 'Digest'
+    case 'draft': return 'Draft'
     default: return source
   }
 }
@@ -61,14 +66,16 @@ function ProposalCard({ proposal }: { proposal: Proposal }) {
       </div>
       {pending && (
         <div className="flex gap-2 pt-3">
-          <Button
-            size="sm"
-            className="flex-1"
-            onClick={() => approve.mutate()}
-            disabled={approve.isPending || reject.isPending}
-          >
-            <CheckCircle2 className="size-4" /> Approve
-          </Button>
+          {proposal.source !== 'digest' && (
+            <Button
+              size="sm"
+              className="flex-1"
+              onClick={() => approve.mutate()}
+              disabled={approve.isPending || reject.isPending}
+            >
+              <CheckCircle2 className="size-4" /> Approve
+            </Button>
+          )}
           <Button
             size="sm"
             variant="outline"
@@ -76,7 +83,7 @@ function ProposalCard({ proposal }: { proposal: Proposal }) {
             onClick={() => reject.mutate()}
             disabled={approve.isPending || reject.isPending}
           >
-            <XCircle className="size-4" /> Reject
+            <XCircle className="size-4" /> {proposal.source === 'digest' ? 'Dismiss' : 'Reject'}
           </Button>
         </div>
       )}

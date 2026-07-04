@@ -15,6 +15,9 @@ import { registerDashboardRoutes } from './routes/dashboard'
 import { registerImportRoutes } from './routes/imports'
 import { registerRecurringRoutes } from './routes/recurring'
 import { registerInboxRoutes } from './routes/inbox'
+import { registerProposalRoutes } from './routes/proposals'
+import { registerMcpRoutes } from './routes/mcp'
+import { registerAiRoutes } from './routes/ai'
 import { registerExchangeRateRoutes } from './routes/exchange-rates'
 import { registerAssetPriceRoutes } from './routes/asset-prices'
 
@@ -28,6 +31,9 @@ app.use('*', cors({
 
 // Webhooks: raw-body verification, mounted before auth
 registerWebhookRoutes(app)
+
+// Remote MCP: does its own Bearer API-key auth + rate limiting
+registerMcpRoutes(app)
 
 // ── Auth API routes (OAuth, sessions, API keys) ──────────────────────────
 // Better Auth handles sign-in, sign-up, OAuth, session management, API keys at /auth/*
@@ -51,8 +57,10 @@ registerDashboardRoutes(app)
 registerImportRoutes(app)
 registerRecurringRoutes(app)
 registerInboxRoutes(app)
+registerProposalRoutes(app)
 registerExchangeRateRoutes(app)
 registerAssetPriceRoutes(app)
+registerAiRoutes(app)
 
 app.doc('/openapi.json', {
   openapi: '3.1.0',

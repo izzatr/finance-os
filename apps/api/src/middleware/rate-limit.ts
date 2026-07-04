@@ -19,10 +19,15 @@ setInterval(() => {
 
 export function rateLimit(opts: { windowMs: number; max: number; keyPrefix: string }): MiddlewareHandler {
   return async (c, next) => {
-    const ip =
-      c.req.header('x-forwarded-for')?.split(',')[0]?.trim() ??
-      c.req.header('x-real-ip') ??
-      'unknown'
+    // x-forwarded-for is client-controlled unless a trusted proxy strips/sets it.
+    // Without TRUST_PROXY, fall back to the socket address so limits can't be
+    // rotated away with spoofed headers.
+    const trustProxy = process.env.TRUST_PROXY === 'true'
+    const socketIp = (c.env as { incoming?: { socket?: { remoteAddress?: string } } } | undefined)
+      ?.incoming?.socket?.remoteAddress
+    const ip = trustProxy
+      ? (c.req.header('x-forwarded-for')?.split(',')[0]?.trim() ?? c.req.header('x-real-ip') ?? socketIp ?? 'unknown')
+      : (socketIp ?? 'unknown')
     const key = `${opts.keyPrefix}:${ip}`
     const now = Date.now()
     const bucket = store.get(key) ?? { timestamps: [] }

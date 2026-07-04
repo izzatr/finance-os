@@ -10,6 +10,7 @@ import {
   Inbox,
   Search,
   Settings,
+  Sparkles,
   Tags,
   Users,
 } from 'lucide-react'
@@ -33,6 +34,7 @@ const NAV_ITEMS = [
   { label: 'Wallets', icon: CreditCard, path: '/wallets', activePath: '/wallets' },
   { label: 'People', icon: Users, path: '/people', activePath: '/people' },
   { label: 'Recurring', icon: CalendarClock, path: '/recurring', activePath: '/recurring' },
+  { label: 'Assistant', icon: Sparkles, path: '/assistant', activePath: '/assistant' },
   { label: 'Inbox', icon: Inbox, path: '/inbox', activePath: '/inbox' },
   { label: 'Categories', icon: Tags, path: '/categories', activePath: '/categories' },
   { label: 'Currencies', icon: Globe, path: '/currencies', activePath: '/currencies' },

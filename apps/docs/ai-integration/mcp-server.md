@@ -250,3 +250,32 @@ Then filters results for transportation category.
   "toWallet": "Example Bank"
 }
 ```
+
+## Remote MCP (hosted)
+
+Every finance-os deployment also serves MCP over HTTP at `/mcp` — no local
+process needed. Point any MCP client at your instance with an API key:
+
+```json
+{
+  "mcpServers": {
+    "finance-os": {
+      "type": "http",
+      "url": "https://your-instance.example.com/mcp",
+      "headers": { "Authorization": "Bearer YOUR_API_KEY" }
+    }
+  }
+}
+```
+
+The key's scope governs what agents can do:
+
+| Scope | Behavior |
+| --- | --- |
+| `read` | Look, but never touch — write tools refuse |
+| `propose` (recommended) | Writes become proposals in your approval inbox; nothing books until you approve |
+| `write` | Full direct access, including approving proposals |
+
+Create scoped keys in **Settings → API keys**. The local stdio server described
+above uses the same tool registry and honors the same scopes (set
+`FINANCE_API_KEY`; the server detects the scope via `/api/me` at startup).
