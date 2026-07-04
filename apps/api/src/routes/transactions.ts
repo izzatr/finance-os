@@ -275,7 +275,17 @@ export function registerTransactionRoutes(app: OpenAPIHono) {
     if (payload.type !== undefined) txUpdates.type = payload.type
     if (payload.transactionDate !== undefined) txUpdates.transactionDate = new Date(payload.transactionDate)
     if (payload.notes !== undefined) txUpdates.notes = payload.notes
-    if (payload.categoryId !== undefined) txUpdates.categoryId = payload.categoryId
+    if (payload.categoryId !== undefined) {
+      // A referenced category must belong to the acting user
+      if (payload.categoryId !== null) {
+        const [category] = await db.select({ id: categories.id }).from(categories)
+          .where(and(eq(categories.id, payload.categoryId), eq(categories.userId, user.id)))
+        if (!category) {
+          return c.json({ error: { code: 'NOT_FOUND', message: 'Category not found' } }, 404)
+        }
+      }
+      txUpdates.categoryId = payload.categoryId
+    }
 
     if (Object.keys(txUpdates).length > 0) {
       await db.update(transactions).set(txUpdates).where(and(eq(transactions.id, id), eq(transactions.userId, user.id), isNull(transactions.deletedAt)))

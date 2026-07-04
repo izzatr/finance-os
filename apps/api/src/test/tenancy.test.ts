@@ -181,6 +181,28 @@ describe('tenancy isolation', () => {
     expect(amountRes.status).toBe(404)
   })
 
+  it("cannot link own transaction to another user's category", async () => {
+    const alice = await createTestUser(app)
+    const bob = await createTestUser(app)
+    const catRes = await app.request('/api/categories', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie: alice.cookie },
+      body: JSON.stringify({ name: 'Alice Secret' }),
+    })
+    const { data: aliceCategory } = (await catRes.json()) as { data: { id: string } }
+
+    const { walletId, assetId } = await createWallet(bob.cookie, 'Bob Bank')
+    const txRes = await createTransaction(bob.cookie, walletId, assetId, 'bob tx')
+    const { data: tx } = (await txRes.json()) as { data: { id: string } }
+
+    const res = await app.request(`/api/transactions/${tx.id}`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json', cookie: bob.cookie },
+      body: JSON.stringify({ categoryId: aliceCategory.id }),
+    })
+    expect(res.status).toBe(404)
+  })
+
   it('search only returns own transactions', async () => {
     const alice = await createTestUser(app)
     const bob = await createTestUser(app)
