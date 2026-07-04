@@ -9,6 +9,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@finance-os/billing": "0.1.0",
     "@finance-os/db": "0.1.0",
     "@finance-os/domain": "0.1.0",
     "@hono/node-server": "^1.19.12",

@@ -5,6 +5,7 @@ import { and, desc, eq, gte, ilike, isNull, isNotNull, lte, sql } from 'drizzle-
 import { cors } from 'hono/cors'
 import { auth } from '@finance-os/db'
 import { checkAuth } from './middleware/auth'
+import { handleStripeWebhook } from '@finance-os/billing'
 
 const app = new OpenAPIHono()
 
@@ -13,6 +14,28 @@ app.use('*', cors({
   origin: [process.env.WEB_ORIGIN ?? 'http://localhost:27031', 'http://localhost:5173'],
   credentials: true,
 }))
+
+// ── Stripe webhook ─────────────────────────────────────────────────────────────
+// Must be BEFORE auth middleware — webhook验证 uses raw body
+app.post('/webhooks/stripe', async (c) => {
+  const sig = c.req.header('stripe-signature')
+  if (!sig) return c.json({ error: 'Missing stripe-signature header' }, 400)
+
+  let payload: ArrayBuffer
+  try {
+    payload = await c.req.arrayBuffer()
+  } catch {
+    return c.json({ error: 'Could not read request body' }, 400)
+  }
+
+  try {
+    await handleStripeWebhook(Buffer.from(payload), sig)
+    return c.json({ received: true })
+  } catch (err) {
+    console.error('Stripe webhook error:', err)
+    return c.json({ error: 'Webhook processing failed' }, 400)
+  }
+})
 
 // ── Auth API routes (OAuth, sessions, API keys) ──────────────────────────
 // Better Auth handles sign-in, sign-up, OAuth, session management, API keys at /auth/*
@@ -280,6 +303,7 @@ const walletTransactionsRoute = createRoute({
                 categoryName: z.string().nullable(),
                 amount: z.number(),
                 currency: z.string(),
+                createdAt: z.string(),
               })),
             }),
           }),
@@ -332,6 +356,7 @@ app.openapi(walletTransactionsRoute, async (c) => {
       categoryName: categories.name,
       amount: transactionEntries.amount,
       currency: assets.code,
+      createdAt: transactions.createdAt,
     })
     .from(transactions)
     .innerJoin(transactionEntries, and(
@@ -352,6 +377,7 @@ app.openapi(walletTransactionsRoute, async (c) => {
     categoryName: r.categoryName,
     amount: Number(r.amount),
     currency: r.currency,
+    createdAt: r.createdAt.toISOString(),
   }))
 
   return c.json({

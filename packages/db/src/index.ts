@@ -5,6 +5,9 @@ import { Pool } from 'pg'
 
 export * from './schema'
 export * from './auth-setup'
+export * from './billing-schema'
+export * from './audit-schema'
+export * from './entitlements'
 
 const connectionString = process.env.DATABASE_URL ?? 'postgres://finance:***@localhost:27033/finance_os'
 
