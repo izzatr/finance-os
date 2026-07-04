@@ -34,8 +34,18 @@ export type ApiKey = {
   id: string
   name: string | null
   createdAt: string
+  metadata?: { scope?: 'read' | 'propose' | 'write' } | string | null
   /** only shown once on creation */
   key?: string
+}
+
+export function apiKeyScope(key: ApiKey): 'read' | 'propose' | 'write' {
+  let meta = key.metadata
+  if (typeof meta === 'string') {
+    try { meta = JSON.parse(meta) } catch { meta = null }
+  }
+  const scope = (meta as { scope?: string } | null)?.scope
+  return scope === 'read' || scope === 'propose' ? scope : 'write'
 }
 
 export type AuthState =
@@ -109,10 +119,12 @@ export async function listApiKeys(): Promise<ApiKey[]> {
   return authFetch<ApiKey[]>('/auth/api-key/list')
 }
 
-export async function createApiKey(name: string): Promise<ApiKey> {
+export type ApiKeyScope = 'read' | 'propose' | 'write'
+
+export async function createApiKey(name: string, scope: ApiKeyScope = 'propose'): Promise<ApiKey> {
   return authFetch<ApiKey>('/auth/api-key/create', {
     method: 'POST',
-    body: JSON.stringify({ name }),
+    body: JSON.stringify({ name, metadata: { scope } }),
   })
 }
 

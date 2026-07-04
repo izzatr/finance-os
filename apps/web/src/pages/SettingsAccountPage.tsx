@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { useAuth } from '@/contexts/AuthContext'
-import { listApiKeys, createApiKey, revokeApiKey } from '@/lib/auth'
+import { listApiKeys, createApiKey, revokeApiKey, apiKeyScope, type ApiKeyScope } from '@/lib/auth'
 
 function formatDate(dateStr: string) {
   return new Date(dateStr).toLocaleDateString('en-US', {
@@ -52,7 +52,7 @@ export function SettingsAccountPage() {
   })
 
   const createMutation = useMutation({
-    mutationFn: createApiKey,
+    mutationFn: ({ name, scope }: { name: string; scope: ApiKeyScope }) => createApiKey(name, scope),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['api-keys'] })
     },
@@ -70,8 +70,15 @@ export function SettingsAccountPage() {
   const handleCreateKey = async () => {
     const name = window.prompt('Enter a name for this API key:')
     if (!name) return
+    const scopeInput = window.prompt(
+      'Key scope — read (view only), propose (writes wait in your approval inbox), or write (full access):',
+      'propose',
+    )
+    if (scopeInput === null) return
+    const trimmed = scopeInput.trim().toLowerCase()
+    const scope: ApiKeyScope = trimmed === 'read' || trimmed === 'write' ? trimmed : 'propose'
     try {
-      const created = await createMutation.mutateAsync(name)
+      const created = await createMutation.mutateAsync({ name, scope })
       if (created.key) {
         setNewKey({ name: created.name ?? name, value: created.key })
       }
@@ -240,7 +247,18 @@ export function SettingsAccountPage() {
                     className="flex items-center justify-between rounded-lg border border-border/50 bg-white/50 px-3 py-2.5"
                   >
                     <div className="flex flex-col gap-0.5">
-                      <p className="text-sm font-medium text-foreground">{key.name ?? '(unnamed)'}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-medium text-foreground">{key.name ?? '(unnamed)'}</p>
+                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+                          apiKeyScope(key) === 'write'
+                            ? 'bg-[color-mix(in_srgb,var(--negative)_12%,white)] text-[var(--negative)]'
+                            : apiKeyScope(key) === 'propose'
+                              ? 'bg-[var(--accent-dim)] text-[var(--accent-blue)]'
+                              : 'bg-muted text-muted-foreground'
+                        }`}>
+                          {apiKeyScope(key)}
+                        </span>
+                      </div>
                       <p className="text-xs text-muted-foreground">
                         Created {formatDate(key.createdAt)}
                       </p>

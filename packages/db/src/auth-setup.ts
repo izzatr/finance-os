@@ -61,7 +61,8 @@ export const auth = betterAuth({
     },
   },
 
-  plugins: [apiKey()],
+  // enableMetadata: API keys carry {scope: 'read'|'propose'|'write'} in metadata
+  plugins: [apiKey({ enableMetadata: true })],
 
   databaseHooks: {
     user: {
