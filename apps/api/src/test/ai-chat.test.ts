@@ -137,7 +137,7 @@ describe('ai chat', () => {
     ]
 
     const events = await chat(cookie, 'Log 23.40 groceries from Main Bank')
-    const toolResult = events.find((e) => e.type === 'tool_result') as { ok: boolean; proposed: boolean }
+    const toolResult = events.find((e) => e.type === 'tool_result') as unknown as { ok: boolean; proposed: boolean }
     expect(toolResult.ok).toBe(true)
     expect(toolResult.proposed).toBe(true)
 
