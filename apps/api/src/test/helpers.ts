@@ -27,6 +27,14 @@ export async function createTestUser(app: OpenAPIHono): Promise<{ cookie: string
 
 /** Wipe all data between tests (order respects FKs; auth tables cascade). */
 export async function truncateAll(): Promise<void> {
+  // Safety guard: never truncate anything but a *_test database. The real
+  // finance_os DB lives on the same Postgres instance, differentiated only by
+  // name — if this helper is ever imported outside the vitest harness (where
+  // DATABASE_URL points at the real DB), refuse to run.
+  const dbName = new URL(TEST_DATABASE_URL).pathname.slice(1)
+  if (!dbName.endsWith('_test')) {
+    throw new Error(`Refusing to truncate non-test database: ${dbName}`)
+  }
   const pool = new Pool({ connectionString: TEST_DATABASE_URL })
   await pool.query(`
     TRUNCATE TABLE
