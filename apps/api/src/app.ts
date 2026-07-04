@@ -13,6 +13,7 @@ import { registerPeopleRoutes } from './routes/people'
 import { registerAnalyticsRoutes } from './routes/analytics'
 import { registerDashboardRoutes } from './routes/dashboard'
 import { registerImportRoutes } from './routes/imports'
+import { registerRecurringRoutes } from './routes/recurring'
 
 const app = new OpenAPIHono()
 
@@ -45,6 +46,7 @@ registerPeopleRoutes(app)
 registerAnalyticsRoutes(app)
 registerDashboardRoutes(app)
 registerImportRoutes(app)
+registerRecurringRoutes(app)
 
 app.doc('/openapi.json', {
   openapi: '3.1.0',
