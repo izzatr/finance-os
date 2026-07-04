@@ -9,9 +9,14 @@ import { registerSystemRoutes } from './routes/system'
 import { registerWalletRoutes } from './routes/wallets'
 import { registerTransactionRoutes } from './routes/transactions'
 import { registerCategoryRoutes } from './routes/categories'
+import { registerPeopleRoutes } from './routes/people'
 import { registerAnalyticsRoutes } from './routes/analytics'
 import { registerDashboardRoutes } from './routes/dashboard'
 import { registerImportRoutes } from './routes/imports'
+import { registerRecurringRoutes } from './routes/recurring'
+import { registerInboxRoutes } from './routes/inbox'
+import { registerExchangeRateRoutes } from './routes/exchange-rates'
+import { registerAssetPriceRoutes } from './routes/asset-prices'
 
 const app = new OpenAPIHono()
 
@@ -40,9 +45,14 @@ registerSystemRoutes(app)
 registerWalletRoutes(app)
 registerTransactionRoutes(app)
 registerCategoryRoutes(app)
+registerPeopleRoutes(app)
 registerAnalyticsRoutes(app)
 registerDashboardRoutes(app)
 registerImportRoutes(app)
+registerRecurringRoutes(app)
+registerInboxRoutes(app)
+registerExchangeRateRoutes(app)
+registerAssetPriceRoutes(app)
 
 app.doc('/openapi.json', {
   openapi: '3.1.0',

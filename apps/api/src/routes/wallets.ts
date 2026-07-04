@@ -1,9 +1,49 @@
 import { createRoute, z } from '@hono/zod-openapi'
 import type { OpenAPIHono } from '@hono/zod-openapi'
-import { db, assets, categories, transactionEntries, transactions, wallets } from '@finance-os/db'
+import { db, assetPrices, assets, categories, transactionEntries, transactions, wallets } from '@finance-os/db'
 import { walletSchema } from '@finance-os/domain'
-import { and, desc, eq, isNull, isNotNull, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNull, isNotNull, sql } from 'drizzle-orm'
 import { recordAudit } from '../lib/audit'
+
+// Valuation for quantity-based assets (unit non-null, e.g. gold in grams):
+// wallet balance is a quantity; value = quantity x latest recorded price.
+const valuationShape = z
+  .object({
+    quantity: z.number(),
+    price: z.number(),
+    currency: z.string(),
+    value: z.number(),
+    asOf: z.string(),
+  })
+  .nullable()
+
+type PriceRow = typeof assetPrices.$inferSelect
+
+async function latestPricesFor(assetIds: string[]): Promise<Map<string, PriceRow>> {
+  const latest = new Map<string, PriceRow>()
+  if (assetIds.length === 0) return latest
+  const rows = await db
+    .select()
+    .from(assetPrices)
+    .where(inArray(assetPrices.assetId, assetIds))
+    .orderBy(desc(assetPrices.asOf), desc(assetPrices.createdAt))
+  for (const row of rows) {
+    if (!latest.has(row.assetId)) latest.set(row.assetId, row)
+  }
+  return latest
+}
+
+function valuationFor(balance: number, unit: string | null, price: PriceRow | undefined) {
+  if (!unit || !price) return null
+  const unitPrice = Number(price.price)
+  return {
+    quantity: balance,
+    price: unitPrice,
+    currency: price.currency,
+    value: balance * unitPrice,
+    asOf: price.asOf.toISOString(),
+  }
+}
 
 export function registerWalletRoutes(app: OpenAPIHono) {
   const createWalletRoute = createRoute({
@@ -46,6 +86,8 @@ export function registerWalletRoutes(app: OpenAPIHono) {
                   id: z.string().uuid(),
                   balance: z.number(),
                   currency: z.string(),
+                  unit: z.string().nullable(),
+                  valuation: valuationShape,
                 }),
               ),
             }),
@@ -76,6 +118,7 @@ export function registerWalletRoutes(app: OpenAPIHono) {
                   institution: z.string().nullable(),
                   currency: z.string(),
                   balance: z.number(),
+                  valuation: valuationShape,
                 }),
                 transactions: z.array(z.object({
                   id: z.string().uuid(),
@@ -273,16 +316,24 @@ export function registerWalletRoutes(app: OpenAPIHono) {
         isActive: wallets.isActive,
         balance: sql<number>`coalesce(sum(${transactionEntries.amount}), 0)`,
         currency: assets.code,
+        unit: assets.unit,
       })
       .from(wallets)
       .innerJoin(assets, eq(assets.id, wallets.assetId))
       .leftJoin(transactionEntries, eq(transactionEntries.walletId, wallets.id))
       .leftJoin(transactions, eq(transactions.id, transactionEntries.transactionId))
       .where(and(eq(wallets.userId, user.id), isNull(wallets.deletedAt), isNull(transactions.deletedAt)))
-      .groupBy(wallets.id, assets.code)
+      .groupBy(wallets.id, assets.code, assets.unit)
       .orderBy(wallets.name)
 
-    return c.json({ data: rows }, 200)
+    const quantityAssetIds = [...new Set(rows.filter((r) => r.unit).map((r) => r.assetId))]
+    const prices = await latestPricesFor(quantityAssetIds)
+    const data = rows.map((row) => ({
+      ...row,
+      valuation: valuationFor(Number(row.balance), row.unit, prices.get(row.assetId)),
+    }))
+
+    return c.json({ data }, 200)
   })
 
   app.openapi(walletTransactionsRoute, async (c) => {
@@ -298,13 +349,15 @@ export function registerWalletRoutes(app: OpenAPIHono) {
         institution: wallets.institution,
         currency: assets.code,
         balance: sql<number>`coalesce(sum(${transactionEntries.amount}), 0)`,
+        assetId: wallets.assetId,
+        unit: assets.unit,
       })
       .from(wallets)
       .innerJoin(assets, eq(assets.id, wallets.assetId))
       .leftJoin(transactionEntries, eq(transactionEntries.walletId, wallets.id))
       .leftJoin(transactions, eq(transactions.id, transactionEntries.transactionId))
       .where(and(eq(wallets.id, id), eq(wallets.userId, user.id), isNull(wallets.deletedAt), isNull(transactions.deletedAt)))
-      .groupBy(wallets.id, assets.code)
+      .groupBy(wallets.id, assets.code, assets.unit)
 
     if (!wallet) {
       return c.json({ error: { code: 'NOT_FOUND', message: 'Wallet not found' } }, 404)
@@ -345,9 +398,16 @@ export function registerWalletRoutes(app: OpenAPIHono) {
       createdAt: r.createdAt.toISOString(),
     }))
 
+    const detailPrices = await latestPricesFor(wallet.unit ? [wallet.assetId] : [])
+    const { assetId: walletAssetId, unit: walletUnit, ...walletFields } = wallet
+
     return c.json({
       data: {
-        wallet: { ...wallet, balance: Number(wallet.balance) },
+        wallet: {
+          ...walletFields,
+          balance: Number(wallet.balance),
+          valuation: valuationFor(Number(wallet.balance), walletUnit, detailPrices.get(walletAssetId)),
+        },
         transactions: txData,
       },
     }, 200)

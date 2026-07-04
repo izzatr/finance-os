@@ -3,6 +3,9 @@ import { z } from 'zod'
 export { EDITION, isCloud, isCommunity, features } from './edition'
 export type { Edition, FeatureFlags } from './edition'
 
+export { nextOccurrences } from './recurrence'
+export type { RecurringSchedule } from './recurrence'
+
 export const assetTypeSchema = z.enum(['currency', 'crypto', 'stock', 'commodity', 'custom'])
 export const walletTypeSchema = z.enum(['bank', 'cash', 'ewallet', 'crypto', 'investment', 'credit', 'custom'])
 export const transactionTypeSchema = z.enum(['expense', 'income', 'transfer', 'exchange', 'adjustment', 'fee'])

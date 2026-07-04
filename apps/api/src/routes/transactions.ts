@@ -1,19 +1,25 @@
 import { createRoute, z } from '@hono/zod-openapi'
 import type { OpenAPIHono } from '@hono/zod-openapi'
-import { db, assets, categories, transactionEntries, transactions, wallets } from '@finance-os/db'
+import { db, assets, categories, transactionEntries, transactionSplits, transactions, wallets } from '@finance-os/db'
 import { transactionSchema } from '@finance-os/domain'
 import { and, desc, eq, gte, inArray, isNull, isNotNull, lte, sql } from 'drizzle-orm'
 import { recordAudit } from '../lib/audit'
+import { createTransactionForUser, CreateTransactionError, userOwnsWallets } from '../lib/create-transaction'
 
-/** All referenced wallets must exist, be live, and belong to the user. */
-async function userOwnsWallets(userId: string, walletIds: string[]): Promise<boolean> {
-  const uniqueIds = [...new Set(walletIds)]
-  const owned = await db
-    .select({ id: wallets.id })
-    .from(wallets)
-    .where(and(inArray(wallets.id, uniqueIds), eq(wallets.userId, userId), isNull(wallets.deletedAt)))
-  return owned.length === uniqueIds.length
-}
+const splitInputSchema = z.object({
+  personId: z.string().uuid(),
+  assetId: z.string().uuid().optional(),
+  amount: z.string().regex(/^\d+(\.\d+)?$/).refine((v) => Number(v) > 0, 'amount must be positive'),
+})
+
+const splitOutputShape = z.object({
+  id: z.string().uuid(),
+  personId: z.string().uuid(),
+  assetId: z.string().uuid(),
+  amount: z.string(),
+  settledAt: z.string().nullable(),
+  settlementTransactionId: z.string().uuid().nullable(),
+})
 
 export function registerTransactionRoutes(app: OpenAPIHono) {
   const listTransactionsRoute = createRoute({
@@ -29,6 +35,7 @@ export function registerTransactionRoutes(app: OpenAPIHono) {
               data: z.array(
                 transactionSchema.extend({
                   id: z.string().uuid(),
+                  splits: z.array(splitOutputShape).optional(),
                 }),
               ),
             }),
@@ -46,7 +53,7 @@ export function registerTransactionRoutes(app: OpenAPIHono) {
       body: {
         content: {
           'application/json': {
-            schema: transactionSchema,
+            schema: transactionSchema.extend({ splits: z.array(splitInputSchema).optional() }),
           },
         },
       },
@@ -56,7 +63,12 @@ export function registerTransactionRoutes(app: OpenAPIHono) {
         description: 'Create transaction',
         content: {
           'application/json': {
-            schema: z.object({ data: transactionSchema.extend({ id: z.string().uuid() }) }),
+            schema: z.object({
+              data: transactionSchema.extend({
+                id: z.string().uuid(),
+                splits: z.array(splitOutputShape).optional(),
+              }),
+            }),
           },
         },
       },
@@ -330,7 +342,8 @@ export function registerTransactionRoutes(app: OpenAPIHono) {
     const txRows = await db.select().from(transactions)
       .where(and(eq(transactions.userId, user.id), isNull(transactions.deletedAt)))
       .orderBy(desc(transactions.transactionDate))
-    const entryRows = await db
+    const txIds = txRows.map((row) => row.id)
+    const entryRows = txIds.length === 0 ? [] : await db
       .select({
         transactionId: transactionEntries.transactionId,
         walletId: transactionEntries.walletId,
@@ -339,8 +352,19 @@ export function registerTransactionRoutes(app: OpenAPIHono) {
         notes: transactionEntries.notes,
       })
       .from(transactionEntries)
-      .innerJoin(transactions, eq(transactions.id, transactionEntries.transactionId))
-      .where(eq(transactions.userId, user.id))
+      .where(inArray(transactionEntries.transactionId, txIds))
+    const splitRows = txIds.length === 0 ? [] : await db
+      .select({
+        id: transactionSplits.id,
+        transactionId: transactionSplits.transactionId,
+        personId: transactionSplits.personId,
+        assetId: transactionSplits.assetId,
+        amount: transactionSplits.amount,
+        settledAt: transactionSplits.settledAt,
+        settlementTransactionId: transactionSplits.settlementTransactionId,
+      })
+      .from(transactionSplits)
+      .where(inArray(transactionSplits.transactionId, txIds))
 
     const data = txRows.map((row) => ({
       ...row,
@@ -352,6 +376,16 @@ export function registerTransactionRoutes(app: OpenAPIHono) {
           amount: String(entry.amount),
           notes: entry.notes,
         })),
+      splits: splitRows
+        .filter((split) => split.transactionId === row.id)
+        .map((split) => ({
+          id: split.id,
+          personId: split.personId,
+          assetId: split.assetId,
+          amount: String(split.amount),
+          settledAt: split.settledAt ? split.settledAt.toISOString() : null,
+          settlementTransactionId: split.settlementTransactionId,
+        })),
     }))
 
     return c.json({ data }, 200)
@@ -361,48 +395,37 @@ export function registerTransactionRoutes(app: OpenAPIHono) {
     const user = c.get('user')
     const payload = c.req.valid('json')
 
-    if (payload.type === 'transfer' && payload.entries.length < 2) {
-      return c.json({
-        error: {
-          code: 'INVALID_TRANSFER',
-          message: 'Transfer transactions must include at least two entries.',
-        },
-      }, 400)
+    let created: { id: string }
+    try {
+      created = await createTransactionForUser(payload, { userId: user.id, actorType: c.get('authMethod') ?? 'user' })
+    } catch (err) {
+      if (err instanceof CreateTransactionError) {
+        return c.json({ error: { code: err.code, message: err.message } }, err.status as 400 | 404)
+      }
+      throw err
     }
 
-    // Every referenced wallet must belong to the acting user
-    if (!(await userOwnsWallets(user.id, payload.entries.map((e) => e.walletId)))) {
-      return c.json({ error: { code: 'NOT_FOUND', message: 'Wallet not found' } }, 404)
-    }
+    // Splits are inserted by the lib; re-select them here to shape the response
+    // exactly as before (id, settledAt, settlementTransactionId included).
+    // Ordered by createdAt then id so the response order is deterministic.
+    const splitRows = await db.select().from(transactionSplits)
+      .where(eq(transactionSplits.transactionId, created.id))
+      .orderBy(transactionSplits.createdAt, transactionSplits.id)
 
-    const [txRow] = await db.insert(transactions).values({
-      userId: user.id,
-      transactionDate: new Date(payload.transactionDate),
-      type: payload.type,
-      description: payload.description,
-      notes: payload.notes ?? null,
-      externalRef: payload.externalRef ?? null,
-    }).returning()
-
-    await db.insert(transactionEntries).values(
-      payload.entries.map((entry) => ({
-        transactionId: txRow.id,
-        walletId: entry.walletId,
-        assetId: entry.assetId,
-        amount: entry.amount,
-        notes: entry.notes ?? null,
-      })),
-    )
-
-    await recordAudit({
-      actorType: c.get('authMethod') ?? 'user',
-      actorId: user.id,
-      action: 'transaction.create',
-      resourceType: 'transaction',
-      resourceId: txRow.id,
-    })
-
-    return c.json({ data: { ...payload, id: txRow.id } }, 201)
+    return c.json({
+      data: {
+        ...payload,
+        id: created.id,
+        splits: splitRows.map((split) => ({
+          id: split.id,
+          personId: split.personId,
+          assetId: split.assetId,
+          amount: String(split.amount),
+          settledAt: split.settledAt ? split.settledAt.toISOString() : null,
+          settlementTransactionId: split.settlementTransactionId,
+        })),
+      },
+    }, 201)
   })
 
   app.openapi(deleteTransactionRoute, async (c) => {
@@ -518,27 +541,26 @@ export function registerTransactionRoutes(app: OpenAPIHono) {
 
     const ids: string[] = []
 
+    // Sequential, non-atomic across items (matches prior behavior): each item is inserted
+    // independently, so an item failing does not roll back items already committed earlier
+    // in the batch — the request stops at the first failure and returns its error envelope.
+    // skipAudit: bulk writes a single transaction.bulk_create summary row after the loop.
     for (const tx of payload.transactions) {
-      const [txRow] = await db.insert(transactions).values({
-        userId: user.id,
-        transactionDate: new Date(tx.transactionDate),
-        type: tx.type,
-        description: tx.description,
-        notes: tx.notes ?? null,
-        externalRef: tx.externalRef ?? null,
-      }).returning()
-
-      await db.insert(transactionEntries).values(
-        tx.entries.map((entry) => ({
-          transactionId: txRow.id,
-          walletId: entry.walletId,
-          assetId: entry.assetId,
-          amount: entry.amount,
-          notes: entry.notes ?? null,
-        })),
-      )
-
-      ids.push(txRow.id)
+      try {
+        const { id } = await createTransactionForUser(
+          tx,
+          { userId: user.id, actorType: c.get('authMethod') ?? 'user' },
+          { skipAudit: true },
+        )
+        ids.push(id)
+      } catch (err) {
+        if (err instanceof CreateTransactionError) {
+          // Cast keeps the typed route contract narrow (schema declares 404); the
+          // actual runtime status is err.status (e.g. 400 for INVALID_TRANSFER).
+          return c.json({ error: { code: err.code, message: err.message } }, err.status as 404)
+        }
+        throw err
+      }
     }
 
     if (ids.length > 0) {
