@@ -3,7 +3,8 @@ set -e
 
 echo "Running database migrations..."
 cd /app/packages/db
-npx drizzle-kit generate 2>/dev/null || true
+# migrate only — generating migrations at boot against a live database is a
+# footgun; migrations are authored and committed at development time.
 npx drizzle-kit migrate
 cd /app
 
