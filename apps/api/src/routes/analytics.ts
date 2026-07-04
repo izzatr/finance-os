@@ -42,6 +42,7 @@ export function registerAnalyticsRoutes(app: OpenAPIHono) {
       query: z.object({
         from: z.string().optional(),
         to: z.string().optional(),
+        type: z.enum(['income', 'expense', 'transfer']).default('expense'),
       }),
     },
     responses: {
@@ -164,8 +165,8 @@ export function registerAnalyticsRoutes(app: OpenAPIHono) {
 
   app.openapi(categoryBreakdownRoute, async (c) => {
     const user = c.get('user')
-    const { from, to } = c.req.valid('query')
-    const dateFilters = [eq(transactions.userId, user.id), isNull(transactions.deletedAt)]
+    const { from, to, type } = c.req.valid('query')
+    const dateFilters = [eq(transactions.userId, user.id), isNull(transactions.deletedAt), eq(categories.type, type)]
     if (from) dateFilters.push(gte(transactions.transactionDate, new Date(from)))
     if (to) dateFilters.push(lte(transactions.transactionDate, new Date(to)))
     const dateCondition = and(...dateFilters)
@@ -183,7 +184,7 @@ export function registerAnalyticsRoutes(app: OpenAPIHono) {
       .from(transactions)
       .innerJoin(transactionEntries, eq(transactionEntries.transactionId, transactions.id))
       .innerJoin(assets, eq(assets.id, transactionEntries.assetId))
-      .leftJoin(categories, eq(categories.id, transactions.categoryId))
+      .innerJoin(categories, eq(categories.id, transactions.categoryId))
       .where(dateCondition)
       .groupBy(transactions.categoryId, categories.name, categories.slug, transactions.type, assets.code)
       .orderBy(sql`sum(abs(${transactionEntries.amount})) desc`)
