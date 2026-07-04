@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url'
 import { eq } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/node-postgres'
 import { Pool } from 'pg'
-import { assets, categories } from './schema'
+import { assets } from './schema'
 
 const connectionString = process.env.DATABASE_URL ?? 'postgres://finance:finance@localhost:27033/finance_os'
 const pool = new Pool({ connectionString })
@@ -16,26 +16,12 @@ const BASE_ASSETS = [
   { code: 'IDR', name: 'Indonesian Rupiah', type: 'currency' as const, precision: 2 },
 ]
 
-const BASE_CATEGORIES = [
-  { name: 'Groceries', slug: 'groceries' },
-  { name: 'Dining', slug: 'dining' },
-  { name: 'Transport', slug: 'transport' },
-  { name: 'Housing', slug: 'housing' },
-  { name: 'Utilities', slug: 'utilities' },
-  { name: 'Salary', slug: 'salary' },
-  { name: 'Savings', slug: 'savings' },
-  { name: 'Health', slug: 'health' },
-  { name: 'Shopping', slug: 'shopping' },
-  { name: 'Entertainment', slug: 'entertainment' },
-]
+// Categories are per-user (tenancy) and are created through the API,
+// so the base seed only provisions shared reference data (assets).
 
 export async function seedBase() {
   for (const asset of BASE_ASSETS) {
     await db.insert(assets).values(asset).onConflictDoNothing()
-  }
-
-  for (const category of BASE_CATEGORIES) {
-    await db.insert(categories).values(category).onConflictDoNothing()
   }
 
   const [eur] = await db.select().from(assets).where(eq(assets.code, 'EUR'))
@@ -46,7 +32,7 @@ export async function seedBase() {
     throw new Error('Failed to prepare base assets.')
   }
 
-  console.log('Seeded Finance OS with base assets and categories.')
+  console.log('Seeded Finance OS with base assets.')
 }
 
 const isDirectRun = process.argv[1] === fileURLToPath(import.meta.url)

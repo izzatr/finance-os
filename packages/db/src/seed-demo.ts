@@ -4,6 +4,8 @@ import { fileURLToPath } from 'node:url'
 import { eq } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/node-postgres'
 import { Pool } from 'pg'
+import { asc } from 'drizzle-orm'
+import { users } from './auth-schema'
 import { assets, transactionEntries, transactions, wallets } from './schema'
 import { seedBase } from './seed-base'
 
@@ -14,6 +16,12 @@ const db = drizzle(pool)
 async function seedDemo() {
   await seedBase()
 
+  // Demo data is per-user: attach everything to the earliest-created user.
+  const [owner] = await db.select().from(users).orderBy(asc(users.createdAt)).limit(1)
+  if (!owner) {
+    throw new Error('No user found. Sign up through the web UI first, then re-run the demo seed.')
+  }
+
   const [eur] = await db.select().from(assets).where(eq(assets.code, 'EUR'))
   const [usd] = await db.select().from(assets).where(eq(assets.code, 'USD'))
   const [idr] = await db.select().from(assets).where(eq(assets.code, 'IDR'))
@@ -23,6 +31,7 @@ async function seedDemo() {
   }
 
   const [checkingEur] = await db.insert(wallets).values({
+    userId: owner.id,
     name: 'Main Checking EUR',
     walletType: 'bank',
     institution: 'Example Bank',
@@ -30,6 +39,7 @@ async function seedDemo() {
   }).returning()
 
   const [savingsUsd] = await db.insert(wallets).values({
+    userId: owner.id,
     name: 'Savings USD',
     walletType: 'bank',
     institution: 'Example Bank',
@@ -37,6 +47,7 @@ async function seedDemo() {
   }).returning()
 
   const [cashIdr] = await db.insert(wallets).values({
+    userId: owner.id,
     name: 'Cash IDR',
     walletType: 'cash',
     institution: null,
@@ -44,6 +55,7 @@ async function seedDemo() {
   }).returning()
 
   const [salaryTx] = await db.insert(transactions).values({
+    userId: owner.id,
     transactionDate: new Date(),
     type: 'income',
     description: 'Sample income payment',

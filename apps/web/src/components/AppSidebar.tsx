@@ -6,6 +6,7 @@ import {
   Globe,
   ChevronsLeft,
   Search,
+  Settings,
 } from 'lucide-react'
 import {
   Sidebar,
@@ -25,6 +26,7 @@ const NAV_ITEMS = [
   { label: 'Reports', icon: BarChart3, path: '/reports', activePath: '/reports' },
   { label: 'Wallets', icon: CreditCard, path: '/wallets', activePath: '/wallets' },
   { label: 'Currencies', icon: Globe, path: '/currencies', activePath: '/currencies' },
+  { label: 'Settings', icon: Settings, path: '/settings/account', activePath: '/settings' },
 ]
 
 function SidebarToggle() {

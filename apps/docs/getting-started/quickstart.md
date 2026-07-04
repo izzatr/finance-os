@@ -24,7 +24,7 @@ This starts three services:
 | **Postgres** | localhost:27033         | Database (port 5432 internal)        |
 
 ::: tip
-The default Docker Compose config sets `SKIP_AUTH=1` so no login is required for local development. See [Self-Hosting](/getting-started/self-hosting) for production auth setup.
+Auth is always enforced. Sign up for an account via the web UI (or `POST /auth/sign-up/email`) to get started. See [Self-Hosting](/getting-started/self-hosting) for production auth setup.
 :::
 
 ## Verify It Works

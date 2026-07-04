@@ -18,7 +18,6 @@ This guide covers deploying Finance OS to a production environment.
 
 | Variable             | Description                                     | Default                   |
 |----------------------|-------------------------------------------------|---------------------------|
-| `SKIP_AUTH`          | Set to `1` to disable auth (dev only)           | _(unset, auth enabled)_   |
 | `VITE_API_BASE_URL`  | API URL for the web build (optional if using same-origin proxying) | _(empty / same origin)_ |
 
 ### OAuth Providers (Optional)
@@ -87,11 +86,9 @@ openssl rand -base64 48
 
 3. Set `WEB_ORIGIN` to your dashboard URL (for CORS and cookie domain).
 
-4. Remove `SKIP_AUTH` or set it to `0`.
-
 ### Creating the First User
 
-With auth enabled, sign up via the API:
+Sign up via the API:
 
 ```bash
 curl -X POST https://api.finance.example.com/auth/sign-up/email \
@@ -186,7 +183,6 @@ npm run db:migrate  # Run if there are new migrations
 
 - [ ] Change default database credentials
 - [ ] Set a strong `BETTER_AUTH_SECRET` (32+ characters)
-- [ ] Remove `SKIP_AUTH=1` from production
 - [ ] Enable HTTPS via reverse proxy
 - [ ] Restrict database port (27033) to localhost
 - [ ] Set up automated backups

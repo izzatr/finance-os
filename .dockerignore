@@ -1,9 +1,11 @@
 node_modules
+**/node_modules
 .git
 .env
 .env.local
 .DS_Store
 dist
+**/dist
 build
 coverage
 .vite

@@ -7,7 +7,7 @@
  * After adding these, rebuild the API container and it will auto-migrate.
  */
 
-import { boolean, index, pgTable, text, timestamp, varchar } from 'drizzle-orm/pg-core'
+import { boolean, index, integer, pgTable, text, timestamp, varchar } from 'drizzle-orm/pg-core'
 
 // ── Users ──────────────────────────────────────────────────────────────────────
 
@@ -69,13 +69,34 @@ export const verifications = pgTable('verifications', {
 }))
 
 // ── API Keys ──────────────────────────────────────────────────────────────
+// Column set matches the @better-auth/api-key plugin's `apikey` model
+// (referenceId is the owning user's id — the plugin's `references: "user"`
+// default — rather than a fixed `userId` column, since the model is generic
+// enough to also reference organizations).
 
 export const apiKeys = pgTable('api_keys', {
   id: varchar('id', { length: 255 }).primaryKey(),
-  userId: varchar('user_id', { length: 255 }).notNull().references(() => users.id, { onDelete: 'cascade' }),
+  configId: varchar('config_id', { length: 255 }).notNull().default('default'),
   name: varchar('name', { length: 255 }),
+  start: varchar('start', { length: 50 }),
+  prefix: varchar('prefix', { length: 50 }),
   key: varchar('key', { length: 255 }).notNull().unique(),
+  referenceId: varchar('reference_id', { length: 255 }).notNull().references(() => users.id, { onDelete: 'cascade' }),
+  refillInterval: integer('refill_interval'),
+  refillAmount: integer('refill_amount'),
+  lastRefillAt: timestamp('last_refill_at', { withTimezone: true }),
+  enabled: boolean('enabled').notNull().default(true),
+  rateLimitEnabled: boolean('rate_limit_enabled').notNull().default(true),
+  rateLimitTimeWindow: integer('rate_limit_time_window'),
+  rateLimitMax: integer('rate_limit_max'),
+  requestCount: integer('request_count').notNull().default(0),
+  remaining: integer('remaining'),
+  lastRequest: timestamp('last_request', { withTimezone: true }),
   expiresAt: timestamp('expires_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-})
+  permissions: text('permissions'),
+  metadata: text('metadata'),
+}, (table) => ({
+  apiKeyReferenceIdx: index('api_key_reference_idx').on(table.referenceId),
+}))
