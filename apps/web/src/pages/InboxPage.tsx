@@ -21,7 +21,10 @@ function sourceBadge(source: string): string {
 function ProposalCard({ proposal }: { proposal: Proposal }) {
   const qc = useQueryClient()
   const invalidate = () => {
-    for (const key of ['inbox', 'wallets', 'recent', 'transactions', 'dashboard', 'summary', 'net-worth']) {
+    for (const key of [
+      'inbox', 'wallets', 'recent', 'transactions', 'dashboard', 'summary', 'summary-monthly',
+      'categories', 'monthly-trend', 'asset-growth', 'net-worth', 'shared-balances',
+    ]) {
       qc.invalidateQueries({ queryKey: [key] })
     }
   }

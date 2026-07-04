@@ -63,7 +63,7 @@ export function EditTransactionForm({ transaction, walletId, onClose }: Props) {
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const qc = useQueryClient()
 
-  const categoriesQuery = useQuery({ queryKey: ['all-categories'], queryFn: getCategories })
+  const categoriesQuery = useQuery({ queryKey: ['category-list'], queryFn: getCategories })
   const categories = categoriesQuery.data?.data ?? []
 
   // Find category ID from the transaction's category name

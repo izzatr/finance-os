@@ -13,6 +13,7 @@ import {
   patchRecurringRule,
   type RecurringRule,
 } from '@/lib/api'
+import { localDateKey, parseAmountInput } from '@/lib/money'
 
 function cadenceLabel(rule: RecurringRule): string {
   const unit = { daily: 'day', weekly: 'week', monthly: 'month', yearly: 'year' }[rule.freq]
@@ -30,7 +31,7 @@ function CreateRuleDialog({ onClose }: { onClose: () => void }) {
   const [walletId, setWalletId] = useState('')
   const [categoryId, setCategoryId] = useState('')
   const [freq, setFreq] = useState<RecurringRule['freq']>('monthly')
-  const [startAt, setStartAt] = useState(() => new Date().toISOString().slice(0, 10))
+  const [startAt, setStartAt] = useState(localDateKey)
   const [mode, setMode] = useState<RecurringRule['mode']>('draft')
   const [error, setError] = useState<string | null>(null)
 
@@ -41,8 +42,8 @@ function CreateRuleDialog({ onClose }: { onClose: () => void }) {
   const mutation = useMutation({
     mutationFn: () => {
       if (!wallet) throw new Error('Create a wallet first')
-      const value = amount.replace(',', '.')
-      if (!/^\d+(\.\d+)?$/.test(value) || Number(value) <= 0) throw new Error('Enter an amount greater than zero')
+      const value = parseAmountInput(amount)
+      if (!value) throw new Error('Enter an amount greater than zero')
       return createRecurringRule({
         name: name.trim() || 'Recurring transaction',
         template: {

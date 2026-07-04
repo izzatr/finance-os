@@ -1,7 +1,7 @@
 import { createRoute, z } from '@hono/zod-openapi'
 import type { OpenAPIHono } from '@hono/zod-openapi'
 import { db, assets, categories, statementImports, transactionEntries, transactions, wallets } from '@finance-os/db'
-import { and, desc, eq, isNull, lt, sql } from 'drizzle-orm'
+import { and, desc, eq, isNull, lt, or, sql } from 'drizzle-orm'
 
 export function registerDashboardRoutes(app: OpenAPIHono) {
   const dashboardRoute = createRoute({
@@ -35,6 +35,9 @@ export function registerDashboardRoutes(app: OpenAPIHono) {
       query: z.object({
         limit: z.coerce.number().int().min(1).max(200).default(50),
         before: z.string().datetime({ offset: true }).optional(),
+        // Composite cursor: quick-added rows share identical timestamps, so paging on
+        // the date alone drops tied rows. beforeEntryId (globally unique) breaks ties.
+        beforeEntryId: z.string().uuid().optional(),
       }),
     },
     responses: {
@@ -45,6 +48,7 @@ export function registerDashboardRoutes(app: OpenAPIHono) {
             schema: z.object({
               data: z.array(z.object({
                 id: z.string().uuid(),
+                entryId: z.string().uuid(),
                 transactionDate: z.string(),
                 type: z.string(),
                 description: z.string(),
@@ -109,10 +113,12 @@ export function registerDashboardRoutes(app: OpenAPIHono) {
 
   app.openapi(recentTransactionsRoute, async (c) => {
     const user = c.get('user')
-    const { limit, before } = c.req.valid('query')
+    const { limit, before, beforeEntryId } = c.req.valid('query')
+    const cursorDate = before ? new Date(before) : null
     const rows = await db
       .select({
         id: transactions.id,
+        entryId: transactionEntries.id,
         transactionDate: transactions.transactionDate,
         type: transactions.type,
         description: transactions.description,
@@ -131,13 +137,21 @@ export function registerDashboardRoutes(app: OpenAPIHono) {
         eq(transactions.userId, user.id),
         isNull(transactions.deletedAt),
         isNull(wallets.deletedAt),
-        ...(before ? [lt(transactions.transactionDate, new Date(before))] : []),
+        ...(cursorDate
+          ? [beforeEntryId
+              ? or(
+                  lt(transactions.transactionDate, cursorDate),
+                  and(eq(transactions.transactionDate, cursorDate), lt(transactionEntries.id, beforeEntryId)),
+                )!
+              : lt(transactions.transactionDate, cursorDate)]
+          : []),
       ))
-      .orderBy(desc(transactions.transactionDate))
+      .orderBy(desc(transactions.transactionDate), desc(transactionEntries.id))
       .limit(limit)
 
     const data = rows.map((r) => ({
       id: r.id,
+      entryId: r.entryId,
       transactionDate: r.transactionDate.toISOString(),
       type: r.type,
       description: r.description,

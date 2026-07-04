@@ -73,6 +73,7 @@ export type Transaction = {
 
 export type RecentTransaction = {
   id: string
+  entryId: string
   transactionDate: string
   type: string
   description: string
@@ -174,10 +175,11 @@ export function getRecentTransactions() {
   return request<{ data: RecentTransaction[] }>('/api/analytics/recent')
 }
 
-export function getRecentTransactionsPage(params: { limit?: number; before?: string }) {
+export function getRecentTransactionsPage(params: { limit?: number; before?: string; beforeEntryId?: string }) {
   const searchParams = new URLSearchParams()
   if (params.limit) searchParams.set('limit', String(params.limit))
   if (params.before) searchParams.set('before', params.before)
+  if (params.beforeEntryId) searchParams.set('beforeEntryId', params.beforeEntryId)
   return request<{ data: RecentTransaction[] }>(`/api/analytics/recent?${searchParams}`)
 }
 

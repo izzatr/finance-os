@@ -14,6 +14,7 @@ import {
   type Wallet,
 } from '@/lib/api'
 import { useQuickAdd } from '@/contexts/QuickAddContext'
+import { localDateKey, parseAmountInput } from '@/lib/money'
 
 const LAST_WALLET_KEY = 'finance-os-quick-add-wallet'
 
@@ -58,7 +59,7 @@ export function QuickAddSheet() {
   const [description, setDescription] = useState('')
   const [categoryId, setCategoryId] = useState<string | null>(null)
   const [walletId, setWalletId] = useState<string | null>(null)
-  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10))
+  const [date, setDate] = useState(localDateKey)
   const [splitOpen, setSplitOpen] = useState(false)
   const [splitPersonId, setSplitPersonId] = useState<string | null>(null)
   const [splitAmount, setSplitAmount] = useState('')
@@ -108,10 +109,29 @@ export function QuickAddSheet() {
 
   function submit() {
     if (!wallet) return
-    const value = amount.replace(',', '.')
-    if (!/^\d+(\.\d+)?$/.test(value) || Number(value) <= 0) {
+    const value = parseAmountInput(amount)
+    if (!value) {
       setError('Enter an amount greater than zero')
       return
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      setError('Pick a date')
+      return
+    }
+    // A split that is open but incomplete must never save silently — the user
+    // believes the debt was recorded.
+    let splits: Array<{ personId: string; amount: string }> | undefined
+    if (splitOpen) {
+      const share = parseAmountInput(splitAmount)
+      if (!splitPersonId || !share) {
+        setError('Pick a person and their share, or remove the split')
+        return
+      }
+      if (Number(share) > Number(value)) {
+        setError('Their share cannot exceed the amount')
+        return
+      }
+      splits = [{ personId: splitPersonId, amount: share }]
     }
     const signed = kind === 'expense' ? `-${value}` : value
     mutation.mutate({
@@ -120,10 +140,7 @@ export function QuickAddSheet() {
       description: description.trim() || (kind === 'expense' ? 'Expense' : 'Income'),
       categoryId: categoryId ?? undefined,
       entries: [{ walletId: wallet.id, assetId: wallet.assetId, amount: signed }],
-      splits:
-        splitOpen && splitPersonId && /^\d+(\.\d+)?$/.test(splitAmount.replace(',', '.'))
-          ? [{ personId: splitPersonId, amount: splitAmount.replace(',', '.') }]
-          : undefined,
+      splits,
     })
   }
 

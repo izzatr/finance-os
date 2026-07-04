@@ -17,14 +17,17 @@ function formatAmount(amount: number, currency: string): string {
   }
 }
 
-function dayLabel(iso: string): string {
-  const d = new Date(iso)
-  const today = new Date()
-  const yesterday = new Date(today.getTime() - 86_400_000)
-  const sameDay = (a: Date, b: Date) => a.toDateString() === b.toDateString()
-  if (sameDay(d, today)) return 'Today'
-  if (sameDay(d, yesterday)) return 'Yesterday'
-  return d.toLocaleDateString('en', { weekday: 'short', day: 'numeric', month: 'short' })
+/** Label derived from the UTC day KEY the row was grouped under — keeping grouping
+ *  and labeling in one zone so near-midnight rows can't produce mislabeled groups. */
+function dayLabel(key: string): string {
+  const todayKey = new Date().toISOString().slice(0, 10)
+  const yesterdayKey = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10)
+  if (key === todayKey) return 'Today'
+  if (key === yesterdayKey) return 'Yesterday'
+  const [y, m, d] = key.split('-').map(Number)
+  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString('en', {
+    weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC',
+  })
 }
 
 type DayGroup = { key: string; label: string; rows: RecentTransaction[]; nets: Map<string, number> }
@@ -35,11 +38,13 @@ function groupByDay(rows: RecentTransaction[]): DayGroup[] {
   for (const row of rows) {
     const key = row.transactionDate.slice(0, 10)
     if (!groups.has(key)) {
-      groups.set(key, { key, label: dayLabel(row.transactionDate), rows: [], nets: new Map() })
+      groups.set(key, { key, label: dayLabel(key), rows: [], nets: new Map() })
     }
     const g = groups.get(key)!
     g.rows.push(row)
-    if (row.type !== 'transfer') {
+    // transfer/exchange/adjustment move money between own wallets — not spend or income.
+    // (This also prevents double-counting: those are the multi-entry types.)
+    if (!['transfer', 'exchange', 'adjustment'].includes(row.type)) {
       g.nets.set(row.currency, (g.nets.get(row.currency) ?? 0) + row.amount)
     }
   }
@@ -79,10 +84,13 @@ export function TransactionsPage() {
 
   const listQuery = useInfiniteQuery({
     queryKey: ['transactions', 'infinite'],
-    queryFn: ({ pageParam }) => getRecentTransactionsPage({ limit: PAGE_SIZE, before: pageParam }),
-    initialPageParam: undefined as string | undefined,
-    getNextPageParam: (lastPage) =>
-      lastPage.data.length === PAGE_SIZE ? lastPage.data[lastPage.data.length - 1].transactionDate : undefined,
+    queryFn: ({ pageParam }) => getRecentTransactionsPage({ limit: PAGE_SIZE, ...pageParam }),
+    initialPageParam: undefined as { before: string; beforeEntryId: string } | undefined,
+    getNextPageParam: (lastPage) => {
+      if (lastPage.data.length < PAGE_SIZE) return undefined
+      const last = lastPage.data[lastPage.data.length - 1]
+      return { before: last.transactionDate, beforeEntryId: last.entryId }
+    },
     enabled: !searching,
   })
 
@@ -159,8 +167,8 @@ export function TransactionsPage() {
               </span>
             </div>
             <div className="grid gap-1.5">
-              {g.rows.map((tx, i) => (
-                <TxRow key={`${tx.id}-${i}`} tx={tx} />
+              {g.rows.map((tx) => (
+                <TxRow key={tx.entryId} tx={tx} />
               ))}
             </div>
           </section>

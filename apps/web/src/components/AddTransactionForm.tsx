@@ -53,7 +53,7 @@ export function AddTransactionForm({ onClose }: Props) {
   const qc = useQueryClient()
 
   const walletsQuery = useQuery({ queryKey: ['wallets'], queryFn: getWallets })
-  const categoriesQuery = useQuery({ queryKey: ['all-categories'], queryFn: getCategories })
+  const categoriesQuery = useQuery({ queryKey: ['category-list'], queryFn: getCategories })
   const wallets = walletsQuery.data?.data ?? []
   const categories = categoriesQuery.data?.data ?? []
 
