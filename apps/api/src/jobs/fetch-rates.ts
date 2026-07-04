@@ -1,4 +1,5 @@
 import { db, exchangeRates } from '@finance-os/db'
+import { eq } from 'drizzle-orm'
 
 type FrankfurterResponse = {
   base: string
@@ -46,4 +47,15 @@ export async function fetchDailyRates(fetchImpl: typeof fetch = fetch): Promise<
     console.error('fetchDailyRates: fetch failed:', err)
     return { fetched: 0 }
   }
+}
+
+/** Cold-start bootstrap: a fresh deployment has no rates until the first daily
+ *  cron run, which makes multi-currency totals silently collapse to the display
+ *  currency. Fetch immediately when the table has no ECB rows. */
+export async function bootstrapRatesIfEmpty(fetchImpl: typeof fetch = fetch): Promise<{ fetched: number; skipped: boolean }> {
+  const [existing] = await db.select({ id: exchangeRates.id }).from(exchangeRates)
+    .where(eq(exchangeRates.base, 'EUR')).limit(1)
+  if (existing) return { fetched: 0, skipped: true }
+  const { fetched } = await fetchDailyRates(fetchImpl)
+  return { fetched, skipped: false }
 }

@@ -116,7 +116,9 @@ export async function signOut() {
 // ── API Keys ─────────────────────────────────────────────────────────────────
 
 export async function listApiKeys(): Promise<ApiKey[]> {
-  return authFetch<ApiKey[]>('/auth/api-key/list')
+  // The api-key plugin returns { apiKeys, total }; older versions returned a bare array.
+  const res = await authFetch<{ apiKeys?: ApiKey[] } | ApiKey[]>('/auth/api-key/list')
+  return Array.isArray(res) ? res : (res.apiKeys ?? [])
 }
 
 export type ApiKeyScope = 'read' | 'propose' | 'write'

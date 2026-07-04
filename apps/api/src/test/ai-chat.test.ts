@@ -98,9 +98,9 @@ describe('ai chat', () => {
   it('status reports enabled with models', async () => {
     const { cookie } = await createTestUser(app)
     const res = await app.request('/api/ai/status', { headers: { cookie } })
-    const { data } = (await res.json()) as { data: { enabled: boolean; models: string[] } }
+    const { data } = (await res.json()) as { data: { enabled: boolean; defaultModel: string | null } }
     expect(data.enabled).toBe(true)
-    expect(data.models.length).toBeGreaterThan(0)
+    expect(data.defaultModel).toBeTruthy()
   })
 
   it('streams plain text answers', async () => {

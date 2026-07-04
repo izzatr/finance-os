@@ -30,14 +30,12 @@ function toolLabel(name: string): string {
 export function AssistantPage() {
   const qc = useQueryClient()
   const statusQuery = useQuery({ queryKey: ['ai-status'], queryFn: getAiStatus, staleTime: 5 * 60_000 })
-  const [model, setModel] = useState<string>('')
   const [turns, setTurns] = useState<ChatTurn[]>([])
   const [input, setInput] = useState('')
   const [busy, setBusy] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
 
   const status = statusQuery.data?.data
-  const activeModel = model || status?.defaultModel || ''
   const hasProposals = turns.some((t) => t.role === 'assistant' && t.tools.some((tool) => tool.proposed))
 
   useEffect(() => {
@@ -54,7 +52,6 @@ export function AssistantPage() {
     setTurns([...history, { role: 'assistant', text: '', tools: [] }])
 
     const payload = {
-      model: activeModel || undefined,
       messages: history.map((t) => ({ role: t.role, content: t.text })),
     }
 
@@ -151,18 +148,8 @@ export function AssistantPage() {
 
   return (
     <div className="mx-auto flex h-[calc(100dvh-4rem)] w-full max-w-2xl flex-col px-4 lg:h-dvh lg:px-8">
-      <header className="flex items-center justify-between py-4">
+      <header className="py-4">
         <h1 className="text-xl font-semibold text-[var(--text-primary)]">Assistant</h1>
-        <select
-          value={activeModel}
-          onChange={(e) => setModel(e.target.value)}
-          aria-label="Model"
-          className="h-8 max-w-44 truncate rounded-md border border-input bg-transparent px-2 text-xs text-[var(--text-secondary)]"
-        >
-          {(status.models ?? []).map((m) => (
-            <option key={m} value={m}>{m.split('/').pop()}</option>
-          ))}
-        </select>
       </header>
 
       {hasProposals && (

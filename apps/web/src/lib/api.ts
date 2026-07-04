@@ -518,7 +518,7 @@ export function createAssetPrice(body: { assetId: string; price: string; currenc
 
 // ── AI assistant ─────────────────────────────────────────────────────────
 
-export type AiStatus = { enabled: boolean; defaultModel: string | null; models: string[] }
+export type AiStatus = { enabled: boolean; defaultModel: string | null }
 
 export function getAiStatus() {
   return request<{ data: AiStatus }>('/api/ai/status')
