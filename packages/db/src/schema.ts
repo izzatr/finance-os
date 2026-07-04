@@ -28,6 +28,7 @@ export const assets = pgTable('assets', {
   name: varchar('name', { length: 120 }).notNull(),
   type: assetTypeEnum('type').notNull(),
   precision: integer('precision').notNull().default(2),
+  unit: varchar('unit', { length: 16 }), // 'g','oz','share','BTC'; null for fiat
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 })
 
@@ -163,3 +164,26 @@ export const statementImports = pgTable('statement_imports', {
   importChecksumIdx: index('import_checksum_idx').on(table.checksum),
   importUserIdx: index('import_user_idx').on(table.userId),
 }))
+
+export const exchangeRates = pgTable('exchange_rates', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  base: varchar('base', { length: 16 }).notNull(), // always 'EUR' from the fetch job; manual rows may differ
+  quote: varchar('quote', { length: 16 }).notNull(),
+  rate: numeric('rate', { precision: 20, scale: 10 }).notNull(),
+  asOf: timestamp('as_of', { withTimezone: true }).notNull(),
+  source: varchar('source', { length: 30 }).notNull().default('manual'), // manual|frankfurter
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  rateQuoteAsOfIdx: index('rate_quote_asof_idx').on(table.quote, table.asOf),
+  rateUniquePerDay: unique('rate_base_quote_asof_unique').on(table.base, table.quote, table.asOf),
+}))
+
+export const assetPrices = pgTable('asset_prices', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  assetId: uuid('asset_id').notNull().references(() => assets.id),
+  price: numeric('price', { precision: 20, scale: 8 }).notNull(),
+  currency: varchar('currency', { length: 16 }).notNull(),
+  asOf: timestamp('as_of', { withTimezone: true }).notNull(),
+  source: varchar('source', { length: 30 }).notNull().default('manual'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({ priceAssetAsOfIdx: index('price_asset_asof_idx').on(table.assetId, table.asOf) }))

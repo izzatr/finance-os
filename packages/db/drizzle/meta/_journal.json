@@ -64,6 +64,13 @@
       "when": 1783191116530,
       "tag": "0008_nosy_ronan",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1783193264679,
+      "tag": "0009_sparkling_namora",
+      "breakpoints": true
     }
   ]
 }
