@@ -18,6 +18,7 @@ export const assetTypeEnum = pgEnum('asset_type', ['currency', 'crypto', 'stock'
 export const walletTypeEnum = pgEnum('wallet_type', ['bank', 'cash', 'ewallet', 'crypto', 'investment', 'credit', 'custom'])
 export const transactionTypeEnum = pgEnum('transaction_type', ['expense', 'income', 'transfer', 'exchange', 'adjustment', 'fee'])
 export const importStatusEnum = pgEnum('import_status', ['pending', 'parsed', 'reviewed', 'imported', 'failed'])
+export const categoryTypeEnum = pgEnum('category_type', ['income', 'expense', 'transfer'])
 
 export const assets = pgTable('assets', {
   id: uuid('id').defaultRandom().primaryKey(),
@@ -48,6 +49,10 @@ export const categories = pgTable('categories', {
   userId: varchar('user_id', { length: 255 }).notNull().references(() => users.id),
   name: varchar('name', { length: 120 }).notNull(),
   slug: varchar('slug', { length: 120 }).notNull(),
+  type: categoryTypeEnum('type').notNull().default('expense'),
+  // parent_id FK added in 0006 migration (self-reference)
+  parentId: uuid('parent_id'),
+  needsReview: boolean('needs_review').notNull().default(false),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (table) => ({
   categoriesUserNameUnique: unique('categories_user_name_unique').on(table.userId, table.name),

@@ -43,6 +43,13 @@
       "when": 1783163719633,
       "tag": "0005_graceful_lightspeed",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1783168512527,
+      "tag": "0006_left_karma",
+      "breakpoints": true
     }
   ]
 }
