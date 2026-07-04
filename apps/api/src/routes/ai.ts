@@ -17,20 +17,13 @@ import type { FinanceToolContext } from '@finance-os/finance-capabilities'
 import { runChat, type ChatMessage } from '../ai/openrouter'
 import { rateLimit } from '../middleware/rate-limit'
 
-const CURATED_MODELS = [
-  'anthropic/claude-sonnet-4.5',
-  'anthropic/claude-haiku-4.5',
-  'openai/gpt-5.2',
-  'google/gemini-3-flash',
-  'deepseek/deepseek-v4',
-]
-
 function aiEnabled(): boolean {
   return Boolean(process.env.OPENROUTER_API_KEY)
 }
 
+/** The one model this instance uses — the owner picks it via OPENROUTER_MODEL. */
 function defaultModel(): string {
-  return process.env.OPENROUTER_MODEL ?? CURATED_MODELS[0]
+  return process.env.OPENROUTER_MODEL ?? 'anthropic/claude-sonnet-4.5'
 }
 
 function loopbackBase(): string {
@@ -64,7 +57,6 @@ export function registerAiRoutes(app: OpenAPIHono) {
               data: z.object({
                 enabled: z.boolean(),
                 defaultModel: z.string().nullable(),
-                models: z.array(z.string()),
               }),
             }),
           },
@@ -79,7 +71,6 @@ export function registerAiRoutes(app: OpenAPIHono) {
       data: {
         enabled,
         defaultModel: enabled ? defaultModel() : null,
-        models: enabled ? [...new Set([defaultModel(), ...CURATED_MODELS])] : [],
       },
     }, 200)
   })
@@ -93,20 +84,16 @@ export function registerAiRoutes(app: OpenAPIHono) {
       return c.json({ error: { code: 'SESSION_REQUIRED', message: 'The assistant is for the web app — agents should use /mcp' } }, 403)
     }
 
-    const body = (await c.req.json().catch(() => null)) as { messages?: Array<{ role: string; content: string }>; model?: string } | null
+    const body = (await c.req.json().catch(() => null)) as { messages?: Array<{ role: string; content: string }> } | null
     const history = (body?.messages ?? []).filter(
       (m) => (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string' && m.content.length > 0,
     ).slice(-30)
     if (history.length === 0 || history[history.length - 1].role !== 'user') {
       return c.json({ error: { code: 'INVALID_MESSAGES', message: 'Send a messages array ending with a user message' } }, 400)
     }
-    const requested = typeof body?.model === 'string' && body.model.length > 0 ? body.model : defaultModel()
-    // The server's OpenRouter key funds every call — only curated models are billable.
-    const allowed = new Set([defaultModel(), ...CURATED_MODELS])
-    if (!allowed.has(requested)) {
-      return c.json({ error: { code: 'MODEL_NOT_ALLOWED', message: 'Pick a model from /api/ai/status' } }, 400)
-    }
-    const model = requested
+    // The instance owner picks the model via OPENROUTER_MODEL — clients get no say
+    // (the server's OpenRouter key funds every call).
+    const model = defaultModel()
 
     const ctx: FinanceToolContext = {
       baseUrl: loopbackBase(),

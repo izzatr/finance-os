@@ -5,6 +5,7 @@ import { CommandPalette } from './CommandPalette'
 import { MobileTabBar } from './MobileTabBar'
 import { QuickAddProvider } from '@/contexts/QuickAddContext'
 import { QuickAddSheet } from './QuickAddSheet'
+import { RouteErrorBoundary } from './RouteErrorBoundary'
 
 export function DashboardLayout() {
   return (
@@ -12,7 +13,9 @@ export function DashboardLayout() {
       <SidebarProvider>
         <AppSidebar />
         <SidebarInset className="pb-20 lg:pb-0">
-          <Outlet />
+          <RouteErrorBoundary>
+            <Outlet />
+          </RouteErrorBoundary>
         </SidebarInset>
         <MobileTabBar />
         <QuickAddSheet />
