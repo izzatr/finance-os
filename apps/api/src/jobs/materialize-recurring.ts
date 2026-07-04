@@ -60,6 +60,15 @@ export async function materializeDueRules(
       const dueOccurrences = nextOccurrences(schedule, windowStart, 100)
         .filter((occurrence) => occurrence.getTime() <= now.getTime())
 
+      // Saturated window: the backlog may exceed the 100-occurrence cap, and anything
+      // beyond the cap is dropped for good once the cursor advances to `now` below.
+      if (dueOccurrences.length === 100) {
+        console.warn(
+          `materializeDueRules: rule ${rule.id} ("${rule.name}") saturated the 100-occurrence window; ` +
+          'its backlog may exceed the cap and remaining occurrences will be dropped when the cursor advances',
+        )
+      }
+
       for (const occurrence of dueOccurrences) {
         const dedupeRef = `recurring:${rule.id}:${dateKey(occurrence)}`
         if (await alreadyMaterialized(rule.userId, dedupeRef)) continue
