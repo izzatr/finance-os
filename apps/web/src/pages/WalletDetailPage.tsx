@@ -1,11 +1,12 @@
 import { useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Settings, Pencil } from 'lucide-react'
+import { Settings, Pencil, Trash2 } from 'lucide-react'
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts'
 import { WalletIcon } from '../components/WalletIcon'
 import { EditNotesInline } from '../components/EditNotesInline'
 import { EditWalletForm } from '../components/EditWalletForm'
+import { DeleteWalletDialog } from '../components/DeleteWalletDialog'
 import { EditTransactionForm } from '../components/EditTransactionForm'
 import { SectionDivider } from '../components/SectionDivider'
 import { Card, CardContent } from '@/components/ui/card'
@@ -45,6 +46,7 @@ const TYPE_STYLES: Record<string, string> = {
 export function WalletDetailPage() {
   const { walletId } = useParams<{ walletId: string }>()
   const [editingWallet, setEditingWallet] = useState(false)
+  const [deletingWallet, setDeletingWallet] = useState(false)
   const [editingTx, setEditingTx] = useState<WalletTransaction | null>(null)
 
   const query = useQuery({
@@ -97,15 +99,26 @@ export function WalletDetailPage() {
         <>
           {/* Hero Section */}
           <header className="relative mb-12">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setEditingWallet(true)}
-              title="Edit wallet"
-              className="absolute top-0 right-0 text-muted-foreground hover:text-foreground"
-            >
-              <Settings size={18} />
-            </Button>
+            <div className="absolute top-0 right-0 flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setEditingWallet(true)}
+                title="Edit wallet"
+                className="text-muted-foreground hover:text-foreground"
+              >
+                <Settings size={18} />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setDeletingWallet(true)}
+                title="Delete wallet"
+                className="text-muted-foreground hover:text-[var(--negative)]"
+              >
+                <Trash2 size={18} />
+              </Button>
+            </div>
 
             <div className="flex items-center gap-4 mb-4">
               <div className="size-14 rounded-2xl bg-gradient-to-br from-[#ddeef9] to-[#c6e2f5] flex items-center justify-center text-[#5ba4d4] shrink-0">
@@ -260,6 +273,14 @@ export function WalletDetailPage() {
 
           {editingWallet && (
             <EditWalletForm wallet={detail.wallet} onClose={() => setEditingWallet(false)} />
+          )}
+
+          {deletingWallet && (
+            <DeleteWalletDialog
+              walletId={walletId!}
+              walletName={detail.wallet.name}
+              onClose={() => setDeletingWallet(false)}
+            />
           )}
 
           {editingTx && (

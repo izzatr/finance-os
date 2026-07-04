@@ -201,6 +201,7 @@ export type WalletTransaction = {
   categoryName: string | null
   amount: number
   currency: string
+  createdAt: string
 }
 
 export type WalletDetail = {
@@ -272,6 +273,18 @@ export function patchWallet(id: string, body: {
   return request<{ data: Wallet }>(`/api/wallets/${id}`, {
     method: 'PATCH',
     body: JSON.stringify(body),
+  })
+}
+
+export function deleteWallet(id: string) {
+  return request<{ data: { id: string; deletedAt: string } }>(`/api/wallets/${id}`, {
+    method: 'DELETE',
+  })
+}
+
+export function deleteTransaction(id: string) {
+  return request<{ data: { id: string; deletedAt: string } }>(`/api/transactions/${id}`, {
+    method: 'DELETE',
   })
 }
 
