@@ -15,6 +15,7 @@ import { registerDashboardRoutes } from './routes/dashboard'
 import { registerImportRoutes } from './routes/imports'
 import { registerRecurringRoutes } from './routes/recurring'
 import { registerInboxRoutes } from './routes/inbox'
+import { registerExchangeRateRoutes } from './routes/exchange-rates'
 
 const app = new OpenAPIHono()
 
@@ -49,6 +50,7 @@ registerDashboardRoutes(app)
 registerImportRoutes(app)
 registerRecurringRoutes(app)
 registerInboxRoutes(app)
+registerExchangeRateRoutes(app)
 
 app.doc('/openapi.json', {
   openapi: '3.1.0',
