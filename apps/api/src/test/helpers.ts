@@ -16,7 +16,7 @@ export async function createTestUser(app: OpenAPIHono): Promise<{ cookie: string
   try {
     res = await app.request('/auth/sign-up/email', {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: { 'content-type': 'application/json', 'x-forwarded-for': `10.0.0.${counter % 250}` },
       body: JSON.stringify({ email, password: 'test-password-123', name: `Test User ${counter}` }),
     })
   } finally {

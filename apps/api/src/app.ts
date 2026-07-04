@@ -6,6 +6,7 @@ import { cors } from 'hono/cors'
 import { auth } from '@finance-os/db'
 import { checkAuth } from './middleware/auth'
 import { handleStripeWebhook } from '@finance-os/billing'
+import { rateLimit } from './middleware/rate-limit'
 
 const app = new OpenAPIHono()
 
@@ -39,6 +40,10 @@ app.post('/webhooks/stripe', async (c) => {
 
 // ── Auth API routes (OAuth, sessions, API keys) ──────────────────────────
 // Better Auth handles sign-in, sign-up, OAuth, session management, API keys at /auth/*
+// Strict limit on credential endpoints, loose on the rest of /auth
+app.use('/auth/sign-in/*', rateLimit({ windowMs: 60_000, max: 10, keyPrefix: 'auth-cred' }))
+app.use('/auth/sign-up/*', rateLimit({ windowMs: 60_000, max: 10, keyPrefix: 'auth-cred' }))
+app.use('/auth/*', rateLimit({ windowMs: 60_000, max: 60, keyPrefix: 'auth' }))
 app.all('/auth/*', async (c) => auth.handler(c.req.raw))
 
 const healthRoute = createRoute({
