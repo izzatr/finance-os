@@ -35,6 +35,14 @@ export type DashboardResponse = {
   }
 }
 
+export type WalletValuation = {
+  quantity: number
+  price: number
+  currency: string
+  value: number
+  asOf: string
+} | null
+
 export type Wallet = {
   id: string
   name: string
@@ -44,6 +52,8 @@ export type Wallet = {
   isActive: boolean
   balance: number
   currency: string
+  unit?: string | null
+  valuation?: WalletValuation
 }
 
 export type Transaction = {
@@ -63,6 +73,7 @@ export type Transaction = {
 
 export type RecentTransaction = {
   id: string
+  entryId: string
   transactionDate: string
   type: string
   description: string
@@ -146,7 +157,9 @@ export function createTransaction(body: {
   type: string
   description: string
   notes?: string
+  categoryId?: string
   entries: Array<{ walletId: string; assetId: string; amount: string }>
+  splits?: Array<{ personId: string; assetId?: string; amount: string }>
 }) {
   return request<{ data: Transaction }>('/api/transactions', {
     method: 'POST',
@@ -162,6 +175,14 @@ export function getRecentTransactions() {
   return request<{ data: RecentTransaction[] }>('/api/analytics/recent')
 }
 
+export function getRecentTransactionsPage(params: { limit?: number; before?: string; beforeEntryId?: string }) {
+  const searchParams = new URLSearchParams()
+  if (params.limit) searchParams.set('limit', String(params.limit))
+  if (params.before) searchParams.set('before', params.before)
+  if (params.beforeEntryId) searchParams.set('beforeEntryId', params.beforeEntryId)
+  return request<{ data: RecentTransaction[] }>(`/api/analytics/recent?${searchParams}`)
+}
+
 export function getSummary(params?: { from?: string; to?: string }) {
   const searchParams = new URLSearchParams()
   if (params?.from) searchParams.set('from', params.from)
@@ -170,10 +191,33 @@ export function getSummary(params?: { from?: string; to?: string }) {
   return request<SummaryResponse>(`/api/analytics/summary${qs ? `?${qs}` : ''}`)
 }
 
-export type Category = { id: string; name: string; slug: string }
+export type CategoryType = 'income' | 'expense' | 'transfer'
+
+export type Category = {
+  id: string
+  name: string
+  slug: string
+  type: CategoryType
+  parentId: string | null
+  needsReview: boolean
+}
 
 export function getCategories() {
   return request<{ data: Category[] }>('/api/categories')
+}
+
+export function createCategory(body: { name: string; type?: CategoryType; parentId?: string }) {
+  return request<{ data: Category }>('/api/categories', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+}
+
+export function patchCategory(id: string, body: { name?: string; type?: CategoryType; parentId?: string | null }) {
+  return request<{ data: Category }>(`/api/categories/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  })
 }
 
 export function getCategoryBreakdown(params?: { from?: string; to?: string }) {
@@ -307,13 +351,167 @@ export type ExchangeRates = {
   rates: Record<string, number>
 }
 
+type ExchangeRateRow = { base: string; quote: string; rate: number; asOf: string }
+
+/** Latest EUR-based rates from our own API (fed by the daily ECB job). */
 export async function getExchangeRates(): Promise<ExchangeRates> {
-  const res = await fetch('https://open.er-api.com/v6/latest/EUR')
-  if (!res.ok) throw new Error('Failed to fetch exchange rates')
-  const data = await res.json()
-  return { base: 'EUR', rates: data.rates }
+  const { data } = await request<{ data: ExchangeRateRow[] }>('/api/exchange-rates')
+  const rates: Record<string, number> = { EUR: 1 }
+  for (const row of data) {
+    if (row.base === 'EUR') rates[row.quote] = row.rate
+  }
+  return { base: 'EUR', rates }
 }
 
 export function searchTransactions(q: string) {
   return request<{ data: RecentTransaction[] }>(`/api/transactions/search?q=${encodeURIComponent(q)}`)
+}
+
+// ── People & shared expenses ─────────────────────────────────────────────
+
+export type Person = {
+  id: string
+  name: string
+  email: string | null
+  notes: string | null
+}
+
+export type PersonBalance = { assetCode: string; amount: number }
+
+export function getPeople() {
+  return request<{ data: Person[] }>('/api/people')
+}
+
+export function createPerson(body: { name: string; email?: string; notes?: string }) {
+  return request<{ data: Person }>('/api/people', { method: 'POST', body: JSON.stringify(body) })
+}
+
+export function patchPerson(id: string, body: { name?: string; email?: string | null; notes?: string | null }) {
+  return request<{ data: Person }>(`/api/people/${id}`, { method: 'PATCH', body: JSON.stringify(body) })
+}
+
+export function deletePerson(id: string) {
+  return request<{ data: { id: string } }>(`/api/people/${id}`, { method: 'DELETE' })
+}
+
+export function getPersonBalance(id: string) {
+  return request<{ data: { personId: string; balances: PersonBalance[] } }>(`/api/people/${id}/balance`)
+}
+
+export type SharedBalance = { personId: string; name: string; balances: PersonBalance[] }
+
+export function getSharedBalances() {
+  return request<{ data: SharedBalance[] }>('/api/analytics/shared-balances')
+}
+
+export function settlePerson(id: string, body: { walletId: string; assetId: string; amount?: string; splitIds?: string[] }) {
+  return request<{ data: { transactionId: string; amount: string; settledSplitIds: string[] } }>(
+    `/api/people/${id}/settle`,
+    { method: 'POST', body: JSON.stringify(body) },
+  )
+}
+
+export type TransactionSplitInput = { personId: string; assetId?: string; amount: string }
+
+// ── Recurring rules ──────────────────────────────────────────────────────
+
+export type RecurringRule = {
+  id: string
+  name: string
+  template: {
+    type: string
+    description: string
+    categoryId?: string | null
+    entries: Array<{ walletId: string; assetId: string; amount: string }>
+    splits?: TransactionSplitInput[]
+  }
+  freq: 'daily' | 'weekly' | 'monthly' | 'yearly'
+  interval: number
+  startAt: string
+  endAt: string | null
+  mode: 'auto_post' | 'draft'
+  isActive: boolean
+  nextRunAt: string
+}
+
+export function getRecurringRules() {
+  return request<{ data: RecurringRule[] }>('/api/recurring-rules')
+}
+
+export function createRecurringRule(body: Omit<RecurringRule, 'id' | 'nextRunAt' | 'isActive'> & { isActive?: boolean }) {
+  return request<{ data: RecurringRule }>('/api/recurring-rules', { method: 'POST', body: JSON.stringify(body) })
+}
+
+export function patchRecurringRule(id: string, body: Partial<Omit<RecurringRule, 'id' | 'nextRunAt'>>) {
+  return request<{ data: RecurringRule }>(`/api/recurring-rules/${id}`, { method: 'PATCH', body: JSON.stringify(body) })
+}
+
+export function deleteRecurringRule(id: string) {
+  return request<{ data: { id: string } }>(`/api/recurring-rules/${id}`, { method: 'DELETE' })
+}
+
+export function previewRecurringRule(id: string, count = 5) {
+  return request<{ data: { occurrences: string[] } }>(`/api/recurring-rules/${id}/preview?count=${count}`)
+}
+
+// ── Approval inbox ───────────────────────────────────────────────────────
+
+export type Proposal = {
+  id: string
+  source: string
+  actorLabel: string
+  payload: { transaction?: { description?: string; type?: string; transactionDate?: string; entries?: Array<{ amount: string }> } }
+  status: 'pending' | 'approved' | 'rejected'
+  createdAt: string
+  resolvedAt: string | null
+}
+
+export function getInbox() {
+  return request<{ data: Proposal[] }>('/api/inbox')
+}
+
+export function approveProposal(id: string) {
+  return request<{ data: Proposal }>(`/api/inbox/${id}/approve`, { method: 'POST' })
+}
+
+export function rejectProposal(id: string) {
+  return request<{ data: Proposal }>(`/api/inbox/${id}/reject`, { method: 'POST' })
+}
+
+// ── Net worth ────────────────────────────────────────────────────────────
+
+export type NetWorth = {
+  currency: string
+  asOf: string
+  total: number
+  series: Array<{ month: string; total: number }>
+  staleRates: boolean
+  missing: string[]
+}
+
+export function getNetWorth(params?: { currency?: string; months?: number }) {
+  const searchParams = new URLSearchParams()
+  if (params?.currency) searchParams.set('currency', params.currency)
+  if (params?.months) searchParams.set('months', String(params.months))
+  const qs = searchParams.toString()
+  return request<{ data: NetWorth }>(`/api/analytics/net-worth${qs ? `?${qs}` : ''}`)
+}
+
+// ── Asset prices ─────────────────────────────────────────────────────────
+
+export type AssetPrice = {
+  id: string
+  assetId: string
+  price: number
+  currency: string
+  asOf: string
+  source: string
+}
+
+export function getAssetPrices(assetId: string) {
+  return request<{ data: AssetPrice[] }>(`/api/asset-prices?assetId=${assetId}`)
+}
+
+export function createAssetPrice(body: { assetId: string; price: string; currency: string; asOf?: string }) {
+  return request<{ data: AssetPrice }>('/api/asset-prices', { method: 'POST', body: JSON.stringify(body) })
 }

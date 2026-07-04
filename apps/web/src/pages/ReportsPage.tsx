@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { MonthlyBarChart } from '../components/MonthlyBarChart'
 import { CategoryDonutChart } from '../components/CategoryDonutChart'
+import { NetWorthTrendCard } from '../components/NetWorthTrendCard'
 import { SpendingTrendLine } from '../components/SpendingTrendLine'
 import { AssetGrowthChart } from '../components/AssetGrowthChart'
 import { DateRangeFilter, type DateRange } from '../components/DateRangeFilter'
@@ -121,7 +122,7 @@ export function ReportsPage() {
   const hasReportData = Boolean(summaryQuery.data?.data.transactionCount)
 
   return (
-    <main className="relative z-1 w-full px-8 md:px-12 pt-12 pb-24">
+    <main className="relative z-1 w-full px-4 py-6 lg:px-12 lg:pt-12 pb-24">
       <div className="mb-10">
         <div className="text-[11px] font-medium tracking-[0.2em] uppercase text-[#5ba4d4] mb-3">
           Reports
@@ -130,6 +131,8 @@ export function ReportsPage() {
           Financial Analytics
         </h1>
       </div>
+
+      <NetWorthTrendCard />
 
       <div className="flex flex-col gap-3 mb-6">
         <Tabs value={currency} onValueChange={setCurrency}>

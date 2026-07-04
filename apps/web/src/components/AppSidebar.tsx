@@ -1,12 +1,17 @@
 import { Link, useLocation } from 'react-router-dom'
 import {
   LayoutGrid,
+  ListOrdered,
   BarChart3,
+  CalendarClock,
   CreditCard,
   Globe,
   ChevronsLeft,
+  Inbox,
   Search,
   Settings,
+  Tags,
+  Users,
 } from 'lucide-react'
 import {
   Sidebar,
@@ -23,8 +28,13 @@ import {
 
 const NAV_ITEMS = [
   { label: 'Dashboard', icon: LayoutGrid, path: '/dashboard', activePath: '/dashboard' },
+  { label: 'Transactions', icon: ListOrdered, path: '/transactions', activePath: '/transactions' },
   { label: 'Reports', icon: BarChart3, path: '/reports', activePath: '/reports' },
   { label: 'Wallets', icon: CreditCard, path: '/wallets', activePath: '/wallets' },
+  { label: 'People', icon: Users, path: '/people', activePath: '/people' },
+  { label: 'Recurring', icon: CalendarClock, path: '/recurring', activePath: '/recurring' },
+  { label: 'Inbox', icon: Inbox, path: '/inbox', activePath: '/inbox' },
+  { label: 'Categories', icon: Tags, path: '/categories', activePath: '/categories' },
   { label: 'Currencies', icon: Globe, path: '/currencies', activePath: '/currencies' },
   { label: 'Settings', icon: Settings, path: '/settings/account', activePath: '/settings' },
 ]

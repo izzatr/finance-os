@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Plus } from 'lucide-react'
 import { WalletsGrid } from '../components/WalletsGrid'
+import { NetWorthCard } from '../components/NetWorthCard'
 import { CreateWalletForm } from '../components/CreateWalletForm'
 import { Button } from '@/components/ui/button'
 import { getWallets } from '../lib/api'
@@ -25,8 +26,8 @@ export function WalletsPage() {
   const walletsQuery = useQuery({ queryKey: ['wallets'], queryFn: getWallets })
 
   return (
-    <main className="w-full px-8 md:px-12 pt-12 pb-24">
-      <header className="flex items-end justify-between mb-12">
+    <main className="w-full px-4 py-6 lg:px-12 lg:pt-12 pb-24">
+      <header className="flex items-end justify-between mb-6 lg:mb-10">
         <div>
           <p className="font-mono text-[10px] font-semibold tracking-[0.2em] uppercase text-[#5ba4d4] mb-2">
             Wallets
@@ -43,6 +44,8 @@ export function WalletsPage() {
           <Plus size={14} /> New Wallet
         </Button>
       </header>
+
+      <NetWorthCard />
 
       {walletsQuery.isLoading && (
         <p className="py-8 text-center font-mono text-xs text-muted-foreground">Loading wallets...</p>

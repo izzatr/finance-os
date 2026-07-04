@@ -53,7 +53,11 @@ export function registerTransactionRoutes(app: OpenAPIHono) {
       body: {
         content: {
           'application/json': {
-            schema: transactionSchema.extend({ splits: z.array(splitInputSchema).optional() }),
+            schema: transactionSchema.extend({
+              // transactionSchema predates categories — without this, zod silently strips categoryId
+              categoryId: z.string().uuid().optional(),
+              splits: z.array(splitInputSchema).optional(),
+            }),
           },
         },
       },
