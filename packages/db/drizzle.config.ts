@@ -6,6 +6,6 @@ export default defineConfig({
   schema: ['./src/schema.ts', './src/auth-schema.ts', './src/billing-schema.ts', './src/audit-schema.ts'],
   out: './drizzle',
   dbCredentials: {
-    url: process.env.DATABASE_URL ?? 'postgres://finance:finance@localhost:5434/finance_os',
+    url: process.env.DATABASE_URL ?? 'postgres://finance:finance@localhost:27033/finance_os',
   },
 })
