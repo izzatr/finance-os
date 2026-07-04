@@ -129,4 +129,60 @@ describe('nextOccurrences', () => {
       iso(2027, 3, 15).toISOString(),
     ])
   })
+
+  it('preserves a non-midnight time-of-day from the anchor', () => {
+    const schedule: RecurringSchedule = { freq: 'monthly', interval: 1, startAt: iso(2024, 1, 15, 9, 30, 45) }
+    const result = nextOccurrences(schedule, iso(2024, 2, 1), 2)
+    expect(isoStrings(result)).toEqual([
+      iso(2024, 2, 15, 9, 30, 45).toISOString(),
+      iso(2024, 3, 15, 9, 30, 45).toISOString(),
+    ])
+  })
+
+  it('yearly Feb-29 anchor is restored (not left clamped) on the next leap year', () => {
+    const schedule: RecurringSchedule = { freq: 'yearly', interval: 1, startAt: iso(2024, 2, 29) }
+    const result = nextOccurrences(schedule, iso(2027, 6, 1), 2)
+    expect(isoStrings(result)).toEqual([
+      iso(2028, 2, 29).toISOString(), // leap year again: full anchor day restored
+      iso(2029, 2, 28).toISOString(),
+    ])
+  })
+
+  // ── far-future `after` (past the old 1000-iteration cliff) ────────────────
+
+  const DAY_MS = 24 * 60 * 60 * 1000
+
+  it('daily: `after` 5000 days past startAt still yields the correct next dates', () => {
+    const startAt = iso(2024, 1, 1)
+    const schedule: RecurringSchedule = { freq: 'daily', interval: 1, startAt }
+    const after = new Date(startAt.getTime() + 5000 * DAY_MS) // exactly occurrence #5000
+    const result = nextOccurrences(schedule, after, 3)
+    expect(isoStrings(result)).toEqual([
+      new Date(startAt.getTime() + 5001 * DAY_MS).toISOString(),
+      new Date(startAt.getTime() + 5002 * DAY_MS).toISOString(),
+      new Date(startAt.getTime() + 5003 * DAY_MS).toISOString(),
+    ])
+  })
+
+  it('weekly interval 2: `after` thousands of weeks past startAt still yields correct dates', () => {
+    const startAt = iso(2020, 1, 6) // a Monday
+    const schedule: RecurringSchedule = { freq: 'weekly', interval: 2, startAt }
+    // 2500 weeks out; occurrences fall every 14 days, so the next one is n=1251 (17514 days)
+    const after = new Date(startAt.getTime() + 2500 * 7 * DAY_MS)
+    const result = nextOccurrences(schedule, after, 2)
+    expect(isoStrings(result)).toEqual([
+      new Date(startAt.getTime() + 1251 * 14 * DAY_MS).toISOString(),
+      new Date(startAt.getTime() + 1252 * 14 * DAY_MS).toISOString(),
+    ])
+  })
+
+  it('monthly on the 31st: `after` more than 1000 months past startAt still clamps correctly', () => {
+    const schedule: RecurringSchedule = { freq: 'monthly', interval: 1, startAt: iso(2000, 1, 31) }
+    const result = nextOccurrences(schedule, iso(2150, 6, 15), 3) // ~1805 months past the anchor
+    expect(isoStrings(result)).toEqual([
+      iso(2150, 6, 30).toISOString(), // clamped (June has 30 days)
+      iso(2150, 7, 31).toISOString(),
+      iso(2150, 8, 31).toISOString(),
+    ])
+  })
 })
