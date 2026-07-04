@@ -26,6 +26,8 @@ export type FinanceToolContext = {
   scope: ToolScope
   /** Shown in the inbox as who proposed it (API key name, model name, …) */
   actorLabel?: string
+  /** Inbox source attribution for session-backed proposers (the AI chat). */
+  proposalSource?: 'ai_chat' | 'draft'
 }
 
 export class ToolError extends Error {}
@@ -145,7 +147,7 @@ async function bookOrPropose(
   if (ctx.scope === 'propose') {
     const { data } = await request<{ data: { id: string } }>(ctx, '/api/proposals', {
       method: 'POST',
-      body: { transaction, actorLabel: ctx.actorLabel },
+      body: { transaction, actorLabel: ctx.actorLabel, source: ctx.proposalSource },
     })
     return {
       status: 'proposed',

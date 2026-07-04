@@ -17,6 +17,7 @@ import { registerRecurringRoutes } from './routes/recurring'
 import { registerInboxRoutes } from './routes/inbox'
 import { registerProposalRoutes } from './routes/proposals'
 import { registerMcpRoutes } from './routes/mcp'
+import { registerAiRoutes } from './routes/ai'
 import { registerExchangeRateRoutes } from './routes/exchange-rates'
 import { registerAssetPriceRoutes } from './routes/asset-prices'
 
@@ -59,6 +60,7 @@ registerInboxRoutes(app)
 registerProposalRoutes(app)
 registerExchangeRateRoutes(app)
 registerAssetPriceRoutes(app)
+registerAiRoutes(app)
 
 app.doc('/openapi.json', {
   openapi: '3.1.0',

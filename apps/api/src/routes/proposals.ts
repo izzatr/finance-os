@@ -31,6 +31,7 @@ export function registerProposalRoutes(app: OpenAPIHono) {
                 })).optional(),
               }),
               actorLabel: z.string().max(120).optional(),
+              source: z.enum(['ai_chat', 'draft']).optional(),
             }),
           },
         },
@@ -66,7 +67,7 @@ export function registerProposalRoutes(app: OpenAPIHono) {
 
   app.openapi(createProposalRoute, async (c) => {
     const user = c.get('user')
-    const { transaction, actorLabel } = c.req.valid('json')
+    const { transaction, actorLabel, source: requestedSource } = c.req.valid('json')
 
     try {
       await validateNewTransaction(transaction as NewTransactionInput, user.id)
@@ -77,7 +78,8 @@ export function registerProposalRoutes(app: OpenAPIHono) {
       throw err
     }
 
-    const source = c.get('authMethod') === 'api_key' ? 'mcp' : 'draft'
+    // API keys are always attributed as agents; sessions may declare the AI chat.
+    const source = c.get('authMethod') === 'api_key' ? 'mcp' : (requestedSource ?? 'draft')
     const label = actorLabel ?? c.get('keyName') ?? 'Manual draft'
 
     const [row] = await db.insert(proposals).values({
