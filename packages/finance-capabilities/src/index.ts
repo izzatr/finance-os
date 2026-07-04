@@ -126,3 +126,13 @@ export async function searchTransactions(ctx: FinanceContext, params: {
   )
   return data
 }
+
+// ── Tool registry (agents: stdio MCP, hosted MCP, in-app chat) ────────────────
+export {
+  financeTools,
+  getTool,
+  ToolError,
+  type FinanceTool,
+  type FinanceToolContext,
+  type ToolScope,
+} from './registry'
