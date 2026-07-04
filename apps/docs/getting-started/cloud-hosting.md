@@ -138,6 +138,12 @@ New tables added for cloud edition:
 
 ---
 
+## Reverse Proxy Required
+
+The API trusts the `x-forwarded-for` header to identify the client IP for auth rate limiting (sign-in and sign-up attempts). Always deploy the API behind a reverse proxy (nginx, an ingress controller, or your platform's load balancer) that sets `x-forwarded-for` from the real client connection and strips any inbound `x-forwarded-for` value from the client. If the API is exposed directly to the internet, every request appears to share one IP, which collapses rate limiting to a single shared bucket and lets a client spoof the header to bypass it entirely.
+
+---
+
 ## Production Checklist
 
 - [ ] `BETTER_AUTH_SECRET` is a real 32+ char random string (not the dev default)
