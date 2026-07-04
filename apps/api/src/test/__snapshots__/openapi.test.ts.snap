@@ -20,6 +20,7 @@ exports[`openapi document > exposes the full route inventory 1`] = `
   "GET /api/exchange-rates",
   "GET /api/imports",
   "GET /api/inbox",
+  "GET /api/me",
   "GET /api/people",
   "GET /api/people/{id}/balance",
   "GET /api/recurring-rules",

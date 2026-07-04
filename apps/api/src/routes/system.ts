@@ -42,4 +42,39 @@ export function registerSystemRoutes(app: OpenAPIHono) {
     const rows = await db.select().from(assets).orderBy(assets.code)
     return c.json({ data: rows }, 200)
   })
+
+  const meRoute = createRoute({
+    method: 'get',
+    path: '/api/me',
+    tags: ['system'],
+    responses: {
+      200: {
+        description: 'Who am I: the acting user and credential capabilities',
+        content: {
+          'application/json': {
+            schema: z.object({
+              data: z.object({
+                userId: z.string(),
+                authMethod: z.string(),
+                keyScope: z.string(),
+                keyName: z.string().nullable(),
+              }),
+            }),
+          },
+        },
+      },
+    },
+  })
+
+  app.openapi(meRoute, async (c) => {
+    const user = c.get('user')
+    return c.json({
+      data: {
+        userId: user.id,
+        authMethod: c.get('authMethod') ?? 'user',
+        keyScope: c.get('keyScope') ?? 'write',
+        keyName: c.get('keyName') ?? null,
+      },
+    }, 200)
+  })
 }
