@@ -10,11 +10,19 @@ let counter = 0
 export async function createTestUser(app: OpenAPIHono): Promise<{ cookie: string; userId: string; email: string }> {
   counter += 1
   const email = `user${counter}-${Date.now()}@test.local`
-  const res = await app.request('/auth/sign-up/email', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ email, password: 'test-password-123', name: `Test User ${counter}` }),
-  })
+  const prev = process.env.ALLOW_REGISTRATION
+  process.env.ALLOW_REGISTRATION = 'true'
+  let res: Response
+  try {
+    res = await app.request('/auth/sign-up/email', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ email, password: 'test-password-123', name: `Test User ${counter}` }),
+    })
+  } finally {
+    if (prev === undefined) delete process.env.ALLOW_REGISTRATION
+    else process.env.ALLOW_REGISTRATION = prev
+  }
   if (res.status !== 200) {
     throw new Error(`sign-up failed: ${res.status} ${await res.text()}`)
   }
