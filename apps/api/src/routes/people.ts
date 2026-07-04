@@ -1,8 +1,9 @@
 import { createRoute, z } from '@hono/zod-openapi'
 import type { OpenAPIHono } from '@hono/zod-openapi'
-import { db, assets, people, transactions, transactionSplits } from '@finance-os/db'
-import { and, eq, isNull, sql } from 'drizzle-orm'
+import { db, assets, people, transactionEntries, transactions, transactionSplits } from '@finance-os/db'
+import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { recordAudit } from '../lib/audit'
+import { userOwnsWallets } from './transactions'
 
 const personShape = z.object({
   id: z.string().uuid(),
@@ -217,6 +218,59 @@ export function registerPeopleRoutes(app: OpenAPIHono) {
     },
   })
 
+  const settlePersonRoute = createRoute({
+    method: 'post',
+    path: '/api/people/{id}/settle',
+    tags: ['people'],
+    request: {
+      params: z.object({ id: z.string().uuid() }),
+      body: {
+        content: {
+          'application/json': {
+            schema: z.object({
+              walletId: z.string().uuid(),
+              assetId: z.string().uuid(),
+              amount: z.string().regex(/^\d+(\.\d+)?$/).optional(),
+              splitIds: z.array(z.string().uuid()).optional(),
+            }),
+          },
+        },
+      },
+    },
+    responses: {
+      201: {
+        description: 'Settlement transaction created; matching splits marked settled',
+        content: {
+          'application/json': {
+            schema: z.object({
+              data: z.object({
+                transactionId: z.string().uuid(),
+                amount: z.string(),
+                settledSplitIds: z.array(z.string().uuid()),
+              }),
+            }),
+          },
+        },
+      },
+      400: {
+        description: 'Amount mismatch or nothing to settle',
+        content: {
+          'application/json': {
+            schema: errorShape,
+          },
+        },
+      },
+      404: {
+        description: 'Person or wallet not found',
+        content: {
+          'application/json': {
+            schema: errorShape,
+          },
+        },
+      },
+    },
+  })
+
   app.openapi(listPeopleRoute, async (c) => {
     const user = c.get('user')
     const rows = await db.select().from(people)
@@ -380,5 +434,97 @@ export function registerPeopleRoutes(app: OpenAPIHono) {
     }
 
     return c.json({ data: [...byPerson.values()] }, 200)
+  })
+
+  app.openapi(settlePersonRoute, async (c) => {
+    const user = c.get('user')
+    const { id } = c.req.valid('param')
+    const { walletId, assetId, amount, splitIds } = c.req.valid('json')
+
+    const [person] = await db.select().from(people)
+      .where(and(eq(people.id, id), eq(people.userId, user.id), isNull(people.deletedAt)))
+    if (!person) {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Person not found' } }, 404)
+    }
+
+    if (!(await userOwnsWallets(user.id, [walletId]))) {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Wallet not found' } }, 404)
+    }
+
+    // Gather the candidate unsettled splits: either an explicit list (each must belong to
+    // this person + asset + one of this user's transactions) or all unsettled splits for
+    // this person/asset.
+    const baseFilters = [
+      eq(transactionSplits.personId, id),
+      eq(transactionSplits.assetId, assetId),
+      eq(transactions.userId, user.id),
+      isNull(transactions.deletedAt),
+      isNull(transactionSplits.settledAt),
+    ]
+    if (splitIds && splitIds.length > 0) {
+      baseFilters.push(inArray(transactionSplits.id, splitIds))
+    }
+
+    const candidates = await db
+      .select({ id: transactionSplits.id, amount: transactionSplits.amount })
+      .from(transactionSplits)
+      .innerJoin(transactions, eq(transactionSplits.transactionId, transactions.id))
+      .where(and(...baseFilters))
+
+    if (splitIds && splitIds.length > 0 && candidates.length !== splitIds.length) {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Split not found' } }, 404)
+    }
+
+    if (candidates.length === 0) {
+      return c.json({ error: { code: 'NOTHING_TO_SETTLE', message: 'Nothing to settle' } }, 400)
+    }
+
+    const sum = candidates.reduce((acc, s) => acc + Number(s.amount), 0)
+    if (amount !== undefined && Math.abs(Number(amount) - sum) > 1e-9) {
+      return c.json({ error: { code: 'AMOUNT_MISMATCH', message: 'Amount does not match the sum of unsettled splits' } }, 400)
+    }
+
+    const now = new Date()
+    const settledIds = candidates.map((s) => s.id)
+
+    const txRow = await db.transaction(async (tx) => {
+      const [txRow] = await tx.insert(transactions).values({
+        userId: user.id,
+        transactionDate: now,
+        type: 'transfer',
+        description: `Settlement with ${person.name}`,
+        externalRef: `settlement:${id}:${now.toISOString()}`,
+      }).returning()
+
+      await tx.insert(transactionEntries).values({
+        transactionId: txRow.id,
+        walletId,
+        assetId,
+        amount: sum.toString(),
+      })
+
+      await tx.update(transactionSplits)
+        .set({ settledAt: now, settlementTransactionId: txRow.id })
+        .where(inArray(transactionSplits.id, settledIds))
+
+      return txRow
+    })
+
+    await recordAudit({
+      actorType: c.get('authMethod') ?? 'user',
+      actorId: user.id,
+      action: 'person.settle',
+      resourceType: 'person',
+      resourceId: id,
+      metadata: { transactionId: txRow.id, amount: sum, splitIds: settledIds },
+    })
+
+    return c.json({
+      data: {
+        transactionId: txRow.id,
+        amount: sum.toString(),
+        settledSplitIds: settledIds,
+      },
+    }, 201)
   })
 }

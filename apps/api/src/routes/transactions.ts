@@ -1,12 +1,12 @@
 import { createRoute, z } from '@hono/zod-openapi'
 import type { OpenAPIHono } from '@hono/zod-openapi'
-import { db, assets, categories, transactionEntries, transactions, wallets } from '@finance-os/db'
+import { db, assets, categories, people, transactionEntries, transactionSplits, transactions, wallets } from '@finance-os/db'
 import { transactionSchema } from '@finance-os/domain'
 import { and, desc, eq, gte, inArray, isNull, isNotNull, lte, sql } from 'drizzle-orm'
 import { recordAudit } from '../lib/audit'
 
 /** All referenced wallets must exist, be live, and belong to the user. */
-async function userOwnsWallets(userId: string, walletIds: string[]): Promise<boolean> {
+export async function userOwnsWallets(userId: string, walletIds: string[]): Promise<boolean> {
   const uniqueIds = [...new Set(walletIds)]
   const owned = await db
     .select({ id: wallets.id })
@@ -14,6 +14,31 @@ async function userOwnsWallets(userId: string, walletIds: string[]): Promise<boo
     .where(and(inArray(wallets.id, uniqueIds), eq(wallets.userId, userId), isNull(wallets.deletedAt)))
   return owned.length === uniqueIds.length
 }
+
+/** All referenced people must exist, be live, and belong to the user. */
+async function userOwnsPeople(userId: string, personIds: string[]): Promise<boolean> {
+  const uniqueIds = [...new Set(personIds)]
+  const owned = await db
+    .select({ id: people.id })
+    .from(people)
+    .where(and(inArray(people.id, uniqueIds), eq(people.userId, userId), isNull(people.deletedAt)))
+  return owned.length === uniqueIds.length
+}
+
+const splitInputSchema = z.object({
+  personId: z.string().uuid(),
+  assetId: z.string().uuid().optional(),
+  amount: z.string().regex(/^\d+(\.\d+)?$/).refine((v) => Number(v) > 0, 'amount must be positive'),
+})
+
+const splitOutputShape = z.object({
+  id: z.string().uuid(),
+  personId: z.string().uuid(),
+  assetId: z.string().uuid(),
+  amount: z.string(),
+  settledAt: z.string().nullable(),
+  settlementTransactionId: z.string().uuid().nullable(),
+})
 
 export function registerTransactionRoutes(app: OpenAPIHono) {
   const listTransactionsRoute = createRoute({
@@ -29,6 +54,7 @@ export function registerTransactionRoutes(app: OpenAPIHono) {
               data: z.array(
                 transactionSchema.extend({
                   id: z.string().uuid(),
+                  splits: z.array(splitOutputShape).optional(),
                 }),
               ),
             }),
@@ -46,7 +72,7 @@ export function registerTransactionRoutes(app: OpenAPIHono) {
       body: {
         content: {
           'application/json': {
-            schema: transactionSchema,
+            schema: transactionSchema.extend({ splits: z.array(splitInputSchema).optional() }),
           },
         },
       },
@@ -56,7 +82,12 @@ export function registerTransactionRoutes(app: OpenAPIHono) {
         description: 'Create transaction',
         content: {
           'application/json': {
-            schema: z.object({ data: transactionSchema.extend({ id: z.string().uuid() }) }),
+            schema: z.object({
+              data: transactionSchema.extend({
+                id: z.string().uuid(),
+                splits: z.array(splitOutputShape).optional(),
+              }),
+            }),
           },
         },
       },
@@ -330,7 +361,8 @@ export function registerTransactionRoutes(app: OpenAPIHono) {
     const txRows = await db.select().from(transactions)
       .where(and(eq(transactions.userId, user.id), isNull(transactions.deletedAt)))
       .orderBy(desc(transactions.transactionDate))
-    const entryRows = await db
+    const txIds = txRows.map((row) => row.id)
+    const entryRows = txIds.length === 0 ? [] : await db
       .select({
         transactionId: transactionEntries.transactionId,
         walletId: transactionEntries.walletId,
@@ -339,8 +371,19 @@ export function registerTransactionRoutes(app: OpenAPIHono) {
         notes: transactionEntries.notes,
       })
       .from(transactionEntries)
-      .innerJoin(transactions, eq(transactions.id, transactionEntries.transactionId))
-      .where(eq(transactions.userId, user.id))
+      .where(inArray(transactionEntries.transactionId, txIds))
+    const splitRows = txIds.length === 0 ? [] : await db
+      .select({
+        id: transactionSplits.id,
+        transactionId: transactionSplits.transactionId,
+        personId: transactionSplits.personId,
+        assetId: transactionSplits.assetId,
+        amount: transactionSplits.amount,
+        settledAt: transactionSplits.settledAt,
+        settlementTransactionId: transactionSplits.settlementTransactionId,
+      })
+      .from(transactionSplits)
+      .where(inArray(transactionSplits.transactionId, txIds))
 
     const data = txRows.map((row) => ({
       ...row,
@@ -351,6 +394,16 @@ export function registerTransactionRoutes(app: OpenAPIHono) {
           assetId: entry.assetId,
           amount: String(entry.amount),
           notes: entry.notes,
+        })),
+      splits: splitRows
+        .filter((split) => split.transactionId === row.id)
+        .map((split) => ({
+          id: split.id,
+          personId: split.personId,
+          assetId: split.assetId,
+          amount: String(split.amount),
+          settledAt: split.settledAt ? split.settledAt.toISOString() : null,
+          settlementTransactionId: split.settlementTransactionId,
         })),
     }))
 
@@ -375,24 +428,50 @@ export function registerTransactionRoutes(app: OpenAPIHono) {
       return c.json({ error: { code: 'NOT_FOUND', message: 'Wallet not found' } }, 404)
     }
 
-    const [txRow] = await db.insert(transactions).values({
-      userId: user.id,
-      transactionDate: new Date(payload.transactionDate),
-      type: payload.type,
-      description: payload.description,
-      notes: payload.notes ?? null,
-      externalRef: payload.externalRef ?? null,
-    }).returning()
+    // Every referenced person (for splits) must belong to the acting user — checked before
+    // any writes so a foreign personId leaves nothing behind.
+    if (payload.splits && payload.splits.length > 0) {
+      if (!(await userOwnsPeople(user.id, payload.splits.map((s) => s.personId)))) {
+        return c.json({ error: { code: 'NOT_FOUND', message: 'Person not found' } }, 404)
+      }
+    }
 
-    await db.insert(transactionEntries).values(
-      payload.entries.map((entry) => ({
-        transactionId: txRow.id,
-        walletId: entry.walletId,
-        assetId: entry.assetId,
-        amount: entry.amount,
-        notes: entry.notes ?? null,
-      })),
-    )
+    const defaultAssetId = payload.entries[0].assetId
+
+    const { txRow, splitRows } = await db.transaction(async (tx) => {
+      const [txRow] = await tx.insert(transactions).values({
+        userId: user.id,
+        transactionDate: new Date(payload.transactionDate),
+        type: payload.type,
+        description: payload.description,
+        notes: payload.notes ?? null,
+        externalRef: payload.externalRef ?? null,
+      }).returning()
+
+      await tx.insert(transactionEntries).values(
+        payload.entries.map((entry) => ({
+          transactionId: txRow.id,
+          walletId: entry.walletId,
+          assetId: entry.assetId,
+          amount: entry.amount,
+          notes: entry.notes ?? null,
+        })),
+      )
+
+      let splitRows: (typeof transactionSplits.$inferSelect)[] = []
+      if (payload.splits && payload.splits.length > 0) {
+        splitRows = await tx.insert(transactionSplits).values(
+          payload.splits.map((split) => ({
+            transactionId: txRow.id,
+            personId: split.personId,
+            assetId: split.assetId ?? defaultAssetId,
+            amount: split.amount,
+          })),
+        ).returning()
+      }
+
+      return { txRow, splitRows }
+    })
 
     await recordAudit({
       actorType: c.get('authMethod') ?? 'user',
@@ -402,7 +481,20 @@ export function registerTransactionRoutes(app: OpenAPIHono) {
       resourceId: txRow.id,
     })
 
-    return c.json({ data: { ...payload, id: txRow.id } }, 201)
+    return c.json({
+      data: {
+        ...payload,
+        id: txRow.id,
+        splits: splitRows.map((split) => ({
+          id: split.id,
+          personId: split.personId,
+          assetId: split.assetId,
+          amount: String(split.amount),
+          settledAt: split.settledAt ? split.settledAt.toISOString() : null,
+          settlementTransactionId: split.settlementTransactionId,
+        })),
+      },
+    }, 201)
   })
 
   app.openapi(deleteTransactionRoute, async (c) => {

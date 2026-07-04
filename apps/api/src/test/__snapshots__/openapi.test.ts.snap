@@ -29,6 +29,7 @@ exports[`openapi document > exposes the full route inventory 1`] = `
   "PATCH /api/wallets/{id}",
   "POST /api/categories",
   "POST /api/people",
+  "POST /api/people/{id}/settle",
   "POST /api/transactions",
   "POST /api/transactions/bulk",
   "POST /api/transactions/{id}/restore",
