@@ -22,8 +22,11 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     env:
+      TEST_DATABASE_URL: postgres://finance:finance@localhost:5432/finance_os_test
       DATABASE_URL: postgres://finance:finance@localhost:5432/finance_os_test
       BETTER_AUTH_SECRET: test-secret-for-ci-only-min-32-chars
+      BETTER_AUTH_URL: http://localhost:27032
+      WEB_ORIGIN: http://localhost:27031
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -32,6 +35,14 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run typecheck
+      - run: npm test
       - run: npm run build --workspace @finance-os/web
-      - run: npm run db:generate --workspace @finance-os/db
-      - run: npm run db:migrate --workspace @finance-os/db
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build API image
+        run: docker build -f apps/api/Dockerfile .
+      - name: Build web image
+        run: docker build -f apps/web/Dockerfile --build-arg VITE_API_BASE_URL=/ .
