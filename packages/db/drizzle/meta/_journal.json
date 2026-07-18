@@ -78,6 +78,34 @@
       "when": 1783196267576,
       "tag": "0010_wet_squadron_supreme",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1784326985946,
+      "tag": "0011_overrated_richard_fisk",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1784328056920,
+      "tag": "0012_charming_maximus",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1784331964125,
+      "tag": "0013_regular_the_anarchist",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1784333506271,
+      "tag": "0014_burly_nemesis",
+      "breakpoints": true
     }
   ]
 }

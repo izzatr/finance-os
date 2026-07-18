@@ -13,6 +13,7 @@ apps/docs/.vitepress/cache/
 # Docker / dev artifacts
 tmp/
 *.log
+/dogfood-output/
 
 # MCP / agent logs and local config
 .mcp/

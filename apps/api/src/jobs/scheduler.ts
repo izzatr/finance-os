@@ -3,6 +3,8 @@ import { materializeDueRules } from './materialize-recurring'
 import { fetchDailyRates } from './fetch-rates'
 import { generateWeeklyDigests } from './weekly-digest'
 import { bootstrapRatesIfEmpty } from './fetch-rates'
+import { drainClaimedDueListings } from '../portfolio/service'
+import { YahooMarketDataProvider } from '../portfolio/yahoo'
 
 /**
  * Hourly recurring-rule materialization (minute 7, to stay off the top-of-hour
@@ -38,6 +40,19 @@ export function startScheduler(): void {
     }
   })
   console.log('[scheduler] daily fx rate fetch scheduled (05:23)')
+
+  cron.schedule('17 * * * *', async () => {
+    try {
+      const results = await drainClaimedDueListings(new YahooMarketDataProvider(), {
+        concurrency: 5, batchSize: 200, maxBatches: 5, maxDurationMs: 5 * 60_000,
+      })
+      const failed = results.filter((result) => result.error).length
+      console.log(`[scheduler] refreshed EOD portfolio prices: listings=${results.length} failed=${failed}`)
+    } catch (err) {
+      console.error('[scheduler] portfolio price refresh tick failed:', err)
+    }
+  })
+  console.log('[scheduler] EOD portfolio refresh scheduled (hourly at :17)')
 
   cron.schedule('45 5 * * 1', async () => {
     try {

@@ -1,9 +1,10 @@
 import { createRoute, z } from '@hono/zod-openapi'
 import type { OpenAPIHono } from '@hono/zod-openapi'
-import { db, assetPrices, assets, categories, transactionEntries, transactions, wallets } from '@finance-os/db'
+import { db, assetPrices, assets, categories, holdings, transactionEntries, transactions, wallets } from '@finance-os/db'
 import { walletSchema } from '@finance-os/domain'
 import { and, desc, eq, inArray, isNull, isNotNull, sql } from 'drizzle-orm'
 import { recordAudit } from '../lib/audit'
+import { latestPortfolioValuesForWallets } from '../portfolio/valuation'
 
 // Valuation for quantity-based assets (unit non-null, e.g. gold in grams):
 // wallet balance is a quantity; value = quantity x latest recorded price.
@@ -16,6 +17,12 @@ const valuationShape = z
     asOf: z.string(),
   })
   .nullable()
+
+const portfolioValueShape = z.object({
+  value: z.number(),
+  currency: z.string(),
+  asOf: z.string(),
+}).nullable()
 
 type PriceRow = typeof assetPrices.$inferSelect
 
@@ -88,6 +95,7 @@ export function registerWalletRoutes(app: OpenAPIHono) {
                   currency: z.string(),
                   unit: z.string().nullable(),
                   valuation: valuationShape,
+                  portfolioValue: portfolioValueShape,
                 }),
               ),
             }),
@@ -183,6 +191,10 @@ export function registerWalletRoutes(app: OpenAPIHono) {
           },
         },
       },
+      409: {
+        description: 'Wallet still has investment holdings',
+        content: { 'application/json': { schema: z.object({ error: z.object({ code: z.string(), message: z.string() }) }) } },
+      },
     },
   })
 
@@ -209,6 +221,10 @@ export function registerWalletRoutes(app: OpenAPIHono) {
             schema: z.object({ error: z.object({ code: z.string(), message: z.string() }) }),
           },
         },
+      },
+      409: {
+        description: 'Wallet still has investment holdings',
+        content: { 'application/json': { schema: z.object({ error: z.object({ code: z.string(), message: z.string() }) }) } },
       },
     },
   })
@@ -327,10 +343,17 @@ export function registerWalletRoutes(app: OpenAPIHono) {
       .orderBy(wallets.name)
 
     const quantityAssetIds = [...new Set(rows.filter((r) => r.unit).map((r) => r.assetId))]
-    const prices = await latestPricesFor(quantityAssetIds)
+    const investmentCurrencies = new Map(rows
+      .filter((row) => row.walletType === 'investment')
+      .map((row) => [row.id, row.currency]))
+    const [prices, portfolioValues] = await Promise.all([
+      latestPricesFor(quantityAssetIds),
+      latestPortfolioValuesForWallets(investmentCurrencies),
+    ])
     const data = rows.map((row) => ({
       ...row,
       valuation: valuationFor(Number(row.balance), row.unit, prices.get(row.assetId)),
+      portfolioValue: row.walletType === 'investment' ? (portfolioValues.get(row.id) ?? null) : null,
     }))
 
     return c.json({ data }, 200)
@@ -428,6 +451,12 @@ export function registerWalletRoutes(app: OpenAPIHono) {
       return c.json({ error: { code: 'NO_CHANGES', message: 'No fields to update' } }, 404)
     }
 
+    if ((payload.walletType !== undefined && payload.walletType !== 'investment') || payload.isActive === false) {
+      const [holding] = await db.select({ id: holdings.id }).from(holdings).innerJoin(wallets, eq(wallets.id, holdings.walletId))
+        .where(and(eq(wallets.id, id), eq(wallets.userId, user.id))).limit(1)
+      if (holding) return c.json({ error: { code: 'HOLDINGS_EXIST', message: 'Remove investment holdings before changing this wallet' } }, 409)
+    }
+
     const [row] = await db.update(wallets).set(updates).where(and(eq(wallets.id, id), eq(wallets.userId, user.id), isNull(wallets.deletedAt))).returning()
 
     if (!row) {
@@ -449,6 +478,9 @@ export function registerWalletRoutes(app: OpenAPIHono) {
     const user = c.get('user')
     const { id } = c.req.valid('param')
     const now = new Date()
+    const [holding] = await db.select({ id: holdings.id }).from(holdings).innerJoin(wallets, eq(wallets.id, holdings.walletId))
+      .where(and(eq(wallets.id, id), eq(wallets.userId, user.id))).limit(1)
+    if (holding) return c.json({ error: { code: 'HOLDINGS_EXIST', message: 'Remove investment holdings before deleting this wallet' } }, 409)
     const [row] = await db.update(wallets).set({ deletedAt: now }).where(and(eq(wallets.id, id), eq(wallets.userId, user.id), isNull(wallets.deletedAt))).returning()
     if (!row) {
       return c.json({ error: { code: 'NOT_FOUND', message: 'Wallet not found' } }, 404)

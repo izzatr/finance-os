@@ -3,6 +3,7 @@ import type { OpenAPIHono } from '@hono/zod-openapi'
 import { db, assetPrices, assets, categories, exchangeRates, transactionEntries, transactions, wallets } from '@finance-os/db'
 import { and, desc, eq, gte, inArray, isNull, lte, sql } from 'drizzle-orm'
 import { convertAmount, getLatestRates } from '../lib/fx'
+import { latestPortfolioValuesForWallets } from '../portfolio/valuation'
 
 export function registerAnalyticsRoutes(app: OpenAPIHono) {
   const monthlyTrendRoute = createRoute({
@@ -461,6 +462,20 @@ export function registerAnalyticsRoutes(app: OpenAPIHono) {
         })
       }
     }
+
+    // Holdings are a separate subledger from transaction balances. Add their
+    // latest complete EOD value to the current month so wallet cash and market
+    // positions both contribute to current net worth without double-counting.
+    const investmentWallets = await db
+      .select({ id: wallets.id })
+      .from(wallets)
+      .where(and(eq(wallets.userId, user.id), eq(wallets.walletType, 'investment'), eq(wallets.isActive, true), isNull(wallets.deletedAt)))
+    const portfolioValues = await latestPortfolioValuesForWallets(new Map(investmentWallets.map((wallet) => [wallet.id, currency])))
+    let currentPortfolioValue = 0
+    for (const value of portfolioValues.values()) {
+      if (value) currentPortfolioValue += value.value
+    }
+    if (seriesTotals.length > 0) seriesTotals[seriesTotals.length - 1] += currentPortfolioValue
 
     const series = targetMonths.map((month, i) => ({ month, total: Math.round(seriesTotals[i] * 100) / 100 }))
     const total = series.length > 0 ? series[series.length - 1].total : 0

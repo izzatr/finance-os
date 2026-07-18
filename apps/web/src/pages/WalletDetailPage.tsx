@@ -9,6 +9,7 @@ import { EditWalletForm } from '../components/EditWalletForm'
 import { DeleteWalletDialog } from '../components/DeleteWalletDialog'
 import { EditTransactionForm } from '../components/EditTransactionForm'
 import { SectionDivider } from '../components/SectionDivider'
+import { WalletPortfolio } from '../components/WalletPortfolio'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -99,39 +100,40 @@ export function WalletDetailPage() {
         <>
           {/* Hero Section */}
           <header className="relative mb-12">
-            <div className="absolute top-0 right-0 flex items-center gap-1">
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setEditingWallet(true)}
-                title="Edit wallet"
-                className="text-muted-foreground hover:text-foreground"
-              >
-                <Settings size={18} />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setDeletingWallet(true)}
-                title="Delete wallet"
-                className="text-muted-foreground hover:text-[var(--negative)]"
-              >
-                <Trash2 size={18} />
-              </Button>
-            </div>
-
-            <div className="flex items-center gap-4 mb-4">
-              <div className="size-14 rounded-2xl bg-gradient-to-br from-[#ddeef9] to-[#c6e2f5] flex items-center justify-center text-[#5ba4d4] shrink-0">
-                <WalletIcon walletType={detail.wallet.walletType} size={28} />
+            <div className="flex items-start gap-2 mb-4">
+              <div className="flex min-w-0 flex-1 items-center gap-4">
+                <div className="size-14 rounded-2xl bg-gradient-to-br from-[#ddeef9] to-[#c6e2f5] flex items-center justify-center text-[#5ba4d4] shrink-0">
+                  <WalletIcon walletType={detail.wallet.walletType} size={28} />
+                </div>
+                <div className="min-w-0">
+                  <h1 className="break-words font-['Cormorant_Garamond',Georgia,serif] italic font-normal text-[36px] sm:text-[42px] text-[#0a0f18] leading-tight">
+                    {detail.wallet.name}
+                  </h1>
+                  <p className="text-sm font-light text-muted-foreground mt-0.5">
+                    {detail.wallet.walletType}
+                    {detail.wallet.institution ? ` · ${detail.wallet.institution}` : ''}
+                  </p>
+                </div>
               </div>
-              <div>
-                <h1 className="font-['Cormorant_Garamond',Georgia,serif] italic font-normal text-[42px] text-[#0a0f18] leading-tight">
-                  {detail.wallet.name}
-                </h1>
-                <p className="text-sm font-light text-muted-foreground mt-0.5">
-                  {detail.wallet.walletType}
-                  {detail.wallet.institution ? ` \u00b7 ${detail.wallet.institution}` : ''}
-                </p>
+              <div className="flex shrink-0 items-center gap-1">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setEditingWallet(true)}
+                  title="Edit wallet"
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  <Settings size={18} />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setDeletingWallet(true)}
+                  title="Delete wallet"
+                  className="text-muted-foreground hover:text-[var(--negative)]"
+                >
+                  <Trash2 size={18} />
+                </Button>
               </div>
             </div>
 
@@ -144,10 +146,12 @@ export function WalletDetailPage() {
                 {formatCurrency(detail.wallet.balance, detail.wallet.currency)}
               </span>
               <span className="block font-mono text-[11px] uppercase tracking-[0.15em] text-muted-foreground mt-1">
-                Current balance
+                {detail.wallet.walletType === 'investment' ? 'Cash balance' : 'Current balance'}
               </span>
             </div>
           </header>
+
+          {detail.wallet.walletType === 'investment' && <WalletPortfolio walletId={walletId!} />}
 
           {/* Balance Trend Chart */}
           {balanceTrend.length > 1 && (

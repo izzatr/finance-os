@@ -54,6 +54,11 @@ export type Wallet = {
   currency: string
   unit?: string | null
   valuation?: WalletValuation
+  portfolioValue?: {
+    value: number
+    currency: string
+    asOf: string
+  } | null
 }
 
 export type Transaction = {
@@ -514,6 +519,110 @@ export function getAssetPrices(assetId: string) {
 
 export function createAssetPrice(body: { assetId: string; price: string; currency: string; asOf?: string }) {
   return request<{ data: AssetPrice }>('/api/asset-prices', { method: 'POST', body: JSON.stringify(body) })
+}
+
+// ── Portfolio ────────────────────────────────────────────────────────────
+
+export type PortfolioSearchResult = {
+  provider: 'yahoo'
+  providerSymbol: string
+  name: string
+  instrumentType: 'stock' | 'etf'
+  exchangeCode: string
+  exchangeName: string
+  mic: string | null
+  currency: string
+  timezone: string | null
+}
+
+export type PortfolioHoldingApi = {
+  id: string
+  walletId: string
+  walletName: string
+  quantity: string
+  averageCost: string | null
+  costCurrency: string | null
+  listing: {
+    id: string
+    symbol: string
+    provider: 'yahoo'
+    providerSymbol: string
+    currency: string
+    exchangeCode: string
+    exchangeName: string
+    timezone: string
+    instrumentName: string
+    instrumentType: 'stock' | 'etf'
+    lastRefreshAt: string | null
+    lastSuccessAt: string | null
+    refreshError: string | null
+  }
+}
+
+export type PortfolioSummaryApi = {
+  baseCurrency: string | null
+  totalBaseValue: number | null
+  nativeTotals: Record<string, number>
+  asOf?: string | null
+  source?: string | null
+  status?: 'fresh' | 'stale' | 'partial' | 'empty'
+  dailyChangeBase?: number | null
+  dailyChangePercent?: number | null
+  holdings: Array<PortfolioHoldingApi & {
+    price: number | null
+    previousClose?: number | null
+    priceDate: string | null
+    nativeCurrency: string
+    nativeValue: number | null
+    baseValue: number | null
+    dailyChangePercent?: number | null
+    priceStatus?: 'fresh' | 'stale' | 'error' | 'missing'
+  }>
+}
+
+export type PortfolioHistoryApi = {
+  baseCurrency: string | null
+  points: Array<{ date: string; nativeTotals: Record<string, number>; baseValue: number | null }>
+}
+
+export type CreatePortfolioHoldingInput = {
+  walletId: string
+  provider: 'yahoo'
+  providerSymbol: string
+  quantity: string
+  averageCost: string | null
+  costCurrency: string | null
+}
+
+export function searchPortfolioInstruments(query: string, limit = 10) {
+  const params = new URLSearchParams({ q: query, limit: String(limit) })
+  return request<{ data: PortfolioSearchResult[] }>(`/api/portfolio/search?${params}`)
+}
+
+export function createPortfolioHolding(body: CreatePortfolioHoldingInput) {
+  return request<{ data: PortfolioHoldingApi }>('/api/portfolio/holdings', { method: 'POST', body: JSON.stringify(body) })
+}
+
+export function updatePortfolioHolding(id: string, body: { quantity?: string; averageCost?: string | null; costCurrency?: string | null }) {
+  return request<{ data: PortfolioHoldingApi }>(`/api/portfolio/holdings/${id}`, { method: 'PATCH', body: JSON.stringify(body) })
+}
+
+export function deletePortfolioHolding(id: string) {
+  return request<{ data: { id: string } }>(`/api/portfolio/holdings/${id}`, { method: 'DELETE' })
+}
+
+export function refreshPortfolioWallet(walletId: string) {
+  return request<{ data: Array<{ listingId: string; upserted: number; error: string | null }> }>(`/api/portfolio/wallets/${walletId}/refresh`, { method: 'POST' })
+}
+
+export function getPortfolioSummary(walletId: string, baseCurrency: string) {
+  const params = new URLSearchParams({ walletId, baseCurrency })
+  return request<{ data: PortfolioSummaryApi }>(`/api/portfolio/summary?${params}`)
+}
+
+export function getPortfolioHistory(walletId: string, baseCurrency: string, from: string, to: string) {
+  const params = new URLSearchParams({ walletId, baseCurrency, from, to })
+  return request<{ data: PortfolioHistoryApi }>(`/api/portfolio/history?${params}`)
 }
 
 // ── AI assistant ─────────────────────────────────────────────────────────

@@ -3,6 +3,11 @@
 All notable changes to this project will be documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased]
+
+### Added
+- International end-of-day investment portfolios backed by Yahoo Finance, with multiple investment wallets, native/base-currency valuation, position-aware history, bounded backfills, refresh leasing, and strict tenant and wallet invariants.
+
 ## [0.1.0] - 2026-03-28
 
 ### Added
