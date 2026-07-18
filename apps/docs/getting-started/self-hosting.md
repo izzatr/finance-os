@@ -19,6 +19,7 @@ This guide covers deploying Finance OS to a production environment.
 | Variable             | Description                                     | Default                   |
 |----------------------|-------------------------------------------------|---------------------------|
 | `VITE_API_BASE_URL`  | API URL for the web build (optional if using same-origin proxying) | _(empty / same origin)_ |
+| `YAHOO_FINANCE_BASE_URL` | Optional Yahoo-compatible proxy base URL when the hosting provider's shared egress is rate-limited | `https://query1.finance.yahoo.com` |
 
 ### OAuth Providers (Optional)
 

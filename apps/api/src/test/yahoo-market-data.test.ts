@@ -27,12 +27,13 @@ const chartPayload = {
 describe('YahooMarketDataProvider', () => {
   it('searches international listings with encoded bounded queries and normalizes supported results', async () => {
     const fetchImpl = vi.fn(async () => new Response(JSON.stringify(searchPayload), { status: 200 }))
-    const provider = new YahooMarketDataProvider({ fetchImpl })
+    const provider = new YahooMarketDataProvider({ fetchImpl, baseUrl: 'https://market-data.example.test/' })
     const results = await provider.search('Bank & ETF', 100)
 
     expect(fetchImpl).toHaveBeenCalledOnce()
     const calls = fetchImpl.mock.calls as unknown as Array<[string | URL | Request, RequestInit | undefined]>
     const [url, init] = calls[0]
+    expect(String(url)).toMatch(/^https:\/\/market-data\.example\.test\/v1\/finance\/search\?/)
     expect(String(url)).toContain('q=Bank+%26+ETF')
     expect(String(url)).toContain('quotesCount=25')
     expect((init?.headers as Record<string, string>)['User-Agent']).toContain('FinanceOS')

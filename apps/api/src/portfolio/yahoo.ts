@@ -23,22 +23,26 @@ export interface MarketDataProvider {
   dailyChart(symbol: string, from: Date, to: Date): Promise<DailyChartResult>
 }
 
-type YahooOptions = { fetchImpl?: typeof fetch; timeoutMs?: number }
+type YahooOptions = { fetchImpl?: typeof fetch; timeoutMs?: number; baseUrl?: string }
+
+const DEFAULT_YAHOO_BASE_URL = 'https://query1.finance.yahoo.com'
 
 export class YahooMarketDataProvider implements MarketDataProvider {
   readonly name = 'yahoo'
   private readonly fetchImpl: typeof fetch
   private readonly timeoutMs: number
+  private readonly baseUrl: string
 
   constructor(options: YahooOptions = {}) {
     this.fetchImpl = options.fetchImpl ?? fetch
     this.timeoutMs = options.timeoutMs ?? 10_000
+    this.baseUrl = (options.baseUrl ?? process.env.YAHOO_FINANCE_BASE_URL ?? DEFAULT_YAHOO_BASE_URL).replace(/\/+$/, '')
   }
 
   async search(query: string, limit = 10): Promise<MarketSearchResult[]> {
     const boundedLimit = Math.max(1, Math.min(25, Math.trunc(limit)))
     const params = new URLSearchParams({ q: query.trim(), quotesCount: String(boundedLimit), newsCount: '0', enableFuzzyQuery: 'false' })
-    const payload = await this.requestJson(`https://query1.finance.yahoo.com/v1/finance/search?${params}`) as { quotes?: unknown[] }
+    const payload = await this.requestJson(`${this.baseUrl}/v1/finance/search?${params}`) as { quotes?: unknown[] }
     const output: MarketSearchResult[] = []
     for (const raw of payload.quotes ?? []) {
       const q = raw as Record<string, unknown>
@@ -94,7 +98,7 @@ export class YahooMarketDataProvider implements MarketDataProvider {
       interval: '1d',
       events: 'history',
     })
-    const payload = await this.requestJson(`https://query1.finance.yahoo.com/v8/finance/chart/${encodedSymbol}?${params}`) as Record<string, any>
+    const payload = await this.requestJson(`${this.baseUrl}/v8/finance/chart/${encodedSymbol}?${params}`) as Record<string, any>
     const result = payload.chart?.result?.[0]
     if (!result || !Array.isArray(result.timestamp)) throw new Error('Yahoo chart returned no result')
     const meta = result.meta ?? {}
