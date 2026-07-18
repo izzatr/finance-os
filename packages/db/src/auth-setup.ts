@@ -18,6 +18,20 @@ const connectionString = process.env.DATABASE_URL ?? 'postgres://finance:***@loc
 const authPool = new Pool({ connectionString })
 const authDb = drizzle(authPool)
 
+function optionalSocialProvider(name: string, clientId?: string, clientSecret?: string) {
+  if (Boolean(clientId) !== Boolean(clientSecret)) {
+    throw new Error(`${name} OAuth requires both client ID and client secret`)
+  }
+  return clientId && clientSecret ? { clientId, clientSecret } : undefined
+}
+
+const githubProvider = optionalSocialProvider('GitHub', process.env.GITHUB_CLIENT_ID, process.env.GITHUB_CLIENT_SECRET)
+const googleProvider = optionalSocialProvider('Google', process.env.GOOGLE_CLIENT_ID, process.env.GOOGLE_CLIENT_SECRET)
+const webOrigin = process.env.WEB_ORIGIN ?? 'http://localhost:27031'
+const trustedOrigins = process.env.NODE_ENV === 'production'
+  ? [webOrigin]
+  : [webOrigin, 'http://localhost:5173']
+
 export const auth = betterAuth({
   basePath: '/auth',
   baseURL: process.env.BETTER_AUTH_URL ?? 'http://localhost:27032',
@@ -32,10 +46,7 @@ export const auth = betterAuth({
     },
   }),
 
-  trustedOrigins: [
-    process.env.WEB_ORIGIN ?? 'http://localhost:27031',
-    'http://localhost:5173',
-  ],
+  trustedOrigins,
 
   session: {
     expiresIn: 60 * 60 * 24 * 7,  // 7 days
@@ -51,14 +62,8 @@ export const auth = betterAuth({
   },
 
   socialProviders: {
-    github: {
-      clientId: process.env.GITHUB_CLIENT_ID ?? '',
-      clientSecret: process.env.GITHUB_CLIENT_SECRET ?? '',
-    },
-    google: {
-      clientId: process.env.GOOGLE_CLIENT_ID ?? '',
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET ?? '',
-    },
+    ...(githubProvider ? { github: githubProvider } : {}),
+    ...(googleProvider ? { google: googleProvider } : {}),
   },
 
   // enableMetadata: API keys carry {scope: 'read'|'propose'|'write'} in metadata

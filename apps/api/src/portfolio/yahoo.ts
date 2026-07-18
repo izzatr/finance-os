@@ -27,6 +27,19 @@ type YahooOptions = { fetchImpl?: typeof fetch; timeoutMs?: number; baseUrl?: st
 
 const DEFAULT_YAHOO_BASE_URL = 'https://query1.finance.yahoo.com'
 
+function normalizeBaseUrl(value: string): string {
+  let url: URL
+  try {
+    url = new URL(value)
+  } catch {
+    throw new Error('Yahoo base URL must be a valid absolute URL')
+  }
+  if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash || (url.pathname !== '/' && url.pathname !== '')) {
+    throw new Error('Yahoo base URL must be an HTTPS origin without credentials, path, query, or fragment')
+  }
+  return url.origin
+}
+
 export class YahooMarketDataProvider implements MarketDataProvider {
   readonly name = 'yahoo'
   private readonly fetchImpl: typeof fetch
@@ -36,7 +49,7 @@ export class YahooMarketDataProvider implements MarketDataProvider {
   constructor(options: YahooOptions = {}) {
     this.fetchImpl = options.fetchImpl ?? fetch
     this.timeoutMs = options.timeoutMs ?? 10_000
-    this.baseUrl = (options.baseUrl ?? process.env.YAHOO_FINANCE_BASE_URL ?? DEFAULT_YAHOO_BASE_URL).replace(/\/+$/, '')
+    this.baseUrl = normalizeBaseUrl(options.baseUrl ?? process.env.YAHOO_FINANCE_BASE_URL ?? DEFAULT_YAHOO_BASE_URL)
   }
 
   async search(query: string, limit = 10): Promise<MarketSearchResult[]> {
@@ -128,7 +141,7 @@ export class YahooMarketDataProvider implements MarketDataProvider {
     try {
       const response = await this.fetchImpl(url, {
         signal: controller.signal,
-        headers: { 'User-Agent': 'FinanceOS/0.1 (+https://github.com/finance-os)', Accept: 'application/json' },
+        headers: { 'User-Agent': 'FinanceOS/0.1 (+https://github.com/izzatr/finance-os)', Accept: 'application/json' },
       })
       if (!response.ok) throw new Error(`Yahoo request failed with status ${response.status}`)
       return await response.json()

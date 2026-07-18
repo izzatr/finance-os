@@ -7,6 +7,14 @@ Format based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 - International end-of-day investment portfolios backed by Yahoo Finance, with multiple investment wallets, native/base-currency valuation, position-aware history, bounded backfills, refresh leasing, and strict tenant and wallet invariants.
+- A restricted, configurable Cloudflare Worker fallback for Yahoo Finance egress.
+
+### Changed
+- Production containers and CI now use Node.js 22, reproducible `npm ci` installs, pinned base images, and container health checks.
+
+### Security
+- Removed all known high-severity dependency advisories, pinned GitHub Actions, added Dependabot, made the API container non-root, hardened production startup validation, and added browser security headers.
+- Hardened the Yahoo proxy with an explicit source-IP binding, strict route/query validation, bounded chart ranges, upstream timeouts, and generic error responses.
 
 ## [0.1.0] - 2026-03-28
 

@@ -24,9 +24,14 @@ import { registerPortfolioRoutes } from './routes/portfolio'
 
 const app = new OpenAPIHono()
 
-// CORS — allow web UI and localhost dev
+// CORS — production trusts only the configured web origin; development also
+// accepts the Vite dev server.
+const webOrigin = process.env.WEB_ORIGIN ?? 'http://localhost:27031'
+const corsOrigins = process.env.NODE_ENV === 'production'
+  ? [webOrigin]
+  : [webOrigin, 'http://localhost:5173']
 app.use('*', cors({
-  origin: [process.env.WEB_ORIGIN ?? 'http://localhost:27031', 'http://localhost:5173'],
+  origin: corsOrigins,
   credentials: true,
 }))
 

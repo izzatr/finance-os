@@ -1,0 +1,11 @@
+{
+  "$schema": "https://raw.githubusercontent.com/cloudflare/workers-sdk/main/packages/wrangler/config-schema.json",
+  "name": "finance-os-yahoo-proxy",
+  "main": "worker.mjs",
+  "compatibility_date": "2026-07-18",
+  "workers_dev": true,
+  "preview_urls": false,
+  "vars": {
+    "ALLOWED_SOURCE_IPS": "43.133.134.174"
+  }
+}

@@ -8,7 +8,6 @@
     "apps/web",
     "packages/*"
   ],
-  "dependencies": {},
   "scripts": {
     "dev": "npm run dev:api",
     "dev:api": "npm run dev --workspace @finance-os/api",
@@ -23,10 +22,11 @@
     "mcp:finance": "tsx packages/cli/src/mcp.ts",
     "lint": "npm run lint --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
-    "test": "npm run test --workspaces --if-present"
+    "test": "npm run test --workspaces --if-present && npm run test:yahoo-proxy",
+    "test:yahoo-proxy": "node --test infra/yahoo-proxy/worker.test.mjs"
   },
   "engines": {
-    "node": ">=20.11.0"
+    "node": ">=22.12.0"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
@@ -34,6 +34,7 @@
   },
   "overrides": {
     "@types/react": "^19.0.0",
-    "@types/react-dom": "^19.0.0"
+    "@types/react-dom": "^19.0.0",
+    "fast-uri": "3.1.3"
   }
 }

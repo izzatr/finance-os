@@ -13,6 +13,12 @@ describe('smoke', () => {
     expect(await res.json()).toEqual({ ok: true })
   })
 
+  it('GET /ready confirms database readiness without auth', async () => {
+    const res = await app.request('/ready')
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ ok: true })
+  })
+
   it('sign-up returns a session and /api/wallets works with it', async () => {
     const { cookie } = await createTestUser(app)
     const res = await app.request('/api/wallets', { headers: { cookie } })

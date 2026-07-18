@@ -1,4 +1,4 @@
-FROM node:20-alpine
+FROM node:22-alpine@sha256:16e22a550f3863206a3f701448c45f7912c6896a62de43add43bb9c86130c3e2
 
 WORKDIR /app
 
@@ -13,7 +13,7 @@ COPY packages/billing/package.json packages/billing/package.json
 COPY packages/finance-capabilities/package.json packages/finance-capabilities/package.json
 COPY apps/api/package.json apps/api/package.json
 
-RUN npm install
+RUN npm ci
 
 # Copy source code
 COPY packages/db packages/db
@@ -26,5 +26,10 @@ EXPOSE 27032
 
 COPY apps/api/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
+
+USER node
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+  CMD node -e "fetch('http://127.0.0.1:' + (process.env.PORT || '27032') + '/ready').then(r => { if (!r.ok) process.exit(1) }).catch(() => process.exit(1))"
 
 CMD ["/entrypoint.sh"]
