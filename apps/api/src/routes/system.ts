@@ -2,6 +2,7 @@ import { createRoute, z } from '@hono/zod-openapi'
 import type { OpenAPIHono } from '@hono/zod-openapi'
 import { db, assets } from '@finance-os/db'
 import { assetSchema } from '@finance-os/domain'
+import { sql } from 'drizzle-orm'
 
 export function registerSystemRoutes(app: OpenAPIHono) {
   const healthRoute = createRoute({
@@ -16,6 +17,22 @@ export function registerSystemRoutes(app: OpenAPIHono) {
             schema: z.object({ ok: z.literal(true) }),
           },
         },
+      },
+    },
+  })
+
+  const readinessRoute = createRoute({
+    method: 'get',
+    path: '/ready',
+    tags: ['system'],
+    responses: {
+      200: {
+        description: 'Database-backed readiness check',
+        content: { 'application/json': { schema: z.object({ ok: z.literal(true) }) } },
+      },
+      503: {
+        description: 'Database is unavailable',
+        content: { 'application/json': { schema: z.object({ ok: z.literal(false) }) } },
       },
     },
   })
@@ -37,6 +54,14 @@ export function registerSystemRoutes(app: OpenAPIHono) {
   })
 
   app.openapi(healthRoute, (c) => c.json({ ok: true }, 200))
+  app.openapi(readinessRoute, async (c) => {
+    try {
+      await db.execute(sql`select 1`)
+      return c.json({ ok: true } as const, 200)
+    } catch {
+      return c.json({ ok: false } as const, 503)
+    }
+  })
 
   app.openapi(listAssetsRoute, async (c) => {
     const rows = await db.select().from(assets).orderBy(assets.code)

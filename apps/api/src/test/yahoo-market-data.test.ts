@@ -25,6 +25,14 @@ const chartPayload = {
 }
 
 describe('YahooMarketDataProvider', () => {
+  it('accepts only a clean HTTPS origin for the configurable proxy', () => {
+    expect(() => new YahooMarketDataProvider({ baseUrl: 'not-a-url' })).toThrow('valid absolute URL')
+    expect(() => new YahooMarketDataProvider({ baseUrl: 'http://proxy.example.test' })).toThrow('HTTPS origin')
+    expect(() => new YahooMarketDataProvider({ baseUrl: 'https://user:pass@proxy.example.test' })).toThrow('HTTPS origin')
+    expect(() => new YahooMarketDataProvider({ baseUrl: 'https://proxy.example.test/forward?to=yahoo' })).toThrow('HTTPS origin')
+    expect(() => new YahooMarketDataProvider({ baseUrl: 'https://proxy.example.test/' })).not.toThrow()
+  })
+
   it('searches international listings with encoded bounded queries and normalizes supported results', async () => {
     const fetchImpl = vi.fn(async () => new Response(JSON.stringify(searchPayload), { status: 200 }))
     const provider = new YahooMarketDataProvider({ fetchImpl, baseUrl: 'https://market-data.example.test/' })

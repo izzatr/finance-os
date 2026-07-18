@@ -80,13 +80,3 @@ export const checkAuth: MiddlewareHandler = async (c: Context, next) => {
 
   return c.json({ error: { code: 'UNAUTHORIZED', message: 'Authentication required' } }, 401)
 }
-
-// ── Admin-only check (stub — extend when roles plugin is added) ──────────────
-
-export const checkAdmin: MiddlewareHandler = async (c: Context, next) => {
-  const user = c.get('user')
-  if (!user) {
-    return c.json({ error: { code: 'UNAUTHORIZED', message: 'Admin access required' } }, 401)
-  }
-  return next()
-}
