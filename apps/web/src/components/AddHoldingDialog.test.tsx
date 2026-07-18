@@ -55,6 +55,27 @@ describe('AddHoldingDialog', () => {
     }))
   })
 
+  it('supports enter-to-search, announces selection, and rejects invalid financial values', async () => {
+    const user = userEvent.setup()
+    const onSearch = vi.fn().mockResolvedValue(results)
+    const onSubmit = vi.fn()
+    render(<AddHoldingDialog open onClose={() => {}} onSearch={onSearch} onSubmit={onSubmit} />)
+
+    const search = screen.getByLabelText(/search stocks and etfs/i)
+    await user.type(search, 'BBCA{Enter}')
+    await waitFor(() => expect(onSearch).toHaveBeenCalledWith('BBCA'))
+    const listing = await screen.findByRole('button', { name: /BBCA · Jakarta · IDR/i })
+    await user.click(listing)
+    expect(listing).toHaveAttribute('aria-pressed', 'true')
+
+    await user.type(screen.getByLabelText(/^quantity$/i), 'abc')
+    await user.type(screen.getByLabelText(/average cost/i), 'Infinity')
+    expect(screen.getByText(/quantity greater than zero/i)).toBeInTheDocument()
+    expect(screen.getByText(/cost greater than zero/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /add holding/i })).toBeDisabled()
+    expect(onSubmit).not.toHaveBeenCalled()
+  })
+
   it('shows provider failures and keeps the dialog usable for retry', async () => {
     const user = userEvent.setup()
     const onSearch = vi.fn().mockRejectedValue(new Error('Yahoo is temporarily unavailable'))

@@ -30,7 +30,7 @@ export type PortfolioHolding = {
 export type PortfolioSummary = {
   walletId: string
   baseCurrency: string
-  totalBaseValue: number
+  totalBaseValue: number | null
   dailyChangeBase: number | null
   dailyChangePercent: number | null
   asOf: string | null
@@ -69,7 +69,9 @@ function formatMoney(amount: number, currency: string, compact = false) {
 
 function formatAge(value: string | null) {
   if (!value) return 'No price yet'
-  const elapsed = Math.max(0, Date.now() - new Date(value).getTime())
+  const timestamp = new Date(value).getTime()
+  if (!Number.isFinite(timestamp)) return 'Unknown update time'
+  const elapsed = Math.max(0, Date.now() - timestamp)
   const hours = Math.floor(elapsed / 3_600_000)
   if (hours < 1) return 'Updated recently'
   if (hours < 24) return `Updated ${hours}h ago`
@@ -84,6 +86,7 @@ export function PortfolioSection({ portfolio, onAddHolding, onRefresh, onEditHol
   const hasHoldings = portfolio.holdings.length > 0
   const movementPositive = (portfolio.dailyChangeBase ?? 0) >= 0
   const stale = portfolio.status === 'stale' || portfolio.status === 'partial'
+  const totalBaseValue = portfolio.totalBaseValue
 
   return (
     <section aria-label="Investment portfolio" className="mb-14">
@@ -94,7 +97,7 @@ export function PortfolioSection({ portfolio, onAddHolding, onRefresh, onEditHol
           <header className="flex flex-col gap-5 border-b border-border/60 p-5 sm:flex-row sm:items-start sm:justify-between sm:p-7">
             <div>
               <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Market value</p>
-              <p className="mt-2 font-mono text-3xl font-semibold tracking-tight">{formatMoney(portfolio.totalBaseValue, portfolio.baseCurrency)}</p>
+              <p className="mt-2 font-mono text-3xl font-semibold tracking-tight">{totalBaseValue === null ? '—' : formatMoney(totalBaseValue, portfolio.baseCurrency)}</p>
               {portfolio.dailyChangeBase !== null && portfolio.dailyChangePercent !== null && (
                 <p className={`mt-1 font-mono text-xs ${movementPositive ? 'text-[var(--positive)]' : 'text-[var(--negative)]'}`}>
                   {signedMoney(portfolio.dailyChangeBase, portfolio.baseCurrency)} · {portfolio.dailyChangePercent >= 0 ? '+' : ''}{portfolio.dailyChangePercent.toFixed(2)}%
@@ -103,11 +106,11 @@ export function PortfolioSection({ portfolio, onAddHolding, onRefresh, onEditHol
               <p className="mt-2 text-xs text-muted-foreground">EOD prices · {portfolio.source ? portfolio.source[0].toUpperCase() + portfolio.source.slice(1) : 'Awaiting first refresh'} · {formatAge(portfolio.asOf)}</p>
             </div>
             <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={onRefresh} disabled={refreshing || !hasHoldings}>
+              <Button variant="outline" size="sm" onClick={onRefresh} disabled={refreshing || !hasHoldings} className="min-h-11">
                 <RefreshCw className={`size-4 ${refreshing ? 'animate-spin' : ''}`} />
                 {refreshing ? 'Refreshing' : 'Refresh'}
               </Button>
-              <Button size="sm" onClick={onAddHolding}><Plus className="size-4" /> Add holding</Button>
+              <Button size="sm" onClick={onAddHolding} className="min-h-11"><Plus className="size-4" /> Add holding</Button>
             </div>
           </header>
 
@@ -139,6 +142,7 @@ export function PortfolioSection({ portfolio, onAddHolding, onRefresh, onEditHol
                       </div>
                       <p className="mt-1 truncate text-xs text-muted-foreground">{holding.listing.name} · {holding.quantity.toLocaleString()} shares</p>
                       {holding.priceError && <p className="mt-1 text-[11px] text-[var(--negative)]">{holding.priceError}</p>}
+                      <p className="mt-1 text-[10px] text-muted-foreground">{holding.priceSource ? holding.priceSource[0].toUpperCase() + holding.priceSource.slice(1) : 'No source'} · {formatAge(holding.priceAsOf)}</p>
                     </div>
                     <div className="sm:text-right">
                       <p className="font-mono text-sm font-semibold tabular-nums">{native}</p>
@@ -150,7 +154,7 @@ export function PortfolioSection({ portfolio, onAddHolding, onRefresh, onEditHol
                       )}
                     </div>
                     <div className="flex justify-end gap-1 opacity-100 sm:opacity-0 sm:transition-opacity sm:group-hover:opacity-100 sm:group-focus-within:opacity-100">
-                      <Button variant="ghost" size="sm" onClick={() => onEditHolding(holding)}>Edit</Button>
+                      <Button aria-label={`Edit ${holding.listing.symbol}`} variant="ghost" size="sm" onClick={() => onEditHolding(holding)}>Edit</Button>
                       <Button aria-label={`Delete ${holding.listing.symbol}`} variant="ghost" size="icon-sm" onClick={() => onDeleteHolding(holding)} className="hover:text-[var(--negative)]"><Trash2 className="size-4" /></Button>
                     </div>
                   </article>
@@ -173,6 +177,11 @@ export function PortfolioSection({ portfolio, onAddHolding, onRefresh, onEditHol
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
+              <table className="sr-only">
+                <caption>Portfolio history in {portfolio.baseCurrency}</caption>
+                <thead><tr><th>Date</th><th>Value</th></tr></thead>
+                <tbody>{portfolio.history.map((point) => <tr key={point.date}><td>{point.date}</td><td>{point.value}</td></tr>)}</tbody>
+              </table>
             </div>
           )}
         </CardContent>

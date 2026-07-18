@@ -23,6 +23,9 @@ const GROUP_LABELS: Record<string, string> = {
 
 function WalletRow({ wallet, formatCurrency }: { wallet: Wallet; formatCurrency: WalletsGridProps['formatCurrency'] }) {
   const balance = typeof wallet.balance === 'string' ? parseFloat(wallet.balance) : wallet.balance
+  const isPortfolio = wallet.walletType === 'investment' && wallet.portfolioValue
+  const displayValue = isPortfolio ? wallet.portfolioValue!.value : balance
+  const displayCurrency = isPortfolio ? wallet.portfolioValue!.currency : wallet.currency
   return (
     <Link
       to={`/wallets/${wallet.id}`}
@@ -38,10 +41,15 @@ function WalletRow({ wallet, formatCurrency }: { wallet: Wallet; formatCurrency:
         </div>
       </div>
       <div className="text-right">
-        <span className={`font-mono text-sm font-medium whitespace-nowrap ${balance < 0 ? 'text-[var(--negative)]' : ''}`}>
-          {wallet.unit ? `${balance} ${wallet.unit}` : formatCurrency(balance, wallet.currency)}
+        <span className={`font-mono text-sm font-medium whitespace-nowrap ${displayValue < 0 ? 'text-[var(--negative)]' : ''}`}>
+          {wallet.unit && !isPortfolio ? `${balance} ${wallet.unit}` : formatCurrency(displayValue, displayCurrency)}
         </span>
-        {wallet.valuation && (
+        {isPortfolio && (
+          <div className="font-mono text-[11px] text-muted-foreground whitespace-nowrap">
+            Market value · EOD
+          </div>
+        )}
+        {!isPortfolio && wallet.valuation && (
           <div className="font-mono text-[11px] text-muted-foreground whitespace-nowrap">
             ≈ {formatCurrency(wallet.valuation.value, wallet.valuation.currency)}
           </div>
