@@ -4,7 +4,7 @@ import { assets, db, exchanges, holdingPositionEvents, holdings, instruments, li
 import { holdingCreateSchema, holdingPatchSchema, marketSearchQuerySchema } from '@finance-os/domain'
 import { and, asc, desc, eq, isNull, lt, sql } from 'drizzle-orm'
 import { convertAmount, getLatestRates } from '../lib/fx'
-import { claimManualRefresh, listingIdsForWallet, refreshDueListings, refreshListing, refreshListings } from '../portfolio/service'
+import { claimManualRefresh, claimManualRefreshBatch, listingIdsForWallet, refreshDueListings, refreshListing, refreshListings } from '../portfolio/service'
 import { YahooMarketDataProvider } from '../portfolio/yahoo'
 import type { MarketSearchResult } from '../portfolio/yahoo'
 
@@ -182,8 +182,9 @@ export function registerPortfolioRoutes(app: OpenAPIHono) {
     const id = c.req.valid('param').id
     const [owns] = await userHoldingRows(c.get('user').id, undefined, undefined, id)
     if (!owns) return c.json({ error: { code: 'NOT_FOUND', message: 'Listing not found' } }, 404)
-    if (!await claimManualRefresh(id, c.get('user').id)) return c.json({ error: { code: 'RATE_LIMITED', message: 'This listing was refreshed recently' } }, 429)
-    const result = await refreshListing(id, new YahooMarketDataProvider())
+    const leaseOwner = await claimManualRefresh(id, c.get('user').id)
+    if (!leaseOwner) return c.json({ error: { code: 'RATE_LIMITED', message: 'This listing was refreshed recently' } }, 429)
+    const result = await refreshListing(id, new YahooMarketDataProvider(), { leaseOwner })
     if (result.error) return c.json({ error: { code: 'PROVIDER_ERROR', message: result.error } }, 502)
     return c.json({ data: result }, 200)
   })
@@ -193,9 +194,8 @@ export function registerPortfolioRoutes(app: OpenAPIHono) {
     const id = c.req.valid('param').id
     if (!await ownedWallet(c.get('user').id, id)) return c.json({ error: { code: 'NOT_FOUND', message: 'Wallet not found' } }, 404)
     const listingIds = await listingIdsForWallet(c.get('user').id, id)
-    const claimedIds: string[] = []
-    for (const listingId of listingIds) if (await claimManualRefresh(listingId, c.get('user').id)) claimedIds.push(listingId)
-    return c.json({ data: await refreshListings(claimedIds, new YahooMarketDataProvider()) }, 200)
+    const claim = await claimManualRefreshBatch(listingIds, c.get('user').id)
+    return c.json({ data: await refreshListings(claim.ids, new YahooMarketDataProvider(), { leaseOwner: claim.leaseOwner }) }, 200)
   })
 
   const refreshDueRoute = createRoute({ method: 'post', path: '/api/portfolio/refresh-due', tags: ['portfolio'], responses: { 200: { description: 'Refresh user due listings', content: { 'application/json': { schema: dataUnknown } } } } })

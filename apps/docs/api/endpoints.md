@@ -522,7 +522,7 @@ Yahoo Finance is the only V1 provider. Add-holding requests send only the exact 
 | `GET` | `/api/portfolio/summary?walletId=...&baseCurrency=EUR` | Current native/base values, daily movement, source, and freshness |
 | `GET` | `/api/portfolio/history?walletId=...&baseCurrency=EUR&from=2026-01-01&to=2026-07-18` | Up to 366 days of EOD portfolio history |
 
-Background reconciliation atomically leases due listings, drains bounded batches hourly at `:17`, and limits Yahoo concurrency. Repeated refreshes upsert `(listing, trading date, source)` and do not duplicate prices. User-triggered refreshes have a cross-replica database cooldown, while search has per-IP throttling plus short-lived request coalescing. Position events preserve quantity changes and deletions so historical values are based on the positions actually held on each date.
+Background reconciliation and user-triggered refreshes acquire the same 15-minute database lease, preventing duplicate Yahoo work across replicas and refresh paths. The scheduler drains bounded batches hourly at `:17`, while wallet refreshes enumerate every owned listing without a hidden portfolio-size cap and use bounded provider concurrency. A listing's first successful refresh performs a bounded 370-calendar-day backfill; later reconciliation requests only a five-day safety window. Repeated refreshes upsert `(listing, trading date, source)` and do not duplicate prices. User-triggered refreshes also have a cross-replica cooldown, while search has per-IP throttling plus short-lived request coalescing. Position events preserve quantity changes and deletions so historical values are based on the positions actually held on each date.
 
 ---
 

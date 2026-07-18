@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { db, holdingPositionEvents, holdings, instruments, listingPrices, listings, providerSymbols, wallets } from '@finance-os/db'
+import { db, holdingPositionEvents, holdings, instruments, listingPrices, listings, pool, providerSymbols, wallets } from '@finance-os/db'
 import { eq } from 'drizzle-orm'
 import app from '../app'
+import { claimManualRefresh, listingIdsForWallet, refreshClaimedDueListings } from '../portfolio/service'
 import { createTestUser, truncateAll } from './helpers'
 
 const bbca = { symbol: 'BBCA.JK', shortname: 'Bank Central Asia Tbk', quoteType: 'EQUITY', exchange: 'JKT', exchDisp: 'Jakarta', currency: 'IDR', exchangeTimezoneName: 'Asia/Jakarta' }
@@ -108,6 +109,35 @@ describe('portfolio API', () => {
     expect((await listed.json() as { data: unknown[] }).data).toHaveLength(1)
   })
 
+  it('serializes holding creation against concurrent wallet invalidation', async () => {
+    const { cookie } = await createTestUser(app)
+    const walletId = await wallet(cookie)
+    const created = await addHolding(cookie, walletId)
+    const holding = (await created.json() as { data: { id: string; listing: { id: string } } }).data
+    await app.request(`/api/portfolio/holdings/${holding.id}`, { method: 'DELETE', headers: { cookie } })
+
+    const insertClient = await pool.connect()
+    const updateClient = await pool.connect()
+    try {
+      await insertClient.query('BEGIN')
+      await updateClient.query('BEGIN')
+      await insertClient.query('INSERT INTO holdings (wallet_id, listing_id, quantity) VALUES ($1, $2, $3)', [walletId, holding.listing.id, '1'])
+      const update = updateClient.query('UPDATE wallets SET wallet_type = $1 WHERE id = $2', ['bank', walletId])
+        .then(() => ({ code: 'ok' })).catch((error: { code?: string }) => ({ code: error.code }))
+      await new Promise((resolve) => setTimeout(resolve, 50))
+      await insertClient.query('COMMIT')
+      expect((await update).code).toBe('23514')
+      await updateClient.query('ROLLBACK')
+      const [state] = await db.select().from(wallets).where(eq(wallets.id, walletId))
+      expect(state.walletType).toBe('investment')
+    } finally {
+      await insertClient.query('ROLLBACK').catch(() => undefined)
+      await updateClient.query('ROLLBACK').catch(() => undefined)
+      insertClient.release()
+      updateClient.release()
+    }
+  }, 10_000)
+
   it('rejects decimal values that cannot fit numeric(28,8)', async () => {
     const { cookie } = await createTestUser(app)
     const walletId = await wallet(cookie)
@@ -120,14 +150,27 @@ describe('portfolio API', () => {
     const { cookie } = await createTestUser(app)
     const walletId = await wallet(cookie)
     const holding = (await (await addHolding(cookie, walletId)).json() as { data: { listing: { id: string } } }).data
-    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify(chart))))
+    const firstFetch = vi.fn(async (_input: string | URL | Request) => new Response(JSON.stringify(chart)))
+    vi.stubGlobal('fetch', firstFetch)
 
     const first = await app.request(`/api/portfolio/listings/${holding.listing.id}/refresh`, { method: 'POST', headers: { cookie } })
     expect(first.status).toBe(200)
     expect((await first.json() as { data: { upserted: number } }).data.upserted).toBe(2)
+    const firstUrl = new URL(String(firstFetch.mock.calls[0][0]))
+    expect(Number(firstUrl.searchParams.get('period2')) - Number(firstUrl.searchParams.get('period1'))).toBeGreaterThanOrEqual(360 * 86_400)
+    const [backfilled] = await db.select().from(listings).where(eq(listings.id, holding.listing.id))
+    expect(backfilled.historyBackfilledAt).not.toBeNull()
+
     const cooledDown = await app.request(`/api/portfolio/listings/${holding.listing.id}/refresh`, { method: 'POST', headers: { cookie } })
     expect(cooledDown.status).toBe(429)
     expect(await db.select().from(listingPrices)).toHaveLength(2)
+
+    await db.update(listings).set({ lastRefreshAt: new Date(0) }).where(eq(listings.id, holding.listing.id))
+    const routineFetch = vi.fn(async (_input: string | URL | Request) => new Response(JSON.stringify(chart)))
+    vi.stubGlobal('fetch', routineFetch)
+    expect((await app.request(`/api/portfolio/listings/${holding.listing.id}/refresh`, { method: 'POST', headers: { cookie } })).status).toBe(200)
+    const routineUrl = new URL(String(routineFetch.mock.calls[0][0]))
+    expect(Number(routineUrl.searchParams.get('period2')) - Number(routineUrl.searchParams.get('period1'))).toBeLessThanOrEqual(6 * 86_400)
 
     await db.update(listings).set({ lastRefreshAt: new Date(0) }).where(eq(listings.id, holding.listing.id))
     vi.stubGlobal('fetch', vi.fn(async () => new Response('down', { status: 503 })))
@@ -137,6 +180,19 @@ describe('portfolio API', () => {
     const [state] = await db.select().from(listings).where(eq(listings.id, holding.listing.id))
     expect(state.lastSuccessAt).not.toBeNull()
     expect(state.refreshError).toContain('503')
+  })
+
+  it('coordinates manual and scheduled refreshes through one lease', async () => {
+    const { cookie, userId } = await createTestUser(app)
+    const walletId = await wallet(cookie)
+    const holding = (await (await addHolding(cookie, walletId)).json() as { data: { listing: { id: string } } }).data
+    const leaseOwner = await claimManualRefresh(holding.listing.id, userId)
+    expect(leaseOwner).toBeTruthy()
+    const dailyChart = vi.fn()
+    const provider = { name: 'yahoo', search: vi.fn(), dailyChart }
+
+    expect(await refreshClaimedDueListings(provider, { limit: 10 })).toEqual([])
+    expect(dailyChart).not.toHaveBeenCalled()
   })
 
   it('treats an empty Yahoo chart as a failed refresh without advancing success state', async () => {
@@ -152,7 +208,7 @@ describe('portfolio API', () => {
   })
 
   it('does not truncate portfolios at 1,000 holdings', async () => {
-    const { cookie } = await createTestUser(app)
+    const { cookie, userId } = await createTestUser(app)
     const walletId = await wallet(cookie)
     const created = await addHolding(cookie, walletId)
     const first = (await created.json() as { data: { listing: { id: string } } }).data
@@ -169,6 +225,7 @@ describe('portfolio API', () => {
     const response = await app.request(`/api/portfolio/holdings?walletId=${walletId}`, { headers: { cookie } })
     expect(response.status).toBe(200)
     expect((await response.json() as { data: unknown[] }).data).toHaveLength(1001)
+    expect(await listingIdsForWallet(userId, walletId)).toHaveLength(1001)
   }, 15_000)
 
   it('includes investment holdings in wallet cards and total net worth', async () => {

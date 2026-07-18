@@ -230,12 +230,16 @@ export const listings = pgTable('listings', {
   lastSuccessAt: timestamp('last_success_at', { withTimezone: true }),
   refreshError: text('refresh_error'),
   nextRefreshAt: timestamp('next_refresh_at', { withTimezone: true }),
+  refreshLeaseOwner: varchar('refresh_lease_owner', { length: 64 }),
+  refreshLeaseUntil: timestamp('refresh_lease_until', { withTimezone: true }),
+  historyBackfilledAt: timestamp('history_backfilled_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (table) => ({
   listingExchangeSymbolUnique: unique('listing_exchange_symbol_unique').on(table.exchangeId, table.symbol),
   listingInstrumentIdx: index('listing_instrument_idx').on(table.instrumentId),
   listingDueIdx: index('listing_due_idx').on(table.isActive, table.nextRefreshAt),
+  listingLeaseIdx: index('listing_lease_idx').on(table.isActive, table.refreshLeaseUntil),
 }))
 
 export const providerSymbols = pgTable('provider_symbols', {
