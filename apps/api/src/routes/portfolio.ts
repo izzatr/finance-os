@@ -41,6 +41,7 @@ async function userHoldingRows(userId: string, walletId?: string, holdingId?: st
     eq(wallets.isActive, true),
     isNull(wallets.deletedAt),
     eq(listings.isActive, true),
+    eq(providerSymbols.provider, 'yahoo'),
   ]
   if (walletId) conditions.push(eq(wallets.id, walletId))
   if (holdingId) conditions.push(eq(holdings.id, holdingId))
@@ -296,7 +297,7 @@ function registerPortfolioValuationRoutes(app: OpenAPIHono) {
         positions.set(`${event.walletId}:${event.listingId}`, { listingId: event.listingId, quantity: Number(event.quantity) })
       }
       const activePositions = [...positions.values()].filter((position) => position.quantity > 0)
-      const nativeTotals: Record<string, number> = {}; let complete = activePositions.length > 0; let baseValue = 0
+      const nativeTotals: Record<string, number> = {}; let complete = positions.size > 0 && Boolean(baseCurrency); let baseValue = 0
       for (const position of activePositions) {
         const series = pricesByListing.get(position.listingId) ?? []; let cursor = priceCursors.get(position.listingId) ?? 0
         while (cursor < series.length && series[cursor].priceDate <= day) { currentPrices.set(position.listingId, series[cursor]); cursor++ }

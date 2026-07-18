@@ -243,12 +243,13 @@ describe('portfolio API', () => {
     ])
 
     const history = await app.request(`/api/portfolio/history?walletId=${walletId}&from=2026-07-15&to=2026-07-17`, { headers: { cookie } })
-    const points = (await history.json() as { data: { points: Array<{ date: string; nativeTotals: Record<string, number> }> } }).data.points
+    const points = (await history.json() as { data: { points: Array<{ date: string; nativeTotals: Record<string, number>; baseValue: number | null }> } }).data.points
     expect(points.map((point) => point.nativeTotals)).toEqual([
       { IDR: 900000 },
       { IDR: 1820000 },
       {},
     ])
+    expect(points[2].baseValue).toBe(0)
   })
 
   it('rate-limits Yahoo search abuse', async () => {
