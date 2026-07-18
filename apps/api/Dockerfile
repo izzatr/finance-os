@@ -13,7 +13,8 @@ COPY packages/billing/package.json packages/billing/package.json
 COPY packages/finance-capabilities/package.json packages/finance-capabilities/package.json
 COPY apps/api/package.json apps/api/package.json
 
-RUN npm ci
+RUN apk add --no-cache su-exec \
+  && npm ci
 
 # Copy source code
 COPY packages/db packages/db

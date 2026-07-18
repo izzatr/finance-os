@@ -1,7 +1,13 @@
 #!/bin/sh
-set -e
+set -eu
 
-if [ "${NODE_ENV:-}" = "production" ]; then
+# Some managed runtimes override Dockerfile USER. Drop privileges before doing
+# anything, including migrations, so production cannot silently run as root.
+if [ "$(id -u)" = "0" ]; then
+  exec su-exec node "$0" "$@"
+fi
+
+if [ "${NODE_ENV:-development}" = "production" ]; then
   : "${DATABASE_URL:?DATABASE_URL is required in production}"
   : "${BETTER_AUTH_SECRET:?BETTER_AUTH_SECRET is required in production}"
   : "${BETTER_AUTH_URL:?BETTER_AUTH_URL is required in production}"
