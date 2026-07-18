@@ -20,6 +20,7 @@ import { registerMcpRoutes } from './routes/mcp'
 import { registerAiRoutes } from './routes/ai'
 import { registerExchangeRateRoutes } from './routes/exchange-rates'
 import { registerAssetPriceRoutes } from './routes/asset-prices'
+import { registerPortfolioRoutes } from './routes/portfolio'
 
 const app = new OpenAPIHono()
 
@@ -46,6 +47,7 @@ app.all('/auth/*', async (c) => auth.handler(c.req.raw))
 // ── Protected API routes (session or API key auth) ─────────────────────
 // Apply auth middleware to all /api/* routes
 app.use('/api/*', checkAuth)
+app.use('/api/portfolio/search', rateLimit({ windowMs: 60_000, max: 30, keyPrefix: 'portfolio-search' }))
 
 registerSystemRoutes(app)
 registerWalletRoutes(app)
@@ -60,6 +62,7 @@ registerInboxRoutes(app)
 registerProposalRoutes(app)
 registerExchangeRateRoutes(app)
 registerAssetPriceRoutes(app)
+registerPortfolioRoutes(app)
 registerAiRoutes(app)
 
 app.doc('/openapi.json', {

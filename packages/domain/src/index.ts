@@ -5,6 +5,8 @@ export type { Edition, FeatureFlags } from './edition'
 
 export { nextOccurrences } from './recurrence'
 export type { RecurringSchedule } from './recurrence'
+export { holdingCreateSchema, holdingPatchSchema, marketSearchQuerySchema, positiveDecimalStringSchema } from './portfolio'
+export type { HoldingCreate, HoldingPatch } from './portfolio'
 
 export const assetTypeSchema = z.enum(['currency', 'crypto', 'stock', 'commodity', 'custom'])
 export const walletTypeSchema = z.enum(['bank', 'cash', 'ewallet', 'crypto', 'investment', 'credit', 'custom'])

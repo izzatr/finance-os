@@ -1,5 +1,7 @@
 import {
   boolean,
+  check,
+  date,
   index,
   integer,
   jsonb,
@@ -194,3 +196,101 @@ export const assetPrices = pgTable('asset_prices', {
   source: varchar('source', { length: 30 }).notNull().default('manual'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (table) => ({ priceAssetAsOfIdx: index('price_asset_asof_idx').on(table.assetId, table.asOf) }))
+
+// Global security identity. A company/fund exists once even when traded on several exchanges.
+export const instruments = pgTable('instruments', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  name: varchar('name', { length: 255 }).notNull(),
+  type: varchar('type', { length: 20 }).notNull(), // stock|etf
+  isin: varchar('isin', { length: 12 }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  instrumentIsinUnique: uniqueIndex('instrument_isin_unique').on(table.isin).where(sql`isin IS NOT NULL`),
+}))
+
+export const exchanges = pgTable('exchanges', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  code: varchar('code', { length: 30 }).notNull().unique(),
+  name: varchar('name', { length: 120 }).notNull(),
+  mic: varchar('mic', { length: 4 }),
+  timezone: varchar('timezone', { length: 64 }).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  exchangeMicIdx: index('exchange_mic_idx').on(table.mic),
+}))
+
+export const listings = pgTable('listings', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  instrumentId: uuid('instrument_id').notNull().references(() => instruments.id),
+  exchangeId: uuid('exchange_id').notNull().references(() => exchanges.id),
+  symbol: varchar('symbol', { length: 64 }).notNull(),
+  currency: varchar('currency', { length: 16 }).notNull(),
+  isActive: boolean('is_active').notNull().default(true),
+  lastRefreshAt: timestamp('last_refresh_at', { withTimezone: true }),
+  lastSuccessAt: timestamp('last_success_at', { withTimezone: true }),
+  refreshError: text('refresh_error'),
+  nextRefreshAt: timestamp('next_refresh_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  listingExchangeSymbolUnique: unique('listing_exchange_symbol_unique').on(table.exchangeId, table.symbol),
+  listingInstrumentIdx: index('listing_instrument_idx').on(table.instrumentId),
+  listingDueIdx: index('listing_due_idx').on(table.isActive, table.nextRefreshAt),
+}))
+
+export const providerSymbols = pgTable('provider_symbols', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  listingId: uuid('listing_id').notNull().references(() => listings.id, { onDelete: 'cascade' }),
+  provider: varchar('provider', { length: 30 }).notNull(),
+  symbol: varchar('symbol', { length: 100 }).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  providerSymbolUnique: unique('provider_symbol_unique').on(table.provider, table.symbol),
+  listingProviderUnique: unique('listing_provider_unique').on(table.listingId, table.provider),
+}))
+
+export const holdings = pgTable('holdings', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  walletId: uuid('wallet_id').notNull().references(() => wallets.id, { onDelete: 'cascade' }),
+  listingId: uuid('listing_id').notNull().references(() => listings.id),
+  quantity: numeric('quantity', { precision: 28, scale: 8 }).notNull(),
+  averageCost: numeric('average_cost', { precision: 28, scale: 8 }),
+  costCurrency: varchar('cost_currency', { length: 16 }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  holdingWalletListingUnique: unique('holding_wallet_listing_unique').on(table.walletId, table.listingId),
+  holdingWalletIdx: index('holding_wallet_idx').on(table.walletId),
+  holdingListingIdx: index('holding_listing_idx').on(table.listingId),
+  holdingQuantityPositive: check('holding_quantity_positive', sql`${table.quantity} > 0`),
+  holdingAverageCostPositive: check('holding_average_cost_positive', sql`${table.averageCost} IS NULL OR ${table.averageCost} > 0`),
+}))
+
+export const holdingPositionEvents = pgTable('holding_position_events', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  walletId: uuid('wallet_id').notNull().references(() => wallets.id, { onDelete: 'cascade' }),
+  listingId: uuid('listing_id').notNull().references(() => listings.id),
+  quantity: numeric('quantity', { precision: 28, scale: 8 }).notNull(),
+  effectiveAt: timestamp('effective_at', { withTimezone: true }).notNull().defaultNow(),
+  reason: varchar('reason', { length: 20 }).notNull(), // created|updated|deleted
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  holdingEventWalletEffectiveIdx: index('holding_event_wallet_effective_idx').on(table.walletId, table.effectiveAt),
+  holdingEventListingEffectiveIdx: index('holding_event_listing_effective_idx').on(table.listingId, table.effectiveAt),
+  holdingEventQuantityNonNegative: check('holding_event_quantity_non_negative', sql`${table.quantity} >= 0`),
+}))
+
+export const listingPrices = pgTable('listing_prices', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  listingId: uuid('listing_id').notNull().references(() => listings.id, { onDelete: 'cascade' }),
+  priceDate: date('price_date').notNull(),
+  close: numeric('close', { precision: 28, scale: 8 }).notNull(),
+  currency: varchar('currency', { length: 16 }).notNull(),
+  source: varchar('source', { length: 30 }).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  listingPriceUnique: unique('listing_price_unique').on(table.listingId, table.priceDate, table.source),
+  listingPriceLatestIdx: index('listing_price_latest_idx').on(table.listingId, table.priceDate),
+  listingPriceClosePositive: check('listing_price_close_positive', sql`${table.close} > 0`),
+}))

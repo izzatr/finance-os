@@ -1,0 +1,3 @@
+ALTER TABLE "holdings" ADD CONSTRAINT "holding_quantity_positive" CHECK ("holdings"."quantity" > 0);--> statement-breakpoint
+ALTER TABLE "holdings" ADD CONSTRAINT "holding_average_cost_positive" CHECK ("holdings"."average_cost" IS NULL OR "holdings"."average_cost" > 0);--> statement-breakpoint
+ALTER TABLE "listing_prices" ADD CONSTRAINT "listing_price_close_positive" CHECK ("listing_prices"."close" > 0);

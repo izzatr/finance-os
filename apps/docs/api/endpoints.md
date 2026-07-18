@@ -503,6 +503,29 @@ Slug is regenerated from the new name.
 
 ---
 
+## Investment portfolios
+
+Portfolio endpoints require authentication and operate only on the caller's active, non-deleted investment wallets. Finance OS stores instruments, exchange listings, provider symbols, holdings, position events, and daily prices separately so another market-data provider can be added without migrating holdings. Yahoo's provider symbol is a provisional identity key in V1; the instrument model supports later reconciliation of multiple listings to a shared ISIN-backed instrument when authoritative identifier data is available.
+
+Yahoo Finance is the only V1 provider. Add-holding requests send only the exact Yahoo symbol and position fields; the API resolves all globally shared instrument, exchange, currency, and timezone metadata from Yahoo and never trusts tenant-supplied market metadata. Prices are end-of-day observations, not real-time quotes. The API preserves the last valid close when Yahoo fails and exposes refresh timestamps/errors rather than fabricating data.
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `GET` | `/api/portfolio/search?q=BBCA&limit=10` | Search international Yahoo stock/ETF listings |
+| `POST` | `/api/portfolio/holdings` | Add a listing, quantity, and optional average cost to an investment wallet |
+| `GET` | `/api/portfolio/holdings?walletId=...` | List the caller's holdings |
+| `PATCH` | `/api/portfolio/holdings/:id` | Change quantity or average cost |
+| `DELETE` | `/api/portfolio/holdings/:id` | Remove a holding |
+| `POST` | `/api/portfolio/listings/:id/refresh` | Refresh one owned listing |
+| `POST` | `/api/portfolio/wallets/:id/refresh` | Force-refresh all listings in one wallet |
+| `POST` | `/api/portfolio/refresh-due` | Reconcile the caller's due listings |
+| `GET` | `/api/portfolio/summary?walletId=...&baseCurrency=EUR` | Current native/base values, daily movement, source, and freshness |
+| `GET` | `/api/portfolio/history?walletId=...&baseCurrency=EUR&from=2026-01-01&to=2026-07-18` | Up to 366 days of EOD portfolio history |
+
+Background reconciliation atomically leases due listings, drains bounded batches hourly at `:17`, and limits Yahoo concurrency. Repeated refreshes upsert `(listing, trading date, source)` and do not duplicate prices. User-triggered refreshes have a cross-replica database cooldown, while search has per-IP throttling plus short-lived request coalescing. Position events preserve quantity changes and deletions so historical values are based on the positions actually held on each date.
+
+---
+
 ## Other
 
 ### List Assets
