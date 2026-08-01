@@ -65,6 +65,9 @@ export const checkAuth: MiddlewareHandler = async (c: Context, next) => {
       c.set('keyName', result.key.name ?? 'API key')
       return next()
     }
+    if (result.error?.code === 'RATE_LIMITED') {
+      return c.json({ error: { code: 'RATE_LIMITED', message: 'API key rate limit exceeded' } }, 429)
+    }
     return c.json({ error: { code: 'UNAUTHORIZED', message: 'Invalid API key' } }, 401)
   }
 

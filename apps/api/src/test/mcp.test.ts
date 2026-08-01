@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { serve } from '@hono/node-server'
 import type { ServerType } from '@hono/node-server'
+import { Pool } from 'pg'
 import app from '../app'
 import { createTestUser, truncateAll } from './helpers'
 
@@ -119,6 +120,40 @@ describe('remote mcp endpoint', () => {
     expect(call.status).toBe(200)
     const wallets = JSON.parse(call.body.result.content[0].text) as Array<{ name: string }>
     expect(wallets.map((w) => w.name)).toContain('Main Bank')
+  })
+
+  it('keeps a key valid beyond Better Auth’s ten-request default', async () => {
+    const { cookie } = await setup()
+    const key = await createKey(cookie, 'read')
+
+    for (let id = 1; id <= 11; id += 1) {
+      const list = await rpc(key, { jsonrpc: '2.0', id, method: 'tools/list', params: {} })
+      expect(list.status, `request ${id}`).toBe(200)
+    }
+  })
+
+  it('reports an exhausted key as rate-limited instead of invalid', async () => {
+    const { cookie } = await setup()
+    const create = await app.request('/auth/api-key/create', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie },
+      body: JSON.stringify({ name: 'limited agent', metadata: { scope: 'read' } }),
+    })
+    const { id, key } = (await create.json()) as { id: string; key: string }
+    const pool = new Pool({ connectionString: process.env.DATABASE_URL })
+    try {
+      await pool.query(
+        'UPDATE api_keys SET rate_limit_max = 1, rate_limit_time_window = 60000, request_count = 0, last_request = NULL WHERE id = $1',
+        [id],
+      )
+    } finally {
+      await pool.end()
+    }
+
+    expect((await rpc(key, INITIALIZE)).status).toBe(200)
+    const exhausted = await rpc(key, INITIALIZE)
+    expect(exhausted.status).toBe(429)
+    expect(exhausted.body.error.message).toBe('API key rate limit exceeded')
   })
 
   it('propose-scoped agent writes land in the approval inbox, not the ledger', async () => {
