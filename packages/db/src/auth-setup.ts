@@ -66,8 +66,20 @@ export const auth = betterAuth({
     ...(googleProvider ? { google: googleProvider } : {}),
   },
 
-  // enableMetadata: API keys carry {scope: 'read'|'propose'|'write'} in metadata
-  plugins: [apiKey({ enableMetadata: true })],
+  // Better Auth defaults API keys to only 10 requests per 24 hours. MCP uses
+  // one verification per protocol request (and another for a tool's loopback
+  // REST call), so that default makes a healthy agent key appear invalid after
+  // a few discovery/test calls. Keep per-key protection, but use an
+  // agent-appropriate limit; /mcp also has a stricter 120 requests/minute IP
+  // limit at the HTTP boundary.
+  plugins: [apiKey({
+    enableMetadata: true,
+    rateLimit: {
+      enabled: true,
+      timeWindow: 60_000,
+      maxRequests: 300,
+    },
+  })],
 
   databaseHooks: {
     user: {

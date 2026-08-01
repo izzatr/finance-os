@@ -41,11 +41,15 @@ export function registerMcpRoutes(app: OpenAPIHono) {
 
     const result = await auth.api.verifyApiKey({ body: { key: bearerKey } })
     if (!result.valid || !result.key) {
+      const rateLimited = result.error?.code === 'RATE_LIMITED'
       return c.json({
         jsonrpc: '2.0',
-        error: { code: -32001, message: 'Invalid API key' },
+        error: {
+          code: rateLimited ? -32029 : -32001,
+          message: rateLimited ? 'API key rate limit exceeded' : 'Invalid API key',
+        },
         id: null,
-      }, 401)
+      }, rateLimited ? 429 : 401)
     }
 
     const ctx: FinanceToolContext = {
