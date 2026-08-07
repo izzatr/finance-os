@@ -138,7 +138,11 @@ export function ReportsPage() {
 
       <NetWorthTrendCard walletIds={walletIds} />
 
-      <div className="flex flex-col gap-3 mb-6">
+      <div className="mb-6 flex flex-col gap-4">
+        <div className="grid gap-1.5">
+          <p className="font-mono text-[0.68rem] font-medium uppercase tracking-widest text-muted-foreground">Wallet filter</p>
+          <WalletMultiSelect wallets={walletsQuery.data?.data ?? []} selectedWalletIds={walletIds} onChange={setWalletIds} />
+        </div>
         <Tabs value={currency} onValueChange={setCurrency}>
           <TabsList>
             <TabsTrigger value="ALL" className="font-mono text-xs tracking-wider">
@@ -151,10 +155,7 @@ export function ReportsPage() {
             ))}
           </TabsList>
         </Tabs>
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <WalletMultiSelect wallets={walletsQuery.data?.data ?? []} selectedWalletIds={walletIds} onChange={setWalletIds} />
-          <DateRangeFilter value={dateRange} onChange={setDateRange} />
-        </div>
+        <DateRangeFilter value={dateRange} onChange={setDateRange} />
       </div>
 
       {!summaryQuery.isLoading && !hasReportData && (
