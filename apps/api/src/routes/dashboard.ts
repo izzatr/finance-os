@@ -73,6 +73,7 @@ export function registerDashboardRoutes(app: OpenAPIHono) {
       query: z.object({
         from: z.string().optional(),
         to: z.string().optional(),
+        walletId: z.preprocess((value) => value === undefined ? [] : Array.isArray(value) ? value : [value], z.array(z.string().uuid())).optional(),
       }),
     },
     responses: {
@@ -167,6 +168,10 @@ export function registerDashboardRoutes(app: OpenAPIHono) {
 
   app.openapi(assetGrowthRoute, async (c) => {
     const user = c.get('user')
+    const { from, to, walletId = [] } = c.req.valid('query')
+    const walletClause = walletId.length
+      ? sql`AND te.wallet_id IN (${sql.join(walletId.map((id) => sql`${id}`), sql`, `)})`
+      : sql``
     // Always compute cumulative from all time — from/to only filters the output range
     const rows = await db.execute(sql`
       SELECT
@@ -183,12 +188,12 @@ export function registerDashboardRoutes(app: OpenAPIHono) {
         INNER JOIN assets a ON a.id = te.asset_id
         WHERE t.deleted_at IS NULL
           AND t.user_id = ${user.id}
+          ${walletClause}
         GROUP BY to_char(t.transaction_date, 'YYYY-MM'), a.code
       ) monthly
       ORDER BY month, currency
     `)
 
-    const { from, to } = c.req.valid('query')
     const resultRows = rows.rows as Array<{ month: string; currency: string; balance: string }>
 
     // Collect all months and all currencies

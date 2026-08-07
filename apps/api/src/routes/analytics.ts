@@ -14,6 +14,7 @@ export function registerAnalyticsRoutes(app: OpenAPIHono) {
       query: z.object({
         from: z.string().optional(),
         to: z.string().optional(),
+        walletId: z.preprocess((value) => value === undefined ? [] : Array.isArray(value) ? value : [value], z.array(z.string().uuid())).optional(),
       }),
     },
     responses: {
@@ -45,6 +46,7 @@ export function registerAnalyticsRoutes(app: OpenAPIHono) {
         from: z.string().optional(),
         to: z.string().optional(),
         type: z.enum(['income', 'expense', 'transfer']).default('expense'),
+        walletId: z.preprocess((value) => value === undefined ? [] : Array.isArray(value) ? value : [value], z.array(z.string().uuid())).optional(),
       }),
     },
     responses: {
@@ -77,6 +79,7 @@ export function registerAnalyticsRoutes(app: OpenAPIHono) {
       query: z.object({
         from: z.string().optional(),
         to: z.string().optional(),
+        walletId: z.preprocess((value) => value === undefined ? [] : Array.isArray(value) ? value : [value], z.array(z.string().uuid())).optional(),
       }),
     },
     responses: {
@@ -122,6 +125,7 @@ export function registerAnalyticsRoutes(app: OpenAPIHono) {
       query: z.object({
         currency: z.string().optional(),
         months: z.coerce.number().int().optional(),
+        walletId: z.preprocess((value) => value === undefined ? [] : Array.isArray(value) ? value : [value], z.array(z.string().uuid())).optional(),
       }),
     },
     responses: {
@@ -147,10 +151,11 @@ export function registerAnalyticsRoutes(app: OpenAPIHono) {
 
   app.openapi(monthlyTrendRoute, async (c) => {
     const user = c.get('user')
-    const { from, to } = c.req.valid('query')
+    const { from, to, walletId = [] } = c.req.valid('query')
     const dateFilters = [eq(transactions.userId, user.id), isNull(transactions.deletedAt)]
     if (from) dateFilters.push(gte(transactions.transactionDate, new Date(from)))
     if (to) dateFilters.push(lte(transactions.transactionDate, new Date(to)))
+    if (walletId.length) dateFilters.push(inArray(transactionEntries.walletId, walletId))
     const dateCondition = and(...dateFilters)
 
     const rows = await db
@@ -198,10 +203,11 @@ export function registerAnalyticsRoutes(app: OpenAPIHono) {
 
   app.openapi(categoryBreakdownRoute, async (c) => {
     const user = c.get('user')
-    const { from, to, type } = c.req.valid('query')
+    const { from, to, type, walletId = [] } = c.req.valid('query')
     const dateFilters = [eq(transactions.userId, user.id), isNull(transactions.deletedAt), eq(categories.type, type)]
     if (from) dateFilters.push(gte(transactions.transactionDate, new Date(from)))
     if (to) dateFilters.push(lte(transactions.transactionDate, new Date(to)))
+    if (walletId.length) dateFilters.push(inArray(transactionEntries.walletId, walletId))
     const dateCondition = and(...dateFilters)
 
     const rows = await db
@@ -237,11 +243,12 @@ export function registerAnalyticsRoutes(app: OpenAPIHono) {
 
   app.openapi(summaryRoute, async (c) => {
     const user = c.get('user')
-    const { from, to } = c.req.valid('query')
+    const { from, to, walletId = [] } = c.req.valid('query')
 
     const dateFilters = [eq(transactions.userId, user.id), isNull(transactions.deletedAt)]
     if (from) dateFilters.push(gte(transactions.transactionDate, new Date(from)))
     if (to) dateFilters.push(lte(transactions.transactionDate, new Date(to)))
+    if (walletId.length) dateFilters.push(inArray(transactionEntries.walletId, walletId))
     const dateCondition = and(...dateFilters)
 
     // Income/expense by currency (for display)
@@ -267,7 +274,7 @@ export function registerAnalyticsRoutes(app: OpenAPIHono) {
       .innerJoin(assets, eq(assets.id, wallets.assetId))
       .leftJoin(transactionEntries, eq(transactionEntries.walletId, wallets.id))
       .leftJoin(transactions, eq(transactions.id, transactionEntries.transactionId))
-      .where(and(eq(wallets.userId, user.id), isNull(wallets.deletedAt), isNull(transactions.deletedAt)))
+      .where(and(eq(wallets.userId, user.id), isNull(wallets.deletedAt), isNull(transactions.deletedAt), ...(walletId.length ? [inArray(wallets.id, walletId)] : [])))
       .groupBy(assets.code)
 
     const balanceByCurrency = new Map(balanceRows.map((r) => [r.currency, Number(r.balance)]))
@@ -317,7 +324,7 @@ export function registerAnalyticsRoutes(app: OpenAPIHono) {
 
     // Counts
     const [txCount] = await db.select({ count: sql<number>`count(*)` }).from(transactions).where(dateCondition)
-    const [wCount] = await db.select({ count: sql<number>`count(*)` }).from(wallets).where(and(eq(wallets.userId, user.id), isNull(wallets.deletedAt)))
+    const [wCount] = await db.select({ count: sql<number>`count(*)` }).from(wallets).where(and(eq(wallets.userId, user.id), isNull(wallets.deletedAt), ...(walletId.length ? [inArray(wallets.id, walletId)] : [])))
     const [catCount] = await db.select({ count: sql<number>`count(*)` }).from(categories).where(eq(categories.userId, user.id))
 
     // Date range
@@ -349,7 +356,7 @@ export function registerAnalyticsRoutes(app: OpenAPIHono) {
 
   app.openapi(netWorthRoute, async (c) => {
     const user = c.get('user')
-    const { currency: rawCurrency, months: rawMonths } = c.req.valid('query')
+    const { currency: rawCurrency, months: rawMonths, walletId = [] } = c.req.valid('query')
     const currency = (rawCurrency ?? 'EUR').toUpperCase()
     const months = Math.min(60, Math.max(1, rawMonths ?? 12))
 
@@ -379,7 +386,7 @@ export function registerAnalyticsRoutes(app: OpenAPIHono) {
       .from(transactions)
       .innerJoin(transactionEntries, eq(transactionEntries.transactionId, transactions.id))
       .innerJoin(assets, eq(assets.id, transactionEntries.assetId))
-      .where(and(eq(transactions.userId, user.id), isNull(transactions.deletedAt)))
+      .where(and(eq(transactions.userId, user.id), isNull(transactions.deletedAt), ...(walletId.length ? [inArray(transactionEntries.walletId, walletId)] : [])))
       .groupBy(transactionEntries.assetId, assets.code, assets.unit, sql`date_trunc('month', ${transactions.transactionDate})`)
       .orderBy(transactionEntries.assetId, sql`date_trunc('month', ${transactions.transactionDate})`)
 
@@ -469,7 +476,7 @@ export function registerAnalyticsRoutes(app: OpenAPIHono) {
     const investmentWallets = await db
       .select({ id: wallets.id })
       .from(wallets)
-      .where(and(eq(wallets.userId, user.id), eq(wallets.walletType, 'investment'), eq(wallets.isActive, true), isNull(wallets.deletedAt)))
+      .where(and(eq(wallets.userId, user.id), eq(wallets.walletType, 'investment'), eq(wallets.isActive, true), isNull(wallets.deletedAt), ...(walletId.length ? [inArray(wallets.id, walletId)] : [])))
     const portfolioValues = await latestPortfolioValuesForWallets(new Map(investmentWallets.map((wallet) => [wallet.id, currency])))
     let currentPortfolioValue = 0
     for (const value of portfolioValues.values()) {

@@ -188,10 +188,18 @@ export function getRecentTransactionsPage(params: { limit?: number; before?: str
   return request<{ data: RecentTransaction[] }>(`/api/analytics/recent?${searchParams}`)
 }
 
-export function getSummary(params?: { from?: string; to?: string }) {
+type ReportParams = { from?: string; to?: string; walletIds?: string[] }
+
+function reportSearchParams(params?: ReportParams) {
   const searchParams = new URLSearchParams()
   if (params?.from) searchParams.set('from', params.from)
   if (params?.to) searchParams.set('to', params.to)
+  for (const walletId of params?.walletIds ?? []) searchParams.append('walletId', walletId)
+  return searchParams
+}
+
+export function getSummary(params?: ReportParams) {
+  const searchParams = reportSearchParams(params)
   const qs = searchParams.toString()
   return request<SummaryResponse>(`/api/analytics/summary${qs ? `?${qs}` : ''}`)
 }
@@ -225,10 +233,8 @@ export function patchCategory(id: string, body: { name?: string; type?: Category
   })
 }
 
-export function getCategoryBreakdown(params?: { from?: string; to?: string }) {
-  const searchParams = new URLSearchParams()
-  if (params?.from) searchParams.set('from', params.from)
-  if (params?.to) searchParams.set('to', params.to)
+export function getCategoryBreakdown(params?: ReportParams) {
+  const searchParams = reportSearchParams(params)
   const qs = searchParams.toString()
   return request<{ data: CategoryBreakdown[] }>(`/api/analytics/category-breakdown${qs ? `?${qs}` : ''}`)
 }
@@ -264,18 +270,14 @@ export type AssetGrowth = {
   balance: number
 }
 
-export function getAssetGrowth(params?: { from?: string; to?: string }) {
-  const searchParams = new URLSearchParams()
-  if (params?.from) searchParams.set('from', params.from)
-  if (params?.to) searchParams.set('to', params.to)
+export function getAssetGrowth(params?: ReportParams) {
+  const searchParams = reportSearchParams(params)
   const qs = searchParams.toString()
   return request<{ data: AssetGrowth[] }>(`/api/analytics/asset-growth${qs ? `?${qs}` : ''}`)
 }
 
-export function getMonthlyTrend(params?: { from?: string; to?: string }) {
-  const searchParams = new URLSearchParams()
-  if (params?.from) searchParams.set('from', params.from)
-  if (params?.to) searchParams.set('to', params.to)
+export function getMonthlyTrend(params?: ReportParams) {
+  const searchParams = reportSearchParams(params)
   const qs = searchParams.toString()
   return request<{ data: MonthlyTrend[] }>(`/api/analytics/monthly-trend${qs ? `?${qs}` : ''}`)
 }
@@ -494,10 +496,11 @@ export type NetWorth = {
   missing: string[]
 }
 
-export function getNetWorth(params?: { currency?: string; months?: number }) {
+export function getNetWorth(params?: { currency?: string; months?: number; walletIds?: string[] }) {
   const searchParams = new URLSearchParams()
   if (params?.currency) searchParams.set('currency', params.currency)
   if (params?.months) searchParams.set('months', String(params.months))
+  for (const walletId of params?.walletIds ?? []) searchParams.append('walletId', walletId)
   const qs = searchParams.toString()
   return request<{ data: NetWorth }>(`/api/analytics/net-worth${qs ? `?${qs}` : ''}`)
 }

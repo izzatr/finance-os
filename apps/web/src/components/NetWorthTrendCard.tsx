@@ -11,11 +11,11 @@ function compact(value: number, currency: string): string {
   }
 }
 
-export function NetWorthTrendCard() {
+export function NetWorthTrendCard({ walletIds = [] }: { walletIds?: string[] }) {
   const [currency] = useDefaultCurrency()
   const query = useQuery({
-    queryKey: ['net-worth', currency],
-    queryFn: () => getNetWorth({ currency, months: 12 }),
+    queryKey: ['net-worth', currency, walletIds],
+    queryFn: () => getNetWorth({ currency, months: 12, walletIds }),
     staleTime: 60_000,
   })
 

@@ -5,6 +5,7 @@ import { CategoryDonutChart } from '../components/CategoryDonutChart'
 import { NetWorthTrendCard } from '../components/NetWorthTrendCard'
 import { SpendingTrendLine } from '../components/SpendingTrendLine'
 import { AssetGrowthChart } from '../components/AssetGrowthChart'
+import { WalletMultiSelect } from '../components/WalletMultiSelect'
 import { DateRangeFilter, type DateRange } from '../components/DateRangeFilter'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -14,6 +15,7 @@ import {
   getSummary,
   getAssetGrowth,
   getExchangeRates,
+  getWallets,
 } from '../lib/api'
 import type { MonthlyTrend, CategoryBreakdown } from '../lib/api'
 import { useDefaultCurrency } from '../contexts/CurrencyContext'
@@ -90,21 +92,23 @@ export function ReportsPage() {
   const [defaultCurrency] = useDefaultCurrency()
   const [currency, setCurrency] = useState('ALL')
   const [dateRange, setDateRange] = useState<DateRange>(ALL_TIME)
+  const [walletIds, setWalletIds] = useState<string[]>([])
 
-  const dateParams = dateRange.from ? { from: dateRange.from, to: dateRange.to } : undefined
+  const reportParams = { ...(dateRange.from ? { from: dateRange.from, to: dateRange.to } : {}), walletIds }
+  const walletsQuery = useQuery({ queryKey: ['wallets'], queryFn: getWallets })
 
   const trendQuery = useQuery({
-    queryKey: ['monthly-trend', dateRange.from, dateRange.to],
-    queryFn: () => getMonthlyTrend(dateParams),
+    queryKey: ['monthly-trend', dateRange.from, dateRange.to, walletIds],
+    queryFn: () => getMonthlyTrend(reportParams),
   })
   const categoryQuery = useQuery({
-    queryKey: ['categories', dateRange.from, dateRange.to],
-    queryFn: () => getCategoryBreakdown(dateParams),
+    queryKey: ['categories', dateRange.from, dateRange.to, walletIds],
+    queryFn: () => getCategoryBreakdown(reportParams),
   })
-  const summaryQuery = useQuery({ queryKey: ['summary'], queryFn: () => getSummary() })
+  const summaryQuery = useQuery({ queryKey: ['summary', walletIds], queryFn: () => getSummary(reportParams) })
   const growthQuery = useQuery({
-    queryKey: ['asset-growth', dateRange.from, dateRange.to],
-    queryFn: () => getAssetGrowth(dateParams),
+    queryKey: ['asset-growth', dateRange.from, dateRange.to, walletIds],
+    queryFn: () => getAssetGrowth(reportParams),
   })
   const ratesQuery = useQuery({ queryKey: ['exchange-rates'], queryFn: getExchangeRates, staleTime: 1000 * 60 * 30 })
 
@@ -132,7 +136,7 @@ export function ReportsPage() {
         </h1>
       </div>
 
-      <NetWorthTrendCard />
+      <NetWorthTrendCard walletIds={walletIds} />
 
       <div className="flex flex-col gap-3 mb-6">
         <Tabs value={currency} onValueChange={setCurrency}>
@@ -147,7 +151,10 @@ export function ReportsPage() {
             ))}
           </TabsList>
         </Tabs>
-        <DateRangeFilter value={dateRange} onChange={setDateRange} />
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <WalletMultiSelect wallets={walletsQuery.data?.data ?? []} selectedWalletIds={walletIds} onChange={setWalletIds} />
+          <DateRangeFilter value={dateRange} onChange={setDateRange} />
+        </div>
       </div>
 
       {!summaryQuery.isLoading && !hasReportData && (

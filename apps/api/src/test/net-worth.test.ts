@@ -210,6 +210,28 @@ describe('GET /api/analytics/net-worth', () => {
     expect(tooFewData.series).toHaveLength(1)
   })
 
+  it('filters the net-worth series to several selected wallets', async () => {
+    const { cookie } = await createTestUser(app)
+    const eurAssetId = await getAssetId(cookie, 'EUR')
+    const includedOne = await createWallet(cookie, 'Included one', eurAssetId)
+    const includedTwo = await createWallet(cookie, 'Included two', eurAssetId)
+    const excluded = await createWallet(cookie, 'Excluded', eurAssetId)
+
+    await post(cookie, includedOne, eurAssetId, '100.00', currentMonthDate)
+    await post(cookie, includedTwo, eurAssetId, '200.00', currentMonthDate)
+    await post(cookie, excluded, eurAssetId, '900.00', currentMonthDate)
+
+    const params = new URLSearchParams({ currency: 'EUR', months: '1' })
+    params.append('walletId', includedOne)
+    params.append('walletId', includedTwo)
+    const res = await app.request(`/api/analytics/net-worth?${params}`, { headers: { cookie } })
+    expect(res.status).toBe(200)
+    const { data } = (await res.json()) as { data: { total: number; series: { month: string; total: number }[] } }
+
+    expect(data.series).toEqual([{ month: currentMonthLabel, total: 300 }])
+    expect(data.total).toBe(300)
+  })
+
   it('defaults to EUR and 12 months', async () => {
     const { cookie } = await createTestUser(app)
     const res = await app.request('/api/analytics/net-worth', { headers: { cookie } })
