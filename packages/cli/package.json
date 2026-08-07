@@ -11,12 +11,12 @@
     "mcp": "tsx src/mcp.ts"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.12.1",
+    "@modelcontextprotocol/sdk": "^1.30.0",
     "zod": "^3.24.1",
     "@finance-os/finance-capabilities": "0.1.0"
   },
   "devDependencies": {
-    "tsx": "^4.19.2",
+    "tsx": "^4.23.5",
     "typescript": "^5.7.2"
   }
 }
