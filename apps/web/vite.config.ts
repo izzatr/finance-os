@@ -21,8 +21,8 @@ export default defineConfig({
         name: 'Finance OS',
         short_name: 'Finance OS',
         description: 'Personal finance tracker built for humans and their agents',
-        theme_color: '#f4f9fc',
-        background_color: '#f4f9fc',
+        theme_color: '#0e1729',
+        background_color: '#fbf9f5',
         display: 'standalone',
         start_url: '/dashboard',
         icons: [
@@ -46,5 +46,9 @@ export default defineConfig({
   },
   server: {
     port: 3000,
+    // Same-origin API in dev, mirroring the nginx proxy in apps/web/nginx.conf.
+    proxy: Object.fromEntries(
+      ['/api', '/auth', '/mcp', '/openapi.json', '/health'].map((p) => [p, process.env.DEV_API_UPSTREAM ?? 'http://localhost:27032']),
+    ),
   },
 })
