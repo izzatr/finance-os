@@ -44,11 +44,11 @@ function TabLink({ label, icon: Icon, path }: { label: string; icon: typeof Layo
     <Link
       to={path}
       aria-current={active ? 'page' : undefined}
-      className={`flex flex-col items-center justify-center gap-0.5 text-[10px] font-medium transition-colors ${
-        active ? 'text-[var(--accent-blue)]' : 'text-[var(--text-tertiary)]'
+      className={`flex flex-col items-center justify-center gap-1 text-[11px] font-semibold transition-colors ${
+        active ? 'text-[var(--ink)]' : 'text-[var(--text-tertiary)]'
       }`}
     >
-      <Icon className="size-5" strokeWidth={active ? 2.2 : 1.8} />
+      <Icon className="size-[22px]" strokeWidth={active ? 2.2 : 1.8} />
       {label}
     </Link>
   )
@@ -64,9 +64,9 @@ export function MobileTabBar() {
   return (
     <nav
       aria-label="Primary"
-      className="lg:hidden fixed inset-x-0 bottom-0 z-40 border-t border-[var(--border-subtle)] bg-[var(--bg-surface)] backdrop-blur-md pb-[env(safe-area-inset-bottom)]"
+      className="lg:hidden fixed inset-x-0 bottom-0 z-40 border-t border-[var(--border-subtle)] bg-white/95 backdrop-blur-md pb-[env(safe-area-inset-bottom)]"
     >
-      <div className="grid grid-cols-5 h-16">
+      <div className="grid h-[62px] grid-cols-5">
         <TabLink {...TABS[0]} />
         <TabLink {...TABS[1]} />
 
@@ -75,7 +75,7 @@ export function MobileTabBar() {
             type="button"
             onClick={openQuickAdd}
             aria-label="Add transaction"
-            className="-mt-5 flex size-14 items-center justify-center rounded-full bg-[var(--accent-blue)] text-white shadow-[0_6px_20px_rgba(91,164,212,0.45)] transition-transform active:scale-95 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-blue)]"
+            className="-mt-3 flex size-[54px] items-center justify-center rounded-[18px] bg-[var(--ink)] text-[var(--cream)] shadow-[0_6px_16px_rgba(14,23,41,0.22)] transition-transform active:scale-95 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ink)]"
           >
             <Plus className="size-7" strokeWidth={2.4} />
           </button>
@@ -85,14 +85,14 @@ export function MobileTabBar() {
 
         <Sheet open={moreOpen} onOpenChange={setMoreOpen}>
           <SheetTrigger
-            className={`flex flex-col items-center justify-center gap-0.5 text-[10px] font-medium transition-colors ${
+            className={`flex flex-col items-center justify-center gap-1 text-[11px] font-semibold transition-colors ${
               MORE_LINKS.some((l) => location.pathname.startsWith(l.path))
-                ? 'text-[var(--accent-blue)]'
+                ? 'text-[var(--ink)]'
                 : 'text-[var(--text-tertiary)]'
             }`}
           >
             <span className="relative">
-              <Menu className="size-5" strokeWidth={1.8} />
+              <Menu className="size-[22px]" strokeWidth={1.8} />
               {pendingCount > 0 && (
                 <span
                   aria-label={`${pendingCount} pending approvals`}
@@ -104,9 +104,9 @@ export function MobileTabBar() {
             </span>
             More
           </SheetTrigger>
-          <SheetContent side="bottom" className="rounded-t-2xl pb-[max(env(safe-area-inset-bottom),1rem)]">
+          <SheetContent side="bottom" className="rounded-t-[28px] pb-[max(env(safe-area-inset-bottom),1rem)]">
             <SheetHeader>
-              <SheetTitle className="text-sm text-[var(--text-secondary)]">More</SheetTitle>
+              <SheetTitle className="text-[18px] font-bold text-[var(--text-primary)]">More</SheetTitle>
             </SheetHeader>
             <div className="grid gap-1 px-2">
               {MORE_LINKS.map(({ label, icon: Icon, path }) => (
@@ -114,9 +114,9 @@ export function MobileTabBar() {
                   key={path}
                   to={path}
                   onClick={() => setMoreOpen(false)}
-                  className="flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium text-[var(--text-primary)] hover:bg-[var(--accent-dim)] transition-colors"
+                  className="flex min-h-12 items-center gap-3 rounded-2xl px-3 py-3 text-[15px] font-semibold text-[var(--text-primary)] hover:bg-[var(--tint)] transition-colors"
                 >
-                  <Icon className="size-5 text-[var(--text-secondary)]" strokeWidth={1.8} />
+                  <span className="flex size-9 items-center justify-center rounded-full bg-[var(--tint)] text-[var(--ink)]"><Icon className="size-[18px]" strokeWidth={1.8} /></span>
                   {label}
                 </Link>
               ))}

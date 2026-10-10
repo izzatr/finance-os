@@ -1,46 +1,24 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import { Plus, ArrowLeftRight, BarChart3 } from 'lucide-react'
-import { AddTransactionForm } from '../components/AddTransactionForm'
+import { Plus } from 'lucide-react'
 import { InboxNudge } from '../components/InboxNudge'
-import { OverviewHero } from '../components/OverviewHero'
-import { StatsRow } from '../components/StatsRow'
+import { HomeHeader } from '../components/HomeHeader'
 import { TransferForm } from '../components/TransferForm'
 import { CurrencyCards } from '../components/CurrencyCards'
 import { TopSpending } from '../components/TopSpending'
-import { WalletsGrid } from '../components/WalletsGrid'
-import { RecentActivity } from '../components/RecentActivity'
+import { WalletTiles } from '../components/WalletTiles'
+import { ActivityList } from '../components/ActivityList'
 import { SectionDivider } from '../components/SectionDivider'
-import {
-  getDashboard,
-  getWallets,
-  getRecentTransactions,
-  getSummary,
-  getCategoryBreakdown,
-  getExchangeRates,
-} from '../lib/api'
+import { CreateWalletForm } from '../components/CreateWalletForm'
+import { useQuickAdd } from '@/contexts/QuickAddContext'
+import { getWallets, getRecentTransactions, getSummary, getCategoryBreakdown, getExchangeRates } from '../lib/api'
 import type { CategoryBreakdown } from '../lib/api'
+import { formatCurrency } from '../lib/format'
 import { useDefaultCurrency } from '../contexts/CurrencyContext'
 
-const CURRENCY_SYMBOLS: Record<string, string> = { IDR: 'Rp', EUR: '\u20ac', USD: '$' }
-
-function formatCurrency(amount: number | string, currency: string): string {
-  const num = typeof amount === 'string' ? parseFloat(amount) : amount
-  const symbol = CURRENCY_SYMBOLS[currency] ?? currency
-  const absNum = Math.abs(num)
-  let formatted: string
-  if (currency === 'IDR') {
-    formatted = absNum.toLocaleString('id-ID', { maximumFractionDigits: 0 })
-  } else {
-    formatted = absNum.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-  }
-  return `${num < 0 ? '-' : ''}${symbol}${formatted}`
-}
-
-function formatDate(dateStr: string) {
-  return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-}
+const HOME_ACTIVITY_LIMIT = 8
+const HOME_WALLET_LIMIT = 4
 
 function getCurrentMonthRange() {
   const now = new Date()
@@ -50,13 +28,15 @@ function getCurrentMonthRange() {
   return { from, to }
 }
 
+const linkAction = 'text-[13px] font-semibold text-[var(--ink)] no-underline underline-offset-4 hover:underline'
+
 export function DashboardPage() {
-  const [showAddTransaction, setShowAddTransaction] = useState(false)
   const [showTransfer, setShowTransfer] = useState(false)
+  const [showCreateWallet, setShowCreateWallet] = useState(false)
+  const { openQuickAdd } = useQuickAdd()
   const [defaultCurrency] = useDefaultCurrency()
   const monthRange = getCurrentMonthRange()
 
-  const dashboardQuery = useQuery({ queryKey: ['dashboard'], queryFn: getDashboard })
   const walletsQuery = useQuery({ queryKey: ['wallets'], queryFn: getWallets })
   const recentQuery = useQuery({ queryKey: ['recent'], queryFn: getRecentTransactions })
   const summaryQuery = useQuery({ queryKey: ['summary'], queryFn: () => getSummary() })
@@ -70,6 +50,7 @@ export function DashboardPage() {
   const summary = summaryQuery.data?.data
   const monthlySummary = monthlySummaryQuery.data?.data
   const rates = ratesQuery.data?.rates
+  const wallets = walletsQuery.data?.data ?? []
   const hasFinanceData = Boolean(summary && (summary.walletCount > 0 || summary.transactionCount > 0))
 
   // Convert any currency amount to the default currency using EUR-based rates
@@ -85,7 +66,6 @@ export function DashboardPage() {
     ? summary.byCurrency.reduce((acc, curr) => acc + convertToDefault(curr.net, curr.currency), 0)
     : null
 
-  // Monthly stats converted to default currency
   const monthlyIncome = monthlySummary && rates
     ? monthlySummary.byCurrency.reduce((acc, curr) => acc + convertToDefault(curr.income, curr.currency), 0)
     : 0
@@ -93,133 +73,133 @@ export function DashboardPage() {
     ? monthlySummary.byCurrency.reduce((acc, curr) => acc + convertToDefault(curr.expense, curr.currency), 0)
     : 0
   const monthlySaved = monthlyIncome + monthlyExpense
-  const savingsRate = monthlyIncome > 0 ? Math.round((monthlySaved / monthlyIncome) * 100) : 0
+  const savingsRate = monthlyIncome > 0 ? Math.round((monthlySaved / monthlyIncome) * 100) : null
 
-  const allExpenseCategories = (categoryQuery.data?.data ?? [])
-    .filter((c: CategoryBreakdown) => c.type === 'expense' && c.categoryName)
-
-  const expenseByCurrency = new Map<string, CategoryBreakdown[]>()
-  for (const cat of allExpenseCategories) {
-    const list = expenseByCurrency.get(cat.currency) ?? []
-    list.push(cat)
-    expenseByCurrency.set(cat.currency, list)
-  }
-
-  const currencyOrder = ['IDR', 'EUR', 'USD']
-  const sortedCurrencies = [...expenseByCurrency.keys()].sort(
-    (a, b) => (currencyOrder.indexOf(a) === -1 ? 99 : currencyOrder.indexOf(a)) -
-              (currencyOrder.indexOf(b) === -1 ? 99 : currencyOrder.indexOf(b))
+  // One spending list in the default currency: the same category in EUR and IDR is merged
+  // after conversion, so a single big rupiah purchase does not get its own section.
+  const topSpending: CategoryBreakdown[] = rates
+    ? [...(categoryQuery.data?.data ?? [])
+        .filter((c) => c.type === 'expense' && c.categoryName)
+        .reduce((acc, c) => {
+          const key = c.categorySlug ?? c.categoryName!
+          const prev = acc.get(key)
+          const total = convertToDefault(Math.abs(c.total), c.currency)
+          acc.set(key, prev
+            ? { ...prev, total: prev.total + total, count: prev.count + c.count }
+            : { ...c, total, currency: defaultCurrency })
+          return acc
+        }, new Map<string, CategoryBreakdown>())
+        .values()]
+        .sort((a, b) => b.total - a.total)
+        .slice(0, 5)
+    : []
+  const isMultiCurrency = (summary?.byCurrency.length ?? 0) > 1
+  const currencyRows = [...(summary?.byCurrency ?? [])].sort((a, b) =>
+    a.currency === defaultCurrency ? -1 : b.currency === defaultCurrency ? 1 : a.currency.localeCompare(b.currency),
   )
 
+  // A transfer produces one entry per wallet; key rows by entry so both legs render.
+  const recent = (recentQuery.data?.data ?? []).slice(0, HOME_ACTIVITY_LIMIT).map((tx) => ({ ...tx, id: tx.entryId }))
+  const activeWallets = wallets.filter((w) => w.isActive)
+
   return (
-    <main className="max-w-[960px] px-4 lg:px-12 pb-24">
-      <div className="pt-4">
+    <main className="mx-auto w-full max-w-[960px] px-4 pb-2 lg:px-12 lg:pb-16">
+      <HomeHeader
+        netWorth={totalBalance}
+        currency={defaultCurrency}
+        monthNet={monthlySaved}
+        onTransfer={() => setShowTransfer(true)}
+        onAdd={openQuickAdd}
+      />
+
+      {/* On phones the body is a white sheet sliding over the bottom of the ink header. */}
+      <div className="relative -mx-4 -mt-5 rounded-t-[26px] bg-[var(--bg-elevated)] px-4 pt-5 lg:mx-0 lg:mt-6 lg:rounded-none lg:bg-transparent lg:px-0 lg:pt-0">
         <InboxNudge />
+
+        {!summaryQuery.isLoading && !hasFinanceData && (
+          <section className="mb-8 rounded-3xl bg-[var(--tint)] px-5 py-6">
+            <h2 className="text-[22px] font-bold leading-tight tracking-[-0.01em]">Add your real numbers to get started</h2>
+            <p className="mt-2 max-w-[560px] text-sm text-[var(--text-secondary)]">
+              Create a wallet, then log your first transaction or import a statement. No demo balances needed.
+            </p>
+            <div className="mt-5 flex flex-wrap gap-2">
+              <button type="button" onClick={() => setShowCreateWallet(true)} className="h-11 rounded-2xl bg-[var(--ink)] px-4 text-sm font-semibold text-[var(--cream)]">
+                Create wallet
+              </button>
+              <button type="button" onClick={openQuickAdd} className="h-11 rounded-2xl bg-white px-4 text-sm font-semibold">
+                Add transaction
+              </button>
+            </div>
+          </section>
+        )}
+
+        {activeWallets.length > 0 && (
+          <section className="mb-8" aria-labelledby="home-wallets">
+            <SectionDivider
+              title="Wallets"
+              action={
+                <Link to="/wallets" className={linkAction}>
+                  {activeWallets.length > HOME_WALLET_LIMIT ? `All ${activeWallets.length}` : 'Manage'}
+                </Link>
+              }
+            />
+            <WalletTiles wallets={wallets} limit={HOME_WALLET_LIMIT} />
+          </section>
+        )}
+
+        {hasFinanceData && (
+          <section className="mb-8" aria-label="This month">
+            <SectionDivider title="This month" badge={savingsRate === null ? undefined : `${savingsRate}% of income saved`} />
+            <dl className="grid grid-cols-2 gap-2.5">
+              {[
+                { label: 'Income', value: monthlyIncome, tone: 'text-[var(--positive)]' },
+                { label: 'Spent', value: Math.abs(monthlyExpense), tone: '' },
+              ].map((s) => (
+                <div key={s.label} className="min-w-0 rounded-2xl bg-[var(--tint)] px-3.5 py-3">
+                  <dt className="text-[12px] font-semibold text-[var(--text-tertiary)]">{s.label}</dt>
+                  <dd className={`tabular mt-0.5 truncate text-[18px] font-bold ${s.tone}`}>{formatCurrency(s.value, defaultCurrency)}</dd>
+                </div>
+              ))}
+            </dl>
+          </section>
+        )}
+
+        {recentQuery.data && recentQuery.data.data.length > 0 && (
+          <section className="mb-8" aria-label="Recent activity">
+            <SectionDivider title="Activity" action={<Link to="/transactions" className={linkAction}>See all</Link>} />
+            <ActivityList transactions={recent} />
+          </section>
+        )}
+
+        {topSpending.length > 0 && (
+          <section className="mb-8" aria-label="Top spending">
+            <SectionDivider title="Top spending" badge={isMultiCurrency ? `All time · in ${defaultCurrency}` : 'All time'} />
+            <TopSpending categories={topSpending} currency={defaultCurrency} formatCurrency={formatCurrency} />
+          </section>
+        )}
+
+        {isMultiCurrency && (
+          <section className="mb-8" aria-label="By currency">
+            <SectionDivider title="By currency" badge="All time" />
+            <CurrencyCards currencies={currencyRows} formatCurrency={formatCurrency} defaultCurrency={defaultCurrency} />
+          </section>
+        )}
+
+        {activeWallets.length === 0 && hasFinanceData && (
+          <button
+            type="button"
+            onClick={() => setShowCreateWallet(true)}
+            className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-[var(--border-medium)] text-sm font-semibold text-[var(--text-secondary)]"
+          >
+            <Plus className="size-4" /> New wallet
+          </button>
+        )}
       </div>
-      {/* Level 1: Overview */}
-      <OverviewHero
-        totalBalance={totalBalance !== null ? formatCurrency(totalBalance, defaultCurrency) : '\u2014'}
-        monthlyChange={monthlySaved >= 0
-          ? `+${formatCurrency(monthlySaved, defaultCurrency)} this month`
-          : `${formatCurrency(monthlySaved, defaultCurrency)} this month`
-        }
-        isNegativeMonth={monthlySaved < 0}
-        trackingSince={summary?.dateRange.from ? formatDate(summary.dateRange.from) : null}
-        walletCount={dashboardQuery.data?.data.walletCount ?? 0}
-        transactionCount={dashboardQuery.data?.data.transactionCount ?? 0}
-      />
 
-      {/* Quick Actions */}
-      <div className="flex gap-2 mb-8">
-        <button
-          onClick={() => setShowAddTransaction(true)}
-          className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3.5 py-2 text-xs font-medium text-primary-foreground shadow-sm transition-all hover:opacity-90 cursor-pointer"
-        >
-          <Plus size={14} /> New Transaction
-        </button>
-        <button
-          onClick={() => setShowTransfer(true)}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-border/50 bg-white/60 px-3.5 py-2 text-xs font-medium text-foreground/70 transition-all hover:border-[rgba(91,164,212,0.4)] hover:bg-white/90 hover:text-foreground cursor-pointer"
-        >
-          <ArrowLeftRight size={14} /> Transfer
-        </button>
-        <Link
-          to="/reports"
-          className="inline-flex items-center gap-1.5 rounded-lg border border-border/50 bg-white/60 px-3.5 py-2 text-xs font-medium text-foreground/70 transition-all hover:border-[rgba(91,164,212,0.4)] hover:bg-white/90 hover:text-foreground no-underline cursor-pointer"
-        >
-          <BarChart3 size={14} /> Reports
-        </Link>
-      </div>
-
-      <StatsRow
-        stats={[
-          { label: 'Income', value: formatCurrency(monthlyIncome, defaultCurrency), color: 'positive' },
-          { label: 'Spent', value: formatCurrency(Math.abs(monthlyExpense), defaultCurrency), color: 'negative' },
-          { label: 'Saved', value: formatCurrency(monthlySaved, defaultCurrency), color: monthlySaved >= 0 ? 'positive' : 'negative' },
-          { label: 'Net Income Rate', value: `${savingsRate}%` },
-        ]}
-      />
-
-      {!summaryQuery.isLoading && !hasFinanceData && (
-        <section className="mb-10 rounded-3xl border border-border/60 bg-white/75 px-6 py-7 shadow-[var(--shadow-card)] backdrop-blur-sm">
-          <div className="text-[11px] font-medium tracking-[0.18em] uppercase text-[#5ba4d4] mb-3">First run</div>
-          <h2 className="font-['Cormorant_Garamond',Georgia,serif] text-[32px] italic leading-tight text-[#0a0f18] mb-3">
-            Your dashboard is ready — now add your real finance data.
-          </h2>
-          <p className="text-sm text-muted-foreground max-w-[700px] mb-5">
-            Start by creating a wallet, then add your first transaction or import a statement. Finance OS does not require fake demo balances to be useful.
-          </p>
-          <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-            <span className="rounded-full border border-border/60 bg-background/70 px-3 py-1.5">1. Create wallet</span>
-            <span className="rounded-full border border-border/60 bg-background/70 px-3 py-1.5">2. Add transaction</span>
-            <span className="rounded-full border border-border/60 bg-background/70 px-3 py-1.5">3. Review reports</span>
-          </div>
-        </section>
-      )}
-
-      {/* Level 2: Per Currency */}
-      {summary && summary.byCurrency.length > 0 && (
-        <>
-          <SectionDivider title="By currency" badge={`${summary.byCurrency.length} currencies`} />
-          <CurrencyCards currencies={summary.byCurrency} formatCurrency={formatCurrency} />
-        </>
-      )}
-
-      {/* Top Spending */}
-      {sortedCurrencies.map((currency) => {
-        const cats = (expenseByCurrency.get(currency) ?? []).slice(0, 10)
-        return (
-          <div key={currency}>
-            <SectionDivider title="Top spending" badge={currency} />
-            <TopSpending categories={cats} currency={currency} formatCurrency={formatCurrency} />
-          </div>
-        )
-      })}
-
-      {/* Level 3: Wallets */}
-      {walletsQuery.data && (
-        <>
-          <SectionDivider title="Wallets" badge={`${walletsQuery.data.data.length} wallets`} />
-          <WalletsGrid wallets={walletsQuery.data.data} formatCurrency={formatCurrency} />
-        </>
-      )}
-
-      {/* Level 4: Recent Activity */}
-      {recentQuery.data && (
-        <>
-          <SectionDivider title="Recent activity" badge="Last 50" />
-          <RecentActivity transactions={recentQuery.data.data} formatCurrency={formatCurrency} />
-        </>
-      )}
-
-      <footer className="border-t border-border/50 pt-7 text-xs text-muted-foreground font-light">
-        Finance OS · Made for agents, by humans
-      </footer>
-
-      {showAddTransaction && <AddTransactionForm onClose={() => setShowAddTransaction(false)} />}
       {showTransfer && walletsQuery.data && (
         <TransferForm wallets={walletsQuery.data.data} onClose={() => setShowTransfer(false)} />
       )}
+      {showCreateWallet && <CreateWalletForm onClose={() => setShowCreateWallet(false)} />}
     </main>
   )
 }

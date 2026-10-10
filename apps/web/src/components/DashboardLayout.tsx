@@ -12,7 +12,7 @@ export function DashboardLayout() {
     <QuickAddProvider>
       <SidebarProvider>
         <AppSidebar />
-        <SidebarInset className="pb-20 lg:pb-0">
+        <SidebarInset className="pb-tabbar lg:pb-0">
           <RouteErrorBoundary>
             <Outlet />
           </RouteErrorBoundary>

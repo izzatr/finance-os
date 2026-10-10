@@ -1,24 +1,20 @@
-import { Badge } from '@/components/ui/badge'
-import { Separator } from '@/components/ui/separator'
+import type { ReactNode } from 'react'
 
 interface SectionDividerProps {
   title: string
+  /** Quiet context on the right, e.g. "4 wallets". */
   badge?: string
+  /** A link or button on the right; wins over `badge`. */
+  action?: ReactNode
+  className?: string
 }
 
-export function SectionDivider({ title, badge }: SectionDividerProps) {
+/** Section title row: bold title left, quiet context or an action right. No rules, no eyebrows. */
+export function SectionDivider({ title, badge, action, className = 'mb-3' }: SectionDividerProps) {
   return (
-    <div className="flex items-center gap-4 mb-7">
-      <Separator className="flex-1" />
-      <h2 className="font-['Cormorant_Garamond',Georgia,serif] italic font-normal text-[26px] text-foreground whitespace-nowrap">
-        {title}
-      </h2>
-      {badge && (
-        <Badge variant="secondary" className="text-[10px] font-medium tracking-[0.14em] uppercase whitespace-nowrap">
-          {badge}
-        </Badge>
-      )}
-      <Separator className="flex-1" />
+    <div className={`flex items-baseline justify-between gap-4 ${className}`}>
+      <h2 className="text-[18px] font-bold tracking-[-0.01em] text-[var(--text-primary)]">{title}</h2>
+      {action ?? (badge && <span className="text-[13px] font-semibold text-[var(--text-tertiary)]">{badge}</span>)}
     </div>
   )
 }
