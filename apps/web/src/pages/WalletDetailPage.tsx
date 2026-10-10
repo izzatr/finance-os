@@ -1,17 +1,16 @@
 import { useMemo, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Settings, Pencil, Trash2 } from 'lucide-react'
+import { ChevronLeft, Settings, Trash2 } from 'lucide-react'
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts'
 import { WalletIcon } from '../components/WalletIcon'
-import { EditNotesInline } from '../components/EditNotesInline'
+import { ActivityList } from '../components/ActivityList'
 import { EditWalletForm } from '../components/EditWalletForm'
 import { DeleteWalletDialog } from '../components/DeleteWalletDialog'
 import { EditTransactionForm } from '../components/EditTransactionForm'
 import { SectionDivider } from '../components/SectionDivider'
 import { WalletPortfolio } from '../components/WalletPortfolio'
 import { Card, CardContent } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { getWalletTransactions } from '../lib/api'
 import type { WalletTransaction } from '../lib/api'
@@ -36,12 +35,6 @@ function formatDate(dateStr: string) {
 
 function formatShortDate(dateStr: string) {
   return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-}
-
-const TYPE_STYLES: Record<string, string> = {
-  income: 'bg-[rgba(58,172,106,0.08)] text-[var(--positive)]',
-  expense: 'bg-[rgba(217,80,80,0.08)] text-[var(--negative)]',
-  transfer: 'bg-[rgba(91,164,212,0.08)] text-[#5ba4d4]',
 }
 
 export function WalletDetailPage() {
@@ -88,67 +81,61 @@ export function WalletDetailPage() {
   }
 
   return (
-    <main className="w-full px-8 md:px-12 pt-12 pb-24">
+    <main className="mx-auto w-full max-w-[960px] px-4 pb-8 pt-6 lg:px-12 lg:pt-10">
       {query.isLoading && (
-        <p className="py-8 text-center font-mono text-xs text-muted-foreground">Loading wallet...</p>
+        <p className="py-8 text-center text-sm text-muted-foreground">Loading wallet...</p>
       )}
       {query.error && (
-        <p className="py-8 text-center font-mono text-xs text-muted-foreground">{query.error.message}</p>
+        <p className="py-8 text-center text-sm text-muted-foreground">{query.error.message}</p>
       )}
 
       {detail && (
         <>
-          {/* Hero Section */}
-          <header className="relative mb-12">
-            <div className="flex items-start gap-2 mb-4">
-              <div className="flex min-w-0 flex-1 items-center gap-4">
-                <div className="size-14 rounded-2xl bg-gradient-to-br from-[#ddeef9] to-[#c6e2f5] flex items-center justify-center text-[#5ba4d4] shrink-0">
-                  <WalletIcon walletType={detail.wallet.walletType} size={28} />
-                </div>
-                <div className="min-w-0">
-                  <h1 className="break-words font-['Cormorant_Garamond',Georgia,serif] italic font-normal text-[36px] sm:text-[42px] text-[#0a0f18] leading-tight">
-                    {detail.wallet.name}
-                  </h1>
-                  <p className="text-sm font-light text-muted-foreground mt-0.5">
-                    {detail.wallet.walletType}
-                    {detail.wallet.institution ? ` · ${detail.wallet.institution}` : ''}
-                  </p>
-                </div>
+          <Link to="/wallets" className="-ml-1 mb-3 inline-flex h-9 items-center gap-0.5 text-[14px] font-semibold text-[var(--text-secondary)] no-underline hover:text-[var(--text-primary)]">
+            <ChevronLeft className="size-5" /> Wallets
+          </Link>
+
+          {/* Hero */}
+          <header className="mb-8 rounded-[24px] bg-[var(--ink)] px-5 pb-5 pt-4 text-white">
+            <div className="flex items-start gap-3">
+              <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-white/10 text-[var(--cream)]">
+                <WalletIcon walletType={detail.wallet.walletType} size={22} />
+              </span>
+              <div className="min-w-0 flex-1 pt-0.5">
+                <h1 className="break-words text-[22px] font-bold leading-tight tracking-[-0.01em]">{detail.wallet.name}</h1>
+                <p className="mt-0.5 text-[13px] capitalize text-white/65">
+                  {detail.wallet.walletType}
+                  {detail.wallet.institution ? ` · ${detail.wallet.institution}` : ''}
+                </p>
               </div>
-              <div className="flex shrink-0 items-center gap-1">
+              <div className="-mr-2 flex shrink-0 items-center">
                 <Button
                   variant="ghost"
                   size="icon"
                   onClick={() => setEditingWallet(true)}
-                  title="Edit wallet"
-                  className="text-muted-foreground hover:text-foreground"
+                  aria-label="Edit wallet"
+                  className="text-white/75 hover:bg-white/10 hover:text-white"
                 >
-                  <Settings size={18} />
+                  <Settings size={19} />
                 </Button>
                 <Button
                   variant="ghost"
                   size="icon"
                   onClick={() => setDeletingWallet(true)}
-                  title="Delete wallet"
-                  className="text-muted-foreground hover:text-[var(--negative)]"
+                  aria-label="Delete wallet"
+                  className="text-white/75 hover:bg-white/10 hover:text-white"
                 >
-                  <Trash2 size={18} />
+                  <Trash2 size={19} />
                 </Button>
               </div>
             </div>
 
-            <div className="mt-2">
-              <span
-                className={`font-mono text-[36px] font-semibold tracking-tight ${
-                  detail.wallet.balance >= 0 ? 'text-[#0a0f18]' : 'text-[var(--negative)]'
-                }`}
-              >
-                {formatCurrency(detail.wallet.balance, detail.wallet.currency)}
-              </span>
-              <span className="block font-mono text-[11px] uppercase tracking-[0.15em] text-muted-foreground mt-1">
-                {detail.wallet.walletType === 'investment' ? 'Cash balance' : 'Current balance'}
-              </span>
-            </div>
+            <p className="mt-6 text-[14px] font-medium text-white/70">
+              {detail.wallet.walletType === 'investment' ? 'Cash balance' : 'Balance'}
+            </p>
+            <p className={`tabular text-[38px] font-bold leading-tight tracking-[-0.03em] ${detail.wallet.balance < 0 ? 'text-[#ffb4a8]' : ''}`}>
+              {formatCurrency(detail.wallet.balance, detail.wallet.currency)}
+            </p>
           </header>
 
           {detail.wallet.walletType === 'investment' && <WalletPortfolio walletId={walletId!} />}
@@ -157,36 +144,36 @@ export function WalletDetailPage() {
           {balanceTrend.length > 1 && (
             <>
               <SectionDivider title="Balance trend" badge={detail.wallet.currency} />
-              <Card className="bg-white/70 mb-14">
-                <CardContent className="p-6">
-                  <div className="h-72">
+              <Card className="mb-8 bg-white">
+                <CardContent className="px-2 py-1 sm:px-4">
+                  <div className="h-56 sm:h-72">
                     <ResponsiveContainer width="100%" height="100%">
                       <AreaChart data={balanceTrend} margin={{ top: 8, right: 8, bottom: 8, left: 8 }}>
                         <defs>
                           <linearGradient id="gradient-wallet-balance" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#3aac6a" stopOpacity={0.25} />
-                            <stop offset="95%" stopColor="#3aac6a" stopOpacity={0} />
+                            <stop offset="5%" stopColor="#0e1729" stopOpacity={0.12} />
+                            <stop offset="95%" stopColor="#0e1729" stopOpacity={0} />
                           </linearGradient>
                         </defs>
-                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(150,190,220,0.15)" />
+                        <CartesianGrid strokeDasharray="3 3" stroke="#ede7dc" />
                         <XAxis
                           dataKey="date"
-                          tick={{ fontSize: 11, fill: '#8296a8' }}
+                          tick={{ fontSize: 11, fill: '#6f695f' }}
                           tickLine={false}
                           axisLine={false}
                           tickFormatter={(d: string) => formatShortDate(d)}
                         />
                         <YAxis
-                          tick={{ fontSize: 11, fill: '#8296a8' }}
+                          tick={{ fontSize: 11, fill: '#6f695f' }}
                           tickLine={false}
                           axisLine={false}
                           tickFormatter={chartFmt}
-                          width={80}
+                          width={56}
                         />
                         <Tooltip
                           contentStyle={{
                             background: '#fff',
-                            border: '1px solid rgba(180,210,235,0.35)',
+                            border: '1px solid #ede7dc',
                             borderRadius: 12,
                             fontSize: 13,
                           }}
@@ -196,7 +183,7 @@ export function WalletDetailPage() {
                         <Area
                           type="monotone"
                           dataKey="balance"
-                          stroke="#3aac6a"
+                          stroke="#0e1729"
                           fill="url(#gradient-wallet-balance)"
                           strokeWidth={2.5}
                         />
@@ -214,66 +201,11 @@ export function WalletDetailPage() {
             badge={`${detail.transactions.length} total`}
           />
 
-          <div className="flex flex-col gap-px mb-14">
-            {detail.transactions.length === 0 && (
-              <p className="py-8 text-center text-sm text-muted-foreground">No transactions</p>
-            )}
-            {detail.transactions.map((tx) => (
-              <div
-                key={tx.id}
-                className="group grid grid-cols-[72px_1fr_auto] gap-4 items-start py-3 px-4 rounded-lg transition-colors hover:bg-white/70"
-              >
-                {/* Date */}
-                <div className="text-xs font-light text-muted-foreground pt-0.5">
-                  {formatShortDate(tx.transactionDate)}
-                </div>
-
-                {/* Middle: type badge + description + category + notes */}
-                <div className="min-w-0">
-                  <div className="text-[13px] font-normal text-foreground">
-                    <Badge
-                      variant="outline"
-                      className={`mr-1.5 text-[9px] font-medium tracking-[0.1em] uppercase px-1.5 py-0 border-0 ${
-                        TYPE_STYLES[tx.type] ?? ''
-                      }`}
-                    >
-                      {tx.type}
-                    </Badge>
-                    {tx.description}
-                    <button
-                      className="ml-1 inline-flex items-center rounded p-0.5 text-muted-foreground opacity-0 transition-all hover:text-primary group-hover:opacity-100"
-                      onClick={() => setEditingTx(tx)}
-                      title="Edit transaction"
-                    >
-                      <Pencil size={12} />
-                    </button>
-                  </div>
-                  {tx.categoryName && (
-                    <div className="text-[11px] font-light text-muted-foreground mt-0.5">
-                      {tx.categoryName}
-                    </div>
-                  )}
-                  <div className="opacity-0 group-hover:opacity-100 transition-opacity">
-                    <EditNotesInline
-                      transactionId={tx.id}
-                      walletId={walletId!}
-                      initialNotes={tx.notes}
-                    />
-                  </div>
-                </div>
-
-                {/* Amount */}
-                <div
-                  className={`font-mono text-[13px] font-medium text-right whitespace-nowrap pt-0.5 ${
-                    tx.amount >= 0 ? 'text-[var(--positive)]' : 'text-[var(--negative)]'
-                  }`}
-                >
-                  {tx.amount >= 0 ? '+' : ''}
-                  {formatCurrency(tx.amount, tx.currency)}
-                </div>
-              </div>
-            ))}
-          </div>
+          <ActivityList
+            transactions={detail.transactions}
+            onSelect={(tx) => setEditingTx(tx)}
+            emptyLabel="No transactions in this wallet yet"
+          />
 
           {editingWallet && (
             <EditWalletForm wallet={detail.wallet} onClose={() => setEditingWallet(false)} />

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowRight } from 'lucide-react'
+import { ArrowDown } from 'lucide-react'
 import { createTransfer } from '../lib/api'
 import type { Wallet } from '../lib/api'
 import {
@@ -67,7 +67,7 @@ export function TransferForm({ wallets, onClose }: Props) {
 
         <div className="grid gap-3">
           <div className="grid gap-1.5">
-            <label className="font-mono text-[0.68rem] font-medium uppercase tracking-widest text-muted-foreground">
+            <label className="text-[13px] font-semibold text-[var(--text-secondary)]">
               From
             </label>
             <Select value={sourceId} onValueChange={(v) => { setSourceId(v ?? ''); setTargetId('') }}>
@@ -83,11 +83,11 @@ export function TransferForm({ wallets, onClose }: Props) {
           </div>
 
           <div className="flex justify-center text-muted-foreground">
-            <ArrowRight size={16} />
+            <ArrowDown size={16} />
           </div>
 
           <div className="grid gap-1.5">
-            <label className="font-mono text-[0.68rem] font-medium uppercase tracking-widest text-muted-foreground">
+            <label className="text-[13px] font-semibold text-[var(--text-secondary)]">
               To
             </label>
             <Select value={targetId} onValueChange={(v) => setTargetId(v ?? '')} disabled={!sourceId}>
@@ -103,21 +103,21 @@ export function TransferForm({ wallets, onClose }: Props) {
           </div>
 
           <div className="grid gap-1.5">
-            <label className="font-mono text-[0.68rem] font-medium uppercase tracking-widest text-muted-foreground">
+            <label className="text-[13px] font-semibold text-[var(--text-secondary)]">
               Amount
             </label>
             <Input type="number" step="0.01" min="0" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0.00" />
           </div>
 
           <div className="grid gap-1.5">
-            <label className="font-mono text-[0.68rem] font-medium uppercase tracking-widest text-muted-foreground">
+            <label className="text-[13px] font-semibold text-[var(--text-secondary)]">
               Description
             </label>
             <Input type="text" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Transfer" />
           </div>
 
           <div className="grid gap-1.5">
-            <label className="font-mono text-[0.68rem] font-medium uppercase tracking-widest text-muted-foreground">
+            <label className="text-[13px] font-semibold text-[var(--text-secondary)]">
               Date
             </label>
             <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />

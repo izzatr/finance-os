@@ -10,6 +10,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/).
 - A restricted, configurable Cloudflare Worker fallback for Yahoo Finance egress.
 
 ### Changed
+- Mobile-first "Ink + Cream" redesign of the web app: ink navy brand surfaces, a single cream accent, warm neutral tint and Onest throughout. Home gets an ink net-worth header with wallet tiles, this month's income and spend, day-grouped activity with daily totals, and one merged top-spending list in the default currency. Quick add gets an on-screen keypad on phones (with a `000` key for rupiah), an icon category grid, one-tap recent merchants and wallet/date/note chips. Dialogs open as bottom sheets on phones, and the wallet detail page lets you edit a transaction by tapping it (editing used to need hover).
 - Production containers and CI now use Node.js 22, reproducible `npm ci` installs, pinned base images, and container health checks.
 
 ### Security

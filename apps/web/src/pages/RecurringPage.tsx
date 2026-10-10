@@ -156,14 +156,14 @@ export function RecurringPage() {
   return (
     <div className="mx-auto w-full max-w-2xl px-4 py-6 lg:px-8">
       <header className="flex items-center justify-between pb-4">
-        <h1 className="text-xl font-semibold text-[var(--text-primary)]">Recurring</h1>
-        <Button size="sm" variant="outline" onClick={() => setCreating(true)}>
+        <h1 className="text-[28px] font-bold tracking-[-0.02em] text-[var(--text-primary)]">Recurring</h1>
+        <Button size="sm" onClick={() => setCreating(true)}>
           <Plus className="size-4" /> New rule
         </Button>
       </header>
 
       {rules.length === 0 && !rulesQuery.isLoading && (
-        <div className="rounded-xl bg-white p-8 text-center shadow-[var(--shadow-card)]">
+        <div className="rounded-2xl bg-[var(--tint)] px-6 py-8 text-center">
           <CalendarClock className="mx-auto size-8 text-[var(--text-tertiary)]" />
           <p className="pt-3 text-sm font-medium text-[var(--text-primary)]">Automate the predictable</p>
           <p className="pt-1 text-xs text-[var(--text-tertiary)]">
@@ -176,12 +176,12 @@ export function RecurringPage() {
         {rules.map((rule) => {
           const amount = rule.template.entries[0]?.amount ?? ''
           return (
-            <div key={rule.id} className={`rounded-xl bg-white px-4 py-3 shadow-[var(--shadow-card)] ${rule.isActive ? '' : 'opacity-60'}`}>
+            <div key={rule.id} className={`rounded-xl bg-white px-4 py-3  ${rule.isActive ? '' : 'opacity-60'}`}>
               <div className="flex items-center gap-3">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <p className="truncate text-sm font-medium text-[var(--text-primary)]">{rule.name}</p>
-                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+                    <span className={`rounded-full px-2 py-0.5 text-[11.5px] font-semibold ${
                       rule.mode === 'auto_post'
                         ? 'bg-[color-mix(in_srgb,var(--positive)_12%,white)] text-[var(--positive)]'
                         : 'bg-[var(--accent-dim)] text-[var(--accent-blue)]'

@@ -1,10 +1,9 @@
 import { useQuery } from '@tanstack/react-query'
 import { CurrencyCards } from '../components/CurrencyCards'
 import { SectionDivider } from '../components/SectionDivider'
-import { Card, CardContent } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
 import { getSummary, getExchangeRates } from '../lib/api'
 import { useDefaultCurrency } from '../contexts/CurrencyContext'
+import { PageHeader } from '../components/PageHeader'
 
 const CURRENCY_SYMBOLS: Record<string, string> = { IDR: 'Rp', EUR: '\u20ac', USD: '$' }
 
@@ -45,22 +44,14 @@ export function CurrenciesPage() {
     : []
 
   return (
-    <main className="w-full px-8 md:px-12 pt-12 pb-24">
-      {/* Editorial header */}
-      <header className="mb-12">
-        <p className="font-mono text-[10px] font-semibold tracking-[0.2em] uppercase text-[#5ba4d4] mb-2">
-          Currencies
-        </p>
-        <h1 className="font-['Cormorant_Garamond',Georgia,serif] italic font-normal text-[42px] text-[#0a0f18] leading-tight">
-          By currency
-        </h1>
-      </header>
+    <main className="w-full px-4 pb-8 pt-6 lg:px-12 lg:pt-10">
+      <PageHeader title="Currencies" description="Balances per currency and today's rates." />
 
       {summaryQuery.isLoading && (
-        <p className="py-8 text-center font-mono text-xs text-muted-foreground">Loading...</p>
+        <p className="py-8 text-center text-sm text-muted-foreground">Loading...</p>
       )}
       {summaryQuery.error && (
-        <p className="py-8 text-center font-mono text-xs text-muted-foreground">{summaryQuery.error.message}</p>
+        <p className="py-8 text-center text-sm text-muted-foreground">{summaryQuery.error.message}</p>
       )}
 
       {summary && summary.byCurrency.length > 0 && (
@@ -75,28 +66,22 @@ export function CurrenciesPage() {
       {/* Exchange Rates */}
       {displayedRates.length > 0 && (
         <>
-          <SectionDivider title="Exchange rates" badge={`Base ${defaultCurrency}`} />
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5 mb-14">
+          <SectionDivider title="Exchange rates" badge={`1 ${defaultCurrency} =`} className="mb-3 mt-8" />
+          <ul className="mb-10 grid grid-cols-1 gap-x-6 rounded-2xl bg-[var(--tint)] px-4 py-1 sm:grid-cols-2">
             {displayedRates.map(({ currency, rate }) => (
-              <Card key={currency} className="bg-white/60">
-                <CardContent className="p-4 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Badge variant="secondary" className="font-mono text-[10px] tracking-wider">
-                      {currency}
-                    </Badge>
-                  </div>
-                  <span className="font-mono text-sm font-medium text-foreground">
-                    {rate < 10 ? rate.toFixed(4) : rate < 1000 ? rate.toFixed(2) : rate.toLocaleString('en-US', { maximumFractionDigits: 0 })}
-                  </span>
-                </CardContent>
-              </Card>
+              <li key={currency} className="flex items-center justify-between border-b border-[var(--tint-strong)] py-3 last:border-0 sm:[&:nth-last-child(2)]:border-0">
+                <span className="text-[15px] font-semibold">{currency}</span>
+                <span className="tabular text-[15px] font-semibold">
+                  {rate < 10 ? rate.toFixed(4) : rate < 1000 ? rate.toFixed(2) : rate.toLocaleString('en-US', { maximumFractionDigits: 0 })}
+                </span>
+              </li>
             ))}
-          </div>
+          </ul>
         </>
       )}
 
       {ratesQuery.isLoading && (
-        <p className="py-4 text-center font-mono text-xs text-muted-foreground">Loading exchange rates...</p>
+        <p className="py-4 text-center text-sm text-muted-foreground">Loading exchange rates...</p>
       )}
     </main>
   )

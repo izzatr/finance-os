@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowUp, Inbox, Loader2, Sparkles, Wrench } from 'lucide-react'
 import { API_BASE_URL, getAiStatus } from '@/lib/api'
+import { PageHeader } from '@/components/PageHeader'
 
 type ToolChip = { id: string; name: string; state: 'running' | 'ok' | 'error'; proposed: boolean }
 type ChatTurn =
@@ -134,11 +135,12 @@ export function AssistantPage() {
   if (!status?.enabled) {
     return (
       <div className="mx-auto w-full max-w-2xl px-4 py-6 lg:px-8">
-        <div className="rounded-xl bg-white p-8 text-center shadow-[var(--shadow-card)]">
+        <PageHeader title="Assistant" />
+        <div className="rounded-2xl bg-[var(--tint)] px-6 py-8 text-center">
           <Sparkles className="mx-auto size-8 text-[var(--text-tertiary)]" />
           <p className="pt-3 text-sm font-medium text-[var(--text-primary)]">Assistant not configured</p>
           <p className="pt-1 text-xs text-[var(--text-tertiary)]">
-            Set <code className="font-mono">OPENROUTER_API_KEY</code> on the server to chat with your finances.
+            Set <code className="rounded bg-white px-1 py-0.5 text-[11px]">OPENROUTER_API_KEY</code> on the server to chat with your finances.
             Everything the assistant wants to book still goes through your approval inbox.
           </p>
         </div>
@@ -149,7 +151,7 @@ export function AssistantPage() {
   return (
     <div className="mx-auto flex h-[calc(100dvh-4rem)] w-full max-w-2xl flex-col px-4 lg:h-dvh lg:px-8">
       <header className="py-4">
-        <h1 className="text-xl font-semibold text-[var(--text-primary)]">Assistant</h1>
+        <h1 className="text-[28px] font-bold tracking-[-0.02em] text-[var(--text-primary)]">Assistant</h1>
       </header>
 
       {hasProposals && (
@@ -209,7 +211,7 @@ export function AssistantPage() {
                   </div>
                 )}
                 {(turn.text || (!busy && !turn.error)) && (
-                  <div className="rounded-2xl rounded-bl-md bg-white px-4 py-2.5 text-sm text-[var(--text-primary)] shadow-[var(--shadow-card)] whitespace-pre-wrap">
+                  <div className="rounded-2xl rounded-bl-md bg-white px-4 py-2.5 text-sm text-[var(--text-primary)]  whitespace-pre-wrap">
                     {turn.text || '…'}
                   </div>
                 )}

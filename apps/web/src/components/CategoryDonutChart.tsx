@@ -2,7 +2,7 @@ import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip } from 'recharts'
 import type { CategoryBreakdown } from '../lib/api'
 
 const COLORS = [
-  '#5ba4d4', '#3aac6a', '#d95050', '#e8a838', '#9b6bc4',
+  '#0e1729', '#12895a', '#c23a2b', '#d9a441', '#7d6bb0',
   '#4fc3c3', '#e06090', '#7ab648', '#c78438', '#6082b6',
 ]
 
@@ -39,7 +39,7 @@ export function CategoryDonutChart({ data, currency, formatCurrency }: Props) {
               ))}
             </Pie>
             <Tooltip
-              contentStyle={{ background: '#fff', border: '1px solid rgba(180,210,235,0.35)', borderRadius: 12, fontSize: 13 }}
+              contentStyle={{ background: '#fff', border: '1px solid #ede7dc', borderRadius: 12, fontSize: 13 }}
               formatter={(value) => [formatCurrency(value as number, currency), 'Spent']}
             />
           </PieChart>

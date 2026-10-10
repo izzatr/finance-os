@@ -43,11 +43,11 @@ function ProposalCard({ proposal }: { proposal: Proposal }) {
   const pending = proposal.status === 'pending'
 
   return (
-    <div className={`rounded-xl bg-white px-4 py-3 shadow-[var(--shadow-card)] ${pending ? '' : 'opacity-60'}`}>
+    <div className={`rounded-xl bg-white px-4 py-3  ${pending ? '' : 'opacity-60'}`}>
       <div className="flex items-center gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <span className="rounded-full bg-[var(--accent-dim)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--accent-blue)]">
+            <span className="rounded-full bg-[var(--accent-dim)] px-2 py-0.5 text-[11.5px] font-semibold text-[var(--accent-blue)]">
               {sourceBadge(proposal.source)}
             </span>
             <span className="truncate text-xs text-[var(--text-tertiary)]">{proposal.actorLabel}</span>
@@ -103,12 +103,12 @@ export function InboxPage() {
   return (
     <div className="mx-auto w-full max-w-2xl px-4 py-6 lg:px-8">
       <header className="pb-4">
-        <h1 className="text-xl font-semibold text-[var(--text-primary)]">Inbox</h1>
+        <h1 className="text-[28px] font-bold tracking-[-0.02em] text-[var(--text-primary)]">Inbox</h1>
         <p className="text-xs text-[var(--text-tertiary)]">Drafts from recurring rules and agents wait here for your approval.</p>
       </header>
 
       {proposals.length === 0 && !inboxQuery.isLoading && (
-        <div className="rounded-xl bg-white p-8 text-center shadow-[var(--shadow-card)]">
+        <div className="rounded-2xl bg-[var(--tint)] px-6 py-8 text-center">
           <InboxIcon className="mx-auto size-8 text-[var(--text-tertiary)]" />
           <p className="pt-3 text-sm font-medium text-[var(--text-primary)]">Nothing to review</p>
           <p className="pt-1 text-xs text-[var(--text-tertiary)]">
@@ -123,7 +123,7 @@ export function InboxPage() {
 
       {resolved.length > 0 && (
         <details className="pt-5">
-          <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wider text-[var(--text-tertiary)]">
+          <summary className="cursor-pointer text-[13px] font-semibold text-[var(--text-secondary)]">
             Resolved ({resolved.length})
           </summary>
           <div className="grid gap-2 pt-2">

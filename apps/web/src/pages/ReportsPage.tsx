@@ -19,6 +19,7 @@ import {
 } from '../lib/api'
 import type { MonthlyTrend, CategoryBreakdown } from '../lib/api'
 import { useDefaultCurrency } from '../contexts/CurrencyContext'
+import { PageHeader } from '../components/PageHeader'
 
 const CURRENCY_SYMBOLS: Record<string, string> = { IDR: 'Rp', EUR: '\u20ac', USD: '$' }
 
@@ -126,30 +127,23 @@ export function ReportsPage() {
   const hasReportData = Boolean(summaryQuery.data?.data.transactionCount)
 
   return (
-    <main className="relative z-1 w-full px-4 py-6 lg:px-12 lg:pt-12 pb-24">
-      <div className="mb-10">
-        <div className="text-[11px] font-medium tracking-[0.2em] uppercase text-[#5ba4d4] mb-3">
-          Reports
-        </div>
-        <h1 className="font-['Cormorant_Garamond',Georgia,serif] font-medium italic text-[clamp(32px,4vw,48px)] leading-tight text-[#0a0f18]">
-          Financial Analytics
-        </h1>
-      </div>
+    <main className="relative z-1 w-full px-4 pb-8 pt-6 lg:px-12 lg:pt-10">
+      <PageHeader title="Reports" />
 
       <NetWorthTrendCard walletIds={walletIds} />
 
       <div className="mb-6 flex flex-col gap-4">
         <div className="grid gap-1.5">
-          <p className="font-mono text-[0.68rem] font-medium uppercase tracking-widest text-muted-foreground">Wallet filter</p>
+          <p className="text-[13px] font-semibold text-[var(--text-secondary)]">Wallet filter</p>
           <WalletMultiSelect wallets={walletsQuery.data?.data ?? []} selectedWalletIds={walletIds} onChange={setWalletIds} />
         </div>
         <Tabs value={currency} onValueChange={setCurrency}>
           <TabsList>
-            <TabsTrigger value="ALL" className="font-mono text-xs tracking-wider">
+            <TabsTrigger value="ALL" className="text-[13px] font-semibold">
               All ({defaultCurrency})
             </TabsTrigger>
             {currencies.map((c) => (
-              <TabsTrigger key={c} value={c} className="font-mono text-xs tracking-wider">
+              <TabsTrigger key={c} value={c} className="text-[13px] font-semibold">
                 {c}
               </TabsTrigger>
             ))}
@@ -159,16 +153,16 @@ export function ReportsPage() {
       </div>
 
       {!summaryQuery.isLoading && !hasReportData && (
-        <div className="mb-6 rounded-3xl border border-border/60 bg-white/75 px-6 py-7 text-sm text-muted-foreground shadow-[var(--shadow-card)]">
-          <p className="mb-2 text-[11px] font-medium tracking-[0.18em] uppercase text-[#5ba4d4]">No report data yet</p>
+        <div className="mb-6 rounded-2xl bg-[var(--tint)] px-5 py-5 text-sm text-[var(--text-secondary)]">
+          <p className="mb-1 text-[15px] font-bold text-[var(--text-primary)]">No report data yet</p>
           <p>Reports will populate after you create a wallet and record transactions. Until then, this page stays intentionally empty instead of showing misleading charts.</p>
         </div>
       )}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {/* Asset Growth - full width */}
-        <Card className="lg:col-span-2" style={{ boxShadow: 'var(--shadow-card)' }}>
-          <CardHeader className="border-b">
+        <Card className="lg:col-span-2">
+          <CardHeader>
             <CardTitle>
               {isAll ? `Net Worth Growth (${defaultCurrency} equivalent)` : `Asset Growth — ${currency}`}
             </CardTitle>
@@ -187,8 +181,8 @@ export function ReportsPage() {
         </Card>
 
         {/* Monthly Income vs Expense */}
-        <Card style={{ boxShadow: 'var(--shadow-card)' }}>
-          <CardHeader className="border-b">
+        <Card>
+          <CardHeader>
             <CardTitle>Monthly Income vs Expense</CardTitle>
           </CardHeader>
           <CardContent>
@@ -200,8 +194,8 @@ export function ReportsPage() {
         </Card>
 
         {/* Spending by Category */}
-        <Card style={{ boxShadow: 'var(--shadow-card)' }}>
-          <CardHeader className="border-b">
+        <Card>
+          <CardHeader>
             <CardTitle>Spending by Category</CardTitle>
           </CardHeader>
           <CardContent>
@@ -217,8 +211,8 @@ export function ReportsPage() {
         </Card>
 
         {/* Spending Trend - full width */}
-        <Card className="lg:col-span-2" style={{ boxShadow: 'var(--shadow-card)' }}>
-          <CardHeader className="border-b">
+        <Card className="lg:col-span-2">
+          <CardHeader>
             <CardTitle>Spending Trend</CardTitle>
           </CardHeader>
           <CardContent>

@@ -81,14 +81,14 @@ export function EditWalletForm({ wallet, onClose }: Props) {
 
         <div className="grid gap-3">
           <div className="grid gap-1.5">
-            <label className="font-mono text-[0.68rem] font-medium uppercase tracking-widest text-muted-foreground">
+            <label className="text-[13px] font-semibold text-[var(--text-secondary)]">
               Name
             </label>
             <Input value={name} onChange={(e) => setName(e.target.value)} />
           </div>
 
           <div className="grid gap-1.5">
-            <label className="font-mono text-[0.68rem] font-medium uppercase tracking-widest text-muted-foreground">
+            <label className="text-[13px] font-semibold text-[var(--text-secondary)]">
               Type
             </label>
             <Popover open={typeOpen} onOpenChange={setTypeOpen}>
@@ -127,7 +127,7 @@ export function EditWalletForm({ wallet, onClose }: Props) {
           </div>
 
           <div className="grid gap-1.5">
-            <label className="font-mono text-[0.68rem] font-medium uppercase tracking-widest text-muted-foreground">
+            <label className="text-[13px] font-semibold text-[var(--text-secondary)]">
               Institution
             </label>
             <Input value={institution} onChange={(e) => setInstitution(e.target.value)} placeholder="Optional" />

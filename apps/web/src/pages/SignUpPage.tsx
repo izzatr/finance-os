@@ -52,10 +52,11 @@ export function SignUpPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-muted/30 px-4">
-      <Card className="w-full max-w-sm">
+    <div className="flex min-h-dvh flex-col items-center justify-center bg-[var(--bg-base)] px-4 py-10">
+      <Card className="w-full max-w-sm bg-transparent ring-0 sm:bg-white sm:ring-1">
         <CardHeader className="text-center">
-          <div className="font-heading text-xl font-medium mb-1">Finance OS</div>
+          <div className="mx-auto mb-3 flex size-12 items-center justify-center rounded-2xl bg-[var(--ink)] text-[18px] font-bold text-[var(--cream)]" aria-hidden>F</div>
+          <div className="mb-1 text-[15px] font-bold">Finance OS</div>
           <CardTitle>Create your account</CardTitle>
           <CardDescription>Start managing your finances</CardDescription>
         </CardHeader>
@@ -127,9 +128,9 @@ export function SignUpPage() {
         </CardContent>
       </Card>
 
-      <p className="fixed bottom-4 text-sm text-muted-foreground">
+      <p className="mt-6 text-sm text-muted-foreground">
         Already have an account?{' '}
-        <Link to="/sign-in" className="text-primary underline-offset-4 hover:underline">
+        <Link to="/sign-in" className="font-semibold text-primary underline underline-offset-4">
           Sign in
         </Link>
       </p>

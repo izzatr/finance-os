@@ -25,12 +25,10 @@ export function NetWorthCard() {
   return (
     <section
       aria-label="Net worth"
-      className="mb-6 rounded-2xl bg-white px-5 py-4 shadow-[var(--shadow-card)]"
+      className="mb-8 rounded-[24px] bg-[var(--ink)] px-5 py-5 text-white"
     >
       <div className="flex items-center justify-between">
-        <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--accent-blue)]">
-          Net worth
-        </p>
+        <p className="text-[15px] font-medium text-white/75">Net worth</p>
         <div className="flex gap-1" role="tablist" aria-label="Display currency">
           {DISPLAY_CHOICES.map((c) => (
             <button
@@ -38,10 +36,10 @@ export function NetWorthCard() {
               role="tab"
               aria-selected={currency === c}
               onClick={() => setCurrency(c)}
-              className={`rounded-full px-2 py-0.5 text-[10px] font-semibold transition-colors ${
+              className={`h-8 rounded-full px-3 text-[12px] font-bold transition-colors ${
                 currency === c
-                  ? 'bg-[var(--accent-blue)] text-white'
-                  : 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]'
+                  ? 'bg-[var(--cream)] text-[var(--ink)]'
+                  : 'bg-white/10 text-white/80 hover:bg-white/15'
               }`}
             >
               {c}
@@ -49,11 +47,11 @@ export function NetWorthCard() {
           ))}
         </div>
       </div>
-      <p className="pt-1 font-mono text-3xl font-semibold tabular-nums text-[var(--text-primary)]">
+      <p className="tabular pt-2 text-[36px] font-bold leading-tight tracking-[-0.03em] text-white">
         {data ? formatTotal(data.total, data.currency) : '—'}
       </p>
       {data && (data.staleRates || data.missing.length > 0) && (
-        <p className="pt-1 text-[11px] text-[var(--text-tertiary)]">
+        <p className="pt-1 text-[12px] text-white/65">
           {data.staleRates && 'Rates are more than a week old. '}
           {data.missing.length > 0 && `Not included (no rate or price yet): ${data.missing.join(', ')}.`}
         </p>

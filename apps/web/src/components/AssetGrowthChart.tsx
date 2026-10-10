@@ -49,21 +49,21 @@ export function AssetGrowthChart({ data, currency, rates, defaultCurrency = 'EUR
         <AreaChart data={chartData} margin={{ top: 8, right: 8, bottom: 8, left: 8 }}>
           <defs>
             <linearGradient id="gradient-growth" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#3aac6a" stopOpacity={0.25} />
-              <stop offset="95%" stopColor="#3aac6a" stopOpacity={0} />
+              <stop offset="5%" stopColor="#0e1729" stopOpacity={0.12} />
+              <stop offset="95%" stopColor="#0e1729" stopOpacity={0} />
             </linearGradient>
           </defs>
-          <CartesianGrid strokeDasharray="3 3" stroke="rgba(150,190,220,0.15)" />
-          <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#8296a8' }} tickLine={false} axisLine={false} />
-          <YAxis tick={{ fontSize: 11, fill: '#8296a8' }} tickLine={false} axisLine={false} tickFormatter={fmt} width={80} />
+          <CartesianGrid strokeDasharray="3 3" stroke="#ede7dc" />
+          <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#6f695f' }} tickLine={false} axisLine={false} />
+          <YAxis tick={{ fontSize: 11, fill: '#6f695f' }} tickLine={false} axisLine={false} tickFormatter={fmt} width={80} />
           <Tooltip
-            contentStyle={{ background: '#fff', border: '1px solid rgba(180,210,235,0.35)', borderRadius: 12, fontSize: 13 }}
+            contentStyle={{ background: '#fff', border: '1px solid #ede7dc', borderRadius: 12, fontSize: 13 }}
             formatter={(value) => [fmt(value as number), currency === 'ALL' ? `Net Worth (${defaultCurrency})` : 'Balance']}
           />
           <Area
             type="monotone"
             dataKey="balance"
-            stroke="#3aac6a"
+            stroke="#0e1729"
             fill="url(#gradient-growth)"
             strokeWidth={2.5}
           />

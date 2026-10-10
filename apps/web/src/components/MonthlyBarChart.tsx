@@ -19,16 +19,16 @@ export function MonthlyBarChart({ data, currency }: Props) {
     <div className="h-80">
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={filtered} margin={{ top: 8, right: 8, bottom: 8, left: 8 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="rgba(150,190,220,0.15)" />
-          <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#8296a8' }} tickLine={false} axisLine={false} />
-          <YAxis tick={{ fontSize: 11, fill: '#8296a8' }} tickLine={false} axisLine={false} tickFormatter={fmt} width={70} />
+          <CartesianGrid strokeDasharray="3 3" stroke="#ede7dc" />
+          <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#6f695f' }} tickLine={false} axisLine={false} />
+          <YAxis tick={{ fontSize: 11, fill: '#6f695f' }} tickLine={false} axisLine={false} tickFormatter={fmt} width={70} />
           <Tooltip
-            contentStyle={{ background: '#fff', border: '1px solid rgba(180,210,235,0.35)', borderRadius: 12, fontSize: 13 }}
+            contentStyle={{ background: '#fff', border: '1px solid #ede7dc', borderRadius: 12, fontSize: 13 }}
             formatter={(value, name) => [fmt(value as number), name as string]}
           />
           <Legend wrapperStyle={{ fontSize: 12 }} />
-          <Bar dataKey="income" name="Income" fill="#3aac6a" radius={[4, 4, 0, 0]} />
-          <Bar dataKey="expense" name="Expense" fill="#d95050" radius={[4, 4, 0, 0]} />
+          <Bar dataKey="income" name="Income" fill="#12895a" radius={[4, 4, 0, 0]} />
+          <Bar dataKey="expense" name="Expense" fill="#0e1729" radius={[4, 4, 0, 0]} />
         </BarChart>
       </ResponsiveContainer>
     </div>

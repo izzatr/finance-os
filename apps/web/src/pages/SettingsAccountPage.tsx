@@ -1,13 +1,14 @@
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, Plus, Copy, Check, Trash2, Key, LogOut } from 'lucide-react'
+import { Plus, Copy, Check, Trash2, Key, LogOut } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { useAuth } from '@/contexts/AuthContext'
 import { listApiKeys, createApiKey, revokeApiKey, apiKeyScope, type ApiKeyScope } from '@/lib/auth'
+import { PageHeader } from '../components/PageHeader'
 
 function formatDate(dateStr: string) {
   return new Date(dateStr).toLocaleDateString('en-US', {
@@ -102,18 +103,9 @@ export function SettingsAccountPage() {
   }
 
   return (
-    <main className="max-w-[720px] px-8 md:px-12 pb-24">
+    <main className="w-full max-w-[720px] px-4 pb-8 pt-6 lg:px-12 lg:pt-10">
       {/* Page header */}
-      <div className="flex items-center gap-3 mb-8">
-        <Link
-          to="/dashboard"
-          className="inline-flex items-center gap-1.5 rounded-lg border border-border/50 bg-white/60 px-2.5 py-1.5 text-xs font-medium text-foreground/70 transition-all hover:border-[rgba(91,164,212,0.4)] hover:bg-white/90 hover:text-foreground no-underline"
-        >
-          <ArrowLeft size={13} />
-          Back
-        </Link>
-        <h1 className="font-heading text-2xl font-medium text-foreground">Account Settings</h1>
-      </div>
+      <PageHeader title="Settings" />
 
       <div className="flex flex-col gap-6">
         {/* Profile section */}
@@ -165,7 +157,7 @@ export function SettingsAccountPage() {
                 <p className="text-sm font-medium">Change password</p>
                 <p className="text-xs text-muted-foreground">Update your account password</p>
               </div>
-              <Button variant="outline" size="sm" render={<Link to="/settings/change-password" />}>
+              <Button variant="outline" size="sm" nativeButton={false} render={<Link to="/settings/change-password" />}>
                 Change password
               </Button>
             </div>
@@ -206,7 +198,7 @@ export function SettingsAccountPage() {
                   <Badge variant="outline" className="text-xs">Newly created — copy now</Badge>
                 </div>
                 <div className="flex items-center gap-2">
-                  <code className="flex-1 rounded bg-background px-2 py-1.5 font-mono text-xs text-foreground break-all">
+                  <code className="flex-1 rounded bg-background px-2 py-1.5 text-xs text-foreground break-all">
                     {newKey.value}
                   </code>
                   <CopyButton value={newKey.value} />
@@ -244,12 +236,12 @@ export function SettingsAccountPage() {
                 {keysQuery.data?.map((key) => (
                   <div
                     key={key.id}
-                    className="flex items-center justify-between rounded-lg border border-border/50 bg-white/50 px-3 py-2.5"
+                    className="flex items-center justify-between rounded-lg border border-border/50 bg-white px-3 py-2.5"
                   >
                     <div className="flex flex-col gap-0.5">
                       <div className="flex items-center gap-2">
                         <p className="text-sm font-medium text-foreground">{key.name ?? '(unnamed)'}</p>
-                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+                        <span className={`rounded-full px-2 py-0.5 text-[11.5px] font-semibold ${
                           apiKeyScope(key) === 'write'
                             ? 'bg-[color-mix(in_srgb,var(--negative)_12%,white)] text-[var(--negative)]'
                             : apiKeyScope(key) === 'propose'

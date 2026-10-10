@@ -96,13 +96,13 @@ export function AddTransactionForm({ onClose }: Props) {
     <Dialog open onOpenChange={(open) => { if (!open) onClose() }}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>New Transaction</DialogTitle>
+          <DialogTitle>New transaction</DialogTitle>
           <DialogDescription>Record a new expense, income, or other transaction.</DialogDescription>
         </DialogHeader>
 
         <div className="grid gap-3">
           <div className="grid gap-1.5">
-            <label className="font-mono text-[0.68rem] font-medium uppercase tracking-widest text-muted-foreground">
+            <label className="text-[13px] font-semibold text-[var(--text-secondary)]">
               Description
             </label>
             <Input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="e.g. Edeka groceries" autoFocus />
@@ -110,7 +110,7 @@ export function AddTransactionForm({ onClose }: Props) {
 
           <div className="flex gap-3">
             <div className="grid flex-1 gap-1.5">
-              <label className="font-mono text-[0.68rem] font-medium uppercase tracking-widest text-muted-foreground">
+              <label className="text-[13px] font-semibold text-[var(--text-secondary)]">
                 Type
               </label>
               <Select value={type} onValueChange={(v) => { if (v) setType(v) }}>
@@ -126,7 +126,7 @@ export function AddTransactionForm({ onClose }: Props) {
             </div>
 
             <div className="grid flex-1 gap-1.5">
-              <label className="font-mono text-[0.68rem] font-medium uppercase tracking-widest text-muted-foreground">
+              <label className="text-[13px] font-semibold text-[var(--text-secondary)]">
                 Date
               </label>
               <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
@@ -134,7 +134,7 @@ export function AddTransactionForm({ onClose }: Props) {
           </div>
 
           <div className="grid gap-1.5">
-            <label className="font-mono text-[0.68rem] font-medium uppercase tracking-widest text-muted-foreground">
+            <label className="text-[13px] font-semibold text-[var(--text-secondary)]">
               Wallet
             </label>
             <Popover open={walletOpen} onOpenChange={setWalletOpen}>
@@ -168,7 +168,7 @@ export function AddTransactionForm({ onClose }: Props) {
           </div>
 
           <div className="grid gap-1.5">
-            <label className="font-mono text-[0.68rem] font-medium uppercase tracking-widest text-muted-foreground">
+            <label className="text-[13px] font-semibold text-[var(--text-secondary)]">
               Amount
             </label>
             <Input
@@ -183,7 +183,7 @@ export function AddTransactionForm({ onClose }: Props) {
           </div>
 
           <div className="grid gap-1.5">
-            <label className="font-mono text-[0.68rem] font-medium uppercase tracking-widest text-muted-foreground">
+            <label className="text-[13px] font-semibold text-[var(--text-secondary)]">
               Category
             </label>
             <Popover open={categoryOpen} onOpenChange={setCategoryOpen}>
@@ -224,7 +224,7 @@ export function AddTransactionForm({ onClose }: Props) {
           </div>
 
           <div className="grid gap-1.5">
-            <label className="font-mono text-[0.68rem] font-medium uppercase tracking-widest text-muted-foreground">
+            <label className="text-[13px] font-semibold text-[var(--text-secondary)]">
               Notes
             </label>
             <Textarea

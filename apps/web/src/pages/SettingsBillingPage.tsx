@@ -1,10 +1,11 @@
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { ArrowLeft, Check } from 'lucide-react'
+import { Check } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { useAuth } from '@/contexts/AuthContext'
+import { PageHeader } from '../components/PageHeader'
 
 interface Plan {
   id: string
@@ -93,18 +94,9 @@ export function SettingsBillingPage() {
   const user = state.status === 'authenticated' ? state.user : null
 
   return (
-    <main className="max-w-[900px] px-8 md:px-12 pb-24">
+    <main className="w-full max-w-[900px] px-4 pb-8 pt-6 lg:px-12 lg:pt-10">
       {/* Page header */}
-      <div className="flex items-center gap-3 mb-8">
-        <Link
-          to="/dashboard"
-          className="inline-flex items-center gap-1.5 rounded-lg border border-border/50 bg-white/60 px-2.5 py-1.5 text-xs font-medium text-foreground/70 transition-all hover:border-[rgba(91,164,212,0.4)] hover:bg-white/90 hover:text-foreground no-underline"
-        >
-          <ArrowLeft size={13} />
-          Back
-        </Link>
-        <h1 className="font-heading text-2xl font-medium text-foreground">Subscription</h1>
-      </div>
+      <PageHeader title="Subscription" />
 
       <div className="flex flex-col gap-8">
         {/* Current plan */}
@@ -128,7 +120,7 @@ export function SettingsBillingPage() {
                   {user?.email ?? 'No active subscription'}
                 </p>
                 <div className="flex flex-col gap-2 pt-2">
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                  <p className="text-[13px] font-semibold text-[var(--text-secondary)]">
                     What's included
                   </p>
                   <ul className="flex flex-col gap-1.5">
@@ -148,7 +140,7 @@ export function SettingsBillingPage() {
         {/* Available plans */}
         <div className="flex flex-col gap-4">
           <div>
-            <h2 className="font-heading text-xl font-medium text-foreground">Available Plans</h2>
+            <h2 className="text-[18px] font-bold text-foreground">Available plans</h2>
             <p className="text-sm text-muted-foreground mt-1">
               Upgrade to unlock more features and capabilities
             </p>
@@ -160,13 +152,13 @@ export function SettingsBillingPage() {
                 key={plan.id}
                 className={
                   plan.highlighted
-                    ? 'relative border-[rgba(91,164,212,0.5)] bg-gradient-to-b from-white to-sky-50/30 shadow-md'
+                    ? 'relative border-[var(--ink)] bg-white ring-1 ring-[var(--ink)]'
                     : 'relative'
                 }
               >
                 {plan.highlighted && (
-                  <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                    <Badge className="bg-sky-500 hover:bg-sky-600 text-white text-xs font-medium px-3 py-0.5 shadow-sm">
+                  <div className="absolute right-3 top-3">
+                    <Badge className="bg-[var(--ink)] hover:bg-[var(--ink)] text-[var(--cream)] text-xs font-medium px-3 py-0.5 shadow-sm">
                       Best value
                     </Badge>
                   </div>
@@ -200,6 +192,7 @@ export function SettingsBillingPage() {
                     variant={plan.highlighted ? 'default' : 'outline'}
                     size="sm"
                     className="w-full mt-auto"
+                    nativeButton={false}
                     render={<Link to="/dashboard" />}
                   >
                     Subscribe

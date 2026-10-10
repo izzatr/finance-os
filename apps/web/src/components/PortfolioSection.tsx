@@ -92,7 +92,7 @@ export function PortfolioSection({ portfolio, onAddHolding, onRefresh, onEditHol
     <section aria-label="Investment portfolio" className="mb-14">
       <SectionDivider title="Portfolio" badge={`${portfolio.holdings.length} holding${portfolio.holdings.length === 1 ? '' : 's'}`} />
 
-      <Card className="overflow-hidden bg-white/75">
+      <Card className="overflow-hidden bg-white">
         <CardContent className="p-0">
           <header className="flex flex-col gap-5 border-b border-border/60 p-5 sm:flex-row sm:items-start sm:justify-between sm:p-7">
             <div>
@@ -168,12 +168,12 @@ export function PortfolioSection({ portfolio, onAddHolding, onRefresh, onEditHol
               <div className="h-52" aria-label="Portfolio history chart">
                 <ResponsiveContainer width="100%" height="100%" initialDimension={{ width: 800, height: 208 }}>
                   <AreaChart data={portfolio.history} margin={{ top: 4, right: 4, bottom: 0, left: 4 }}>
-                    <defs><linearGradient id="portfolio-fill" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#5ba4d4" stopOpacity={0.25} /><stop offset="95%" stopColor="#5ba4d4" stopOpacity={0} /></linearGradient></defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(150,190,220,0.15)" />
+                    <defs><linearGradient id="portfolio-fill" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#0e1729" stopOpacity={0.25} /><stop offset="95%" stopColor="#0e1729" stopOpacity={0} /></linearGradient></defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#ede7dc" />
                     <XAxis dataKey="date" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
                     <YAxis tick={{ fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={(value) => formatMoney(Number(value), portfolio.baseCurrency, true)} width={70} />
                     <Tooltip formatter={(value) => [formatMoney(Number(value), portfolio.baseCurrency), 'Portfolio']} contentStyle={{ fontSize: 12, borderRadius: 8 }} />
-                    <Area type="monotone" dataKey="value" stroke="#5ba4d4" strokeWidth={2.5} fill="url(#portfolio-fill)" />
+                    <Area type="monotone" dataKey="value" stroke="#0e1729" strokeWidth={2.5} fill="url(#portfolio-fill)" />
                   </AreaChart>
                 </ResponsiveContainer>
               </div>

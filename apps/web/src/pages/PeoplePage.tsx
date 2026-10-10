@@ -167,14 +167,14 @@ export function PeoplePage() {
   return (
     <div className="mx-auto w-full max-w-2xl px-4 py-6 lg:px-8">
       <header className="flex items-center justify-between pb-4">
-        <h1 className="text-xl font-semibold text-[var(--text-primary)]">People</h1>
-        <Button size="sm" variant="outline" onClick={() => setAdding(true)}>
+        <h1 className="text-[28px] font-bold tracking-[-0.02em] text-[var(--text-primary)]">People</h1>
+        <Button size="sm" onClick={() => setAdding(true)}>
           <Plus className="size-4" /> Add
         </Button>
       </header>
 
       {people.length === 0 && !peopleQuery.isLoading && (
-        <div className="rounded-xl bg-white p-8 text-center shadow-[var(--shadow-card)]">
+        <div className="rounded-2xl bg-[var(--tint)] px-6 py-8 text-center">
           <UserRound className="mx-auto size-8 text-[var(--text-tertiary)]" />
           <p className="pt-3 text-sm font-medium text-[var(--text-primary)]">Track shared expenses</p>
           <p className="pt-1 text-xs text-[var(--text-tertiary)]">
@@ -188,7 +188,7 @@ export function PeoplePage() {
           const balance = balanceByPerson.get(p.id)
           const hasBalance = (balance?.balances.length ?? 0) > 0
           return (
-            <div key={p.id} className="flex items-center gap-3 rounded-xl bg-white px-4 py-3 shadow-[var(--shadow-card)]">
+            <div key={p.id} className="flex items-center gap-3 rounded-xl border border-[var(--border-subtle)] bg-white px-4 py-3">
               <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-[var(--accent-dim)] text-sm font-semibold text-[var(--accent-blue)]">
                 {p.name.slice(0, 1).toUpperCase()}
               </div>

@@ -27,7 +27,7 @@ function ReviewRow({ category }: { category: Category }) {
     onSuccess: invalidate,
   })
   return (
-    <div className="flex items-center gap-2 rounded-lg bg-white px-3 py-2 shadow-[var(--shadow-card)]">
+    <div className="flex min-h-12 items-center gap-2 rounded-xl border border-[var(--border-subtle)] bg-white px-3.5 py-2.5">
       <p className="min-w-0 flex-1 truncate text-sm font-medium text-[var(--text-primary)]">{category.name}</p>
       {(['expense', 'income', 'transfer'] as const).map((t) => (
         <button
@@ -116,15 +116,15 @@ export function CategoriesPage() {
   return (
     <div className="mx-auto w-full max-w-2xl px-4 py-6 lg:px-8">
       <header className="flex items-center justify-between pb-4">
-        <h1 className="text-xl font-semibold text-[var(--text-primary)]">Categories</h1>
-        <Button size="sm" variant="outline" onClick={() => setAdding(true)}>
+        <h1 className="text-[28px] font-bold tracking-[-0.02em] text-[var(--text-primary)]">Categories</h1>
+        <Button size="sm" onClick={() => setAdding(true)}>
           <Plus className="size-4" /> Add
         </Button>
       </header>
 
       {needsReview.length > 0 && (
         <section className="pb-5" aria-label="Needs review">
-          <h2 className="pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-[var(--negative)]">
+          <h2 className="pb-1.5 text-[15px] font-bold text-[var(--negative)]">
             Review these ({needsReview.length})
           </h2>
           <p className="pb-2 text-xs text-[var(--text-tertiary)]">
@@ -137,7 +137,7 @@ export function CategoriesPage() {
       )}
 
       {categories.length === 0 && !categoriesQuery.isLoading && (
-        <div className="rounded-xl bg-white p-8 text-center shadow-[var(--shadow-card)]">
+        <div className="rounded-2xl bg-[var(--tint)] px-6 py-8 text-center">
           <Tags className="mx-auto size-8 text-[var(--text-tertiary)]" />
           <p className="pt-3 text-sm font-medium text-[var(--text-primary)]">No categories yet</p>
           <p className="pt-1 text-xs text-[var(--text-tertiary)]">Categories make reports meaningful — add your first.</p>
@@ -149,17 +149,17 @@ export function CategoriesPage() {
         if (!group || group.parents.length === 0) return null
         return (
           <section key={t} className="pb-5" aria-label={TYPE_LABELS[t]}>
-            <h2 className="pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-[var(--text-tertiary)]">
+            <h2 className="pb-1.5 text-[15px] font-bold text-[var(--text-primary)]">
               {TYPE_LABELS[t]}
             </h2>
             <div className="grid gap-1.5">
               {group.parents.map((parent) => (
                 <div key={parent.id}>
-                  <div className="flex items-center rounded-lg bg-white px-3 py-2 shadow-[var(--shadow-card)]">
+                  <div className="flex min-h-12 items-center rounded-xl border border-[var(--border-subtle)] bg-white px-3.5 py-2.5">
                     <p className="text-sm font-medium text-[var(--text-primary)]">{parent.name}</p>
                   </div>
                   {(group.children.get(parent.id) ?? []).map((child) => (
-                    <div key={child.id} className="ml-5 mt-1 flex items-center gap-2 rounded-lg bg-white/70 px-3 py-1.5">
+                    <div key={child.id} className="ml-5 mt-1 flex items-center gap-2 rounded-xl border border-[var(--border-subtle)] bg-white px-3 py-2">
                       <CornerDownRight className="size-3.5 text-[var(--text-tertiary)]" />
                       <p className="text-sm text-[var(--text-secondary)]">{child.name}</p>
                     </div>

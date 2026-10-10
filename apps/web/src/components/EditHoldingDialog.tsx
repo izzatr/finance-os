@@ -55,11 +55,11 @@ export function EditHoldingDialog({ open, holding, onClose, onSubmit }: Props) {
         </DialogHeader>
         <form onSubmit={handleSubmit} className="grid gap-4">
           <div className="grid gap-1.5">
-            <label htmlFor="edit-holding-quantity" className="font-mono text-[0.68rem] font-medium uppercase tracking-widest text-muted-foreground">Quantity</label>
+            <label htmlFor="edit-holding-quantity" className="text-[13px] font-semibold text-[var(--text-secondary)]">Quantity</label>
             <Input id="edit-holding-quantity" inputMode="decimal" value={quantity} onChange={(event) => setQuantity(event.target.value)} />
           </div>
           <div className="grid gap-1.5">
-            <label htmlFor="edit-holding-average-cost" className="font-mono text-[0.68rem] font-medium uppercase tracking-widest text-muted-foreground">Average cost ({holding.quoteCurrency})</label>
+            <label htmlFor="edit-holding-average-cost" className="text-[13px] font-semibold text-[var(--text-secondary)]">Average cost ({holding.quoteCurrency})</label>
             <Input id="edit-holding-average-cost" inputMode="decimal" value={averageCost} onChange={(event) => setAverageCost(event.target.value)} placeholder="Optional" />
           </div>
           {error && <p role="alert" className="font-mono text-xs text-[var(--negative)]">{error}</p>}

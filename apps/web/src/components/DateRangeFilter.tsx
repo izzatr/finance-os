@@ -86,14 +86,14 @@ export function DateRangeFilter({ value, onChange }: DateRangeFilterProps) {
   }
 
   return (
-    <div className="flex items-center gap-2 flex-wrap">
-      <CalendarIcon className="size-3.5 text-muted-foreground" />
+    <div className="-mx-4 flex items-center gap-2 overflow-x-auto px-4 [mask-image:linear-gradient(to_right,#000_88%,transparent)] [scrollbar-width:none] lg:mx-0 lg:flex-wrap lg:px-0 lg:[mask-image:none]">
       {presets.map((preset) => (
         <Button
           key={preset.label}
-          variant={value.label === preset.label ? 'default' : 'outline'}
+          variant={value.label === preset.label ? 'default' : 'secondary'}
           size="sm"
-          className="text-xs h-7"
+          className="shrink-0 rounded-full px-3.5"
+          aria-pressed={value.label === preset.label}
           onClick={() => onChange(preset)}
         >
           {preset.label}
@@ -105,21 +105,21 @@ export function DateRangeFilter({ value, onChange }: DateRangeFilterProps) {
         <PopoverTrigger
           render={
             <Button
-              variant={value.label === 'Custom' ? 'default' : 'outline'}
+              variant={value.label === 'Custom' ? 'default' : 'secondary'}
               size="sm"
-              className="text-xs h-7 gap-1"
+              className="shrink-0 gap-1.5 rounded-full px-3.5"
             />
           }
         >
-          <CalendarIcon className="size-3" />
+          <CalendarIcon className="size-3.5" />
           Custom
         </PopoverTrigger>
         <PopoverContent side="bottom" align="start" className="w-auto p-4 bg-popover rounded-xl border shadow-lg z-50">
           <div className="flex flex-col gap-3">
-            <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+            <div className="text-[13px] font-semibold text-[var(--text-secondary)]">
               Select date range
             </div>
-            <div className="flex gap-4">
+            <div className="flex flex-col gap-4 sm:flex-row">
               <div>
                 <div className="text-[11px] text-muted-foreground mb-1">From</div>
                 <Calendar
@@ -155,7 +155,7 @@ export function DateRangeFilter({ value, onChange }: DateRangeFilterProps) {
       </Popover>
 
       {value.from && (
-        <Badge variant="outline" className="text-[10px] font-mono text-muted-foreground ml-1">
+        <Badge variant="outline" className="ml-1 shrink-0 text-[12px] text-muted-foreground">
           {formatDateShort(value.from)} — {formatDateShort(value.to)}
         </Badge>
       )}

@@ -105,7 +105,7 @@ export function AddHoldingDialog({ open, onClose, onSearch, onSubmit }: Props) {
 
         <form onSubmit={handleSubmit} className="grid gap-5">
           <div className="grid gap-2">
-            <label htmlFor="holding-search" className="font-mono text-[0.68rem] font-medium uppercase tracking-widest text-muted-foreground">Search stocks and ETFs</label>
+            <label htmlFor="holding-search" className="text-[13px] font-semibold text-[var(--text-secondary)]">Search stocks and ETFs</label>
             <div className="flex gap-2">
               <Input id="holding-search" value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') void handleSearch(event) }} placeholder="BBCA, Bank Central Asia, VWCE..." autoComplete="off" />
               <Button type="button" variant="outline" onClick={(event) => void handleSearch(event)} disabled={!query.trim() || searching} className="min-h-11">
@@ -120,7 +120,7 @@ export function AddHoldingDialog({ open, onClose, onSearch, onSubmit }: Props) {
                 const label = `${candidate.symbol} · ${candidate.exchange} · ${candidate.quoteCurrency}`
                 const active = selected?.providerSymbol === candidate.providerSymbol
                 return (
-                  <button type="button" aria-label={label} aria-pressed={active} key={`${candidate.provider}:${candidate.providerSymbol}`} onClick={() => setSelected(candidate)} className={cn('min-h-11 rounded-xl border px-4 py-3 text-left transition-colors', active ? 'border-[#5ba4d4] bg-[#eef7fd]' : 'border-border/70 bg-white hover:border-[#9fc9e4]')}>
+                  <button type="button" aria-label={label} aria-pressed={active} key={`${candidate.provider}:${candidate.providerSymbol}`} onClick={() => setSelected(candidate)} className={cn('min-h-11 rounded-xl border px-4 py-3 text-left transition-colors', active ? 'border-[var(--ink)] bg-[var(--tint)]' : 'border-border/70 bg-white hover:border-[var(--border-medium)]')}>
                     <span className="block font-mono text-sm font-semibold">{label}</span>
                     <span className="mt-1 block text-xs text-muted-foreground">{candidate.name} · Yahoo {candidate.providerSymbol}</span>
                   </button>
@@ -131,14 +131,14 @@ export function AddHoldingDialog({ open, onClose, onSearch, onSubmit }: Props) {
           {searched && results.length === 0 && <p className="text-xs text-muted-foreground">No Yahoo stock or ETF listings found.</p>}
 
           {selected && (
-            <div className="grid gap-4 rounded-xl border border-border/70 bg-white/70 p-4 sm:grid-cols-2">
+            <div className="grid gap-4 rounded-xl border border-border/70 bg-white p-4 sm:grid-cols-2">
               <div className="grid gap-1.5">
-                <label htmlFor="holding-quantity" className="font-mono text-[0.68rem] font-medium uppercase tracking-widest text-muted-foreground">Quantity</label>
+                <label htmlFor="holding-quantity" className="text-[13px] font-semibold text-[var(--text-secondary)]">Quantity</label>
                 <Input id="holding-quantity" inputMode="decimal" value={quantity} onChange={(event) => setQuantity(event.target.value)} placeholder="1000" aria-invalid={quantity !== '' && !quantityValid} aria-describedby="holding-quantity-error" />
                 {quantity !== '' && !quantityValid && <p id="holding-quantity-error" className="text-xs text-[var(--negative)]">Enter a quantity greater than zero.</p>}
               </div>
               <div className="grid gap-1.5">
-                <label htmlFor="holding-average-cost" className="font-mono text-[0.68rem] font-medium uppercase tracking-widest text-muted-foreground">Average cost ({selected.quoteCurrency})</label>
+                <label htmlFor="holding-average-cost" className="text-[13px] font-semibold text-[var(--text-secondary)]">Average cost ({selected.quoteCurrency})</label>
                 <Input id="holding-average-cost" inputMode="decimal" value={averageCost} onChange={(event) => setAverageCost(event.target.value)} placeholder="Optional" aria-invalid={!averageCostValid} aria-describedby="holding-average-cost-error" />
                 {!averageCostValid && <p id="holding-average-cost-error" className="text-xs text-[var(--negative)]">Enter a cost greater than zero or leave it blank.</p>}
               </div>

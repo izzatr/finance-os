@@ -114,7 +114,7 @@ export function EditTransactionForm({ transaction, walletId, onClose }: Props) {
 
         <div className="grid gap-3">
           <div className="grid gap-1.5">
-            <label className="font-mono text-[0.68rem] font-medium uppercase tracking-widest text-muted-foreground">
+            <label className="text-[13px] font-semibold text-[var(--text-secondary)]">
               Description
             </label>
             <Input value={description} onChange={(e) => setDescription(e.target.value)} />
@@ -122,7 +122,7 @@ export function EditTransactionForm({ transaction, walletId, onClose }: Props) {
 
           <div className="flex gap-3">
             <div className="grid flex-1 gap-1.5">
-              <label className="font-mono text-[0.68rem] font-medium uppercase tracking-widest text-muted-foreground">
+              <label className="text-[13px] font-semibold text-[var(--text-secondary)]">
                 Type
               </label>
               <Select value={type} onValueChange={(v) => { if (v) setType(v) }}>
@@ -138,7 +138,7 @@ export function EditTransactionForm({ transaction, walletId, onClose }: Props) {
             </div>
 
             <div className="grid flex-1 gap-1.5">
-              <label className="font-mono text-[0.68rem] font-medium uppercase tracking-widest text-muted-foreground">
+              <label className="text-[13px] font-semibold text-[var(--text-secondary)]">
                 Date
               </label>
               <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
@@ -146,7 +146,7 @@ export function EditTransactionForm({ transaction, walletId, onClose }: Props) {
           </div>
 
           <div className="grid gap-1.5">
-            <label className="font-mono text-[0.68rem] font-medium uppercase tracking-widest text-muted-foreground">
+            <label className="text-[13px] font-semibold text-[var(--text-secondary)]">
               Amount
             </label>
             <Input type="text" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="-32.50" />
@@ -156,7 +156,7 @@ export function EditTransactionForm({ transaction, walletId, onClose }: Props) {
           </div>
 
           <div className="grid gap-1.5">
-            <label className="font-mono text-[0.68rem] font-medium uppercase tracking-widest text-muted-foreground">
+            <label className="text-[13px] font-semibold text-[var(--text-secondary)]">
               Category
             </label>
             <Popover open={categoryOpen} onOpenChange={setCategoryOpen}>
@@ -202,7 +202,7 @@ export function EditTransactionForm({ transaction, walletId, onClose }: Props) {
           </div>
 
           <div className="grid gap-1.5">
-            <label className="font-mono text-[0.68rem] font-medium uppercase tracking-widest text-muted-foreground">
+            <label className="text-[13px] font-semibold text-[var(--text-secondary)]">
               Notes
             </label>
             <Textarea
@@ -231,7 +231,7 @@ export function EditTransactionForm({ transaction, walletId, onClose }: Props) {
               <Button
                 variant="ghost"
                 onClick={() => setConfirmingDelete(true)}
-                className="w-full text-[var(--negative)] hover:text-[var(--negative)] hover:bg-[rgba(217,80,80,0.08)]"
+                className="w-full text-[var(--negative)] hover:text-[var(--negative)] hover:bg-[rgba(194,58,43,0.08)]"
               >
                 <Trash2 className="mr-2 h-4 w-4" />
                 Delete transaction

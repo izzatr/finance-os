@@ -76,20 +76,20 @@ export function CreateWalletForm({ onClose }: Props) {
     <Dialog open onOpenChange={(open) => { if (!open) onClose() }}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>New Wallet</DialogTitle>
+          <DialogTitle>New wallet</DialogTitle>
           <DialogDescription>Add a new wallet to track.</DialogDescription>
         </DialogHeader>
 
         <div className="grid gap-3">
           <div className="grid gap-1.5">
-            <label className="font-mono text-[0.68rem] font-medium uppercase tracking-widest text-muted-foreground">
+            <label className="text-[13px] font-semibold text-[var(--text-secondary)]">
               Name
             </label>
             <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Main Checking EUR" />
           </div>
 
           <div className="grid gap-1.5">
-            <label className="font-mono text-[0.68rem] font-medium uppercase tracking-widest text-muted-foreground">
+            <label className="text-[13px] font-semibold text-[var(--text-secondary)]">
               Type
             </label>
             <Popover open={typeOpen} onOpenChange={setTypeOpen}>
@@ -123,7 +123,7 @@ export function CreateWalletForm({ onClose }: Props) {
           </div>
 
           <div className="grid gap-1.5">
-            <label className="font-mono text-[0.68rem] font-medium uppercase tracking-widest text-muted-foreground">
+            <label className="text-[13px] font-semibold text-[var(--text-secondary)]">
               Currency
             </label>
             <Popover open={currencyOpen} onOpenChange={setCurrencyOpen}>
@@ -157,10 +157,10 @@ export function CreateWalletForm({ onClose }: Props) {
           </div>
 
           <div className="grid gap-1.5">
-            <label className="font-mono text-[0.68rem] font-medium uppercase tracking-widest text-muted-foreground">
+            <label className="text-[13px] font-semibold text-[var(--text-secondary)]">
               Institution
             </label>
-            <Input value={institution} onChange={(e) => setInstitution(e.target.value)} placeholder="Optional (e.g. Example Bank, City Credit Union)" />
+            <Input value={institution} onChange={(e) => setInstitution(e.target.value)} placeholder="Optional, e.g. N26" />
           </div>
 
           {mutation.error && (
@@ -168,7 +168,7 @@ export function CreateWalletForm({ onClose }: Props) {
           )}
 
           <Button onClick={() => mutation.mutate()} disabled={!canSubmit} className="w-full">
-            {mutation.isPending ? 'Creating...' : 'Create Wallet'}
+            {mutation.isPending ? 'Creating...' : 'Create wallet'}
           </Button>
         </div>
       </DialogContent>

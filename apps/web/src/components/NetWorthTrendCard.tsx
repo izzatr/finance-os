@@ -23,12 +23,10 @@ export function NetWorthTrendCard({ walletIds = [] }: { walletIds?: string[] }) 
   if (!data || data.series.length < 2) return null
 
   return (
-    <section aria-label="Net worth trend" className="mb-6 rounded-2xl bg-white px-5 py-4 shadow-[var(--shadow-card)]">
+    <section aria-label="Net worth trend" className="mb-6 rounded-2xl border border-[var(--border-subtle)] bg-white px-4 py-4">
       <div className="flex items-baseline justify-between pb-2">
-        <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--accent-blue)]">
-          Net worth · 12 months
-        </p>
-        <span className="font-mono text-sm font-semibold tabular-nums text-[var(--text-primary)]">
+        <p className="text-[15px] font-bold text-[var(--text-primary)]">Net worth · 12 months</p>
+        <span className="tabular text-[15px] font-bold text-[var(--text-primary)]">
           {compact(data.total, data.currency)}
         </span>
       </div>
