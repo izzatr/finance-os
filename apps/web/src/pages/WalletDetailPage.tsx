@@ -67,7 +67,13 @@ export function WalletDetailPage() {
 
     for (const tx of sorted) {
       cumulative += tx.amount
-      points.push({ date: tx.transactionDate, balance: Math.round(cumulative * 100) / 100 })
+      const point = { date: tx.transactionDate, balance: Math.round(cumulative * 100) / 100 }
+      // One point per calendar day (the end-of-day balance), so the axis never repeats a date.
+      if (points.length > 0 && points[points.length - 1].date.slice(0, 10) === point.date.slice(0, 10)) {
+        points[points.length - 1] = point
+      } else {
+        points.push(point)
+      }
     }
 
     return points
