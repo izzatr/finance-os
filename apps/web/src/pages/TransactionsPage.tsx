@@ -1,4 +1,6 @@
 import { useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { collapseSharedRows } from '@/lib/sharedRows'
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import { Search } from 'lucide-react'
 import { Input } from '@/components/ui/input'
@@ -40,8 +42,9 @@ export function TransactionsPage() {
     return typeFilter === 'all' ? all : all.filter((r) => r.type === typeFilter)
   }, [searching, searchQuery.data, listQuery.data, typeFilter])
 
-  // One row per wallet entry: a transfer shows both legs.
-  const items = useMemo(() => rows.map((r) => ({ ...r, id: r.entryId })), [rows])
+  // One row per wallet entry (a transfer shows both legs); a shared expense is one row.
+  const items = useMemo(() => collapseSharedRows(rows), [rows])
+  const navigate = useNavigate()
 
   return (
     <div className="mx-auto w-full max-w-2xl px-4 pb-6 pt-[calc(env(safe-area-inset-top)+1.25rem)] lg:px-8 lg:pt-8">
@@ -86,6 +89,8 @@ export function TransactionsPage() {
       ) : (
         <ActivityList
           transactions={items}
+          onSelect={(tx) => tx.sharedExpenseId && navigate(`/shared/expenses/${tx.sharedExpenseId}`)}
+          selectable={(tx) => Boolean(tx.sharedExpenseId)}
           emptyLabel={searching ? 'No transactions match your search.' : 'No transactions yet. Tap + to add your first.'}
         />
       )}

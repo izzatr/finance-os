@@ -1,7 +1,8 @@
 const CURRENCY_SYMBOLS: Record<string, string> = { IDR: 'Rp', EUR: '\u20ac', USD: '$', GBP: '\u00a3', SGD: 'S$', JPY: '\u00a5' }
 
 export function currencySymbol(currency: string): string {
-  return CURRENCY_SYMBOLS[currency] ?? currency
+  // Codes without a symbol get a space: `AUD 128.40`, not `AUD128.40`.
+  return CURRENCY_SYMBOLS[currency] ?? `${currency} `
 }
 
 function toNumber(amount: number | string): number {

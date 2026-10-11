@@ -1,21 +1,26 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { DatePicker } from '@/components/ui/date-picker'
+import { Dropdown } from '@/components/ui/dropdown'
 import { CalendarDays, ChevronDown, Delete, PencilLine, Sparkles, Users, Wallet as WalletIcon } from 'lucide-react'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Input } from '@/components/ui/input'
 import {
+  createSharedExpense,
   createTransaction,
   getAiStatus,
   getCategories,
-  getPeople,
   getRecentTransactions,
+  getSplitFriends,
   getWallets,
   parseTransactionText,
+  pickableWallets,
   type Category,
   type RecentTransaction,
   type Wallet,
 } from '@/lib/api'
 import { useQuickAdd } from '@/contexts/QuickAddContext'
+import { invalidateShared, splitKeys, useSplitMe } from '@/hooks/use-split'
 import { localDateKey, parseAmountInput } from '@/lib/money'
 import { categoryIcon } from '@/lib/categoryIcon'
 import { currencySymbol, dayLabel } from '@/lib/format'
@@ -89,8 +94,7 @@ export function QuickAddSheet() {
   const [walletId, setWalletId] = useState<string | null>(null)
   const [date, setDate] = useState(localDateKey)
   const [splitOpen, setSplitOpen] = useState(false)
-  const [splitPersonId, setSplitPersonId] = useState<string | null>(null)
-  const [splitAmount, setSplitAmount] = useState('')
+  const [splitFriendIds, setSplitFriendIds] = useState<string[]>([])
   const [error, setError] = useState<string | null>(null)
   const [magicText, setMagicText] = useState('')
   const [parsing, setParsing] = useState(false)
@@ -100,14 +104,17 @@ export function QuickAddSheet() {
   // NOTE: existing pages use ['categories'] for the category BREAKDOWN — this is the raw list.
   const categoriesQuery = useQuery({ queryKey: ['category-list'], queryFn: getCategories, enabled: isOpen })
   const recentQuery = useQuery({ queryKey: ['recent'], queryFn: getRecentTransactions, enabled: isOpen, staleTime: 60_000 })
-  const peopleQuery = useQuery({ queryKey: ['people'], queryFn: getPeople, enabled: isOpen && splitOpen })
+  const friendsQuery = useQuery({ queryKey: splitKeys.friends, queryFn: getSplitFriends, enabled: isOpen && splitOpen })
+  const meQuery = useSplitMe(isOpen && splitOpen)
+  const splitting = kind === 'expense' && splitOpen
 
   const recent = recentQuery.data?.data ?? []
   const categories = categoriesQuery.data?.data
   const chips = useMemo(() => rankCategories(kind, categories, recent), [kind, categories, recent])
   const merchants = useMemo(() => recentMerchants(kind, recent), [kind, recent])
 
-  const wallets = (walletsQuery.data?.data ?? []).filter((w) => w.isActive)
+  // System wallets (Friends · EUR) are never written directly, so they are not offered here.
+  const wallets = pickableWallets(walletsQuery.data?.data ?? [])
   // Picked wallet, else the one used last time, else the first. Derived, so no sync effect.
   const remembered = isOpen ? readRememberedWallet() : null
   const wallet: Wallet | undefined =
@@ -116,14 +123,18 @@ export function QuickAddSheet() {
   const selectedCategory = categories?.find((c) => c.id === categoryId)
 
   const mutation = useMutation({
-    mutationFn: createTransaction,
+    mutationFn: async (job: { kind: 'transaction'; body: Parameters<typeof createTransaction>[0] } | { kind: 'shared'; body: Parameters<typeof createSharedExpense>[0] }) => {
+      if (job.kind === 'shared') await createSharedExpense(job.body)
+      else await createTransaction(job.body)
+    },
     onSuccess: () => {
       for (const key of [
         'wallets', 'recent', 'transactions', 'dashboard', 'summary', 'summary-monthly',
-        'categories', 'monthly-trend', 'asset-growth', 'net-worth', 'shared-balances',
+        'categories', 'monthly-trend', 'asset-growth', 'net-worth',
       ]) {
         qc.invalidateQueries({ queryKey: [key] })
       }
+      invalidateShared(qc)
       if (wallet) localStorage.setItem(LAST_WALLET_KEY, wallet.id)
       reset()
       closeQuickAdd()
@@ -137,8 +148,7 @@ export function QuickAddSheet() {
     setNoteOpen(false)
     setCategoryId(null)
     setSplitOpen(false)
-    setSplitPersonId(null)
-    setSplitAmount('')
+    setSplitFriendIds([])
     setError(null)
     setDate(localDateKey())
   }
@@ -191,29 +201,45 @@ export function QuickAddSheet() {
       setError('Pick a date')
       return
     }
-    // A split that is open but incomplete must never save silently — the user
-    // believes the debt was recorded.
-    let splits: Array<{ personId: string; amount: string }> | undefined
-    if (splitOpen) {
-      const share = parseAmountInput(splitAmount)
-      if (!splitPersonId || !share) {
-        setError('Pick a person and their share, or remove the split')
+    const description_ = description.trim() || selectedCategory?.name || (kind === 'expense' ? 'Expense' : 'Income')
+    const isoDate = new Date(`${date}T12:00:00.000Z`).toISOString()
+    // A split that is open but incomplete must never save silently: the user believes the debt was recorded.
+    if (splitting) {
+      const me = meQuery.data?.data
+      if (splitFriendIds.length === 0) {
+        setError('Pick who you split with, or remove the split')
         return
       }
-      if (Number(share) > Number(value)) {
-        setError('Their share cannot exceed the amount')
+      if (!me) {
+        setError('Still loading your friends, try again in a moment')
         return
       }
-      splits = [{ personId: splitPersonId, amount: share }]
+      mutation.mutate({
+        kind: 'shared',
+        body: {
+          kind: 'expense',
+          description: description_,
+          cost: value,
+          currency: wallet.currency,
+          date: isoDate,
+          category: 'general',
+          paid: { kind: 'single', personId: me.personId },
+          split: { method: 'equal', personIds: [me.personId, ...splitFriendIds] },
+          myBooks: { fundingWalletId: wallet.id, categoryId: categoryId ?? null },
+        },
+      })
+      return
     }
     const signed = kind === 'expense' ? `-${value}` : value
     mutation.mutate({
-      transactionDate: new Date(`${date}T12:00:00.000Z`).toISOString(),
-      type: kind,
-      description: description.trim() || selectedCategory?.name || (kind === 'expense' ? 'Expense' : 'Income'),
-      categoryId: categoryId ?? undefined,
-      entries: [{ walletId: wallet.id, assetId: wallet.assetId, amount: signed }],
-      splits,
+      kind: 'transaction',
+      body: {
+        transactionDate: isoDate,
+        type: kind,
+        description: description_,
+        categoryId: categoryId ?? undefined,
+        entries: [{ walletId: wallet.id, assetId: wallet.assetId, amount: signed }],
+      },
     })
   }
 
@@ -240,7 +266,7 @@ export function QuickAddSheet() {
                 type="button"
                 role="tab"
                 aria-selected={kind === k}
-                onClick={() => { setKind(k); setCategoryId(null) }}
+                onClick={() => { setKind(k); setCategoryId(null); setSplitOpen(false); setSplitFriendIds([]) }}
                 className={`h-9 flex-1 rounded-[9px] text-sm font-semibold capitalize transition-colors ${
                   kind === k ? 'bg-white text-[var(--text-primary)] shadow-[0_1px_3px_rgba(0,0,0,0.08)]' : 'text-[var(--text-tertiary)]'
                 }`}
@@ -298,32 +324,32 @@ export function QuickAddSheet() {
 
         {/* Wallet · date · note */}
         <div className="flex flex-wrap justify-center gap-2">
-          <label className={pillClass}>
-            <WalletIcon className="size-3.5 shrink-0 text-[var(--text-tertiary)]" />
-            <span className="truncate">{wallet ? wallet.name : 'No wallet'}</span>
-            <ChevronDown className="size-3.5 shrink-0 text-[var(--text-tertiary)]" />
-            <select
-              value={wallet?.id ?? ''}
-              onChange={(e) => setWalletId(e.target.value)}
-              aria-label="Wallet"
-              className="absolute inset-0 cursor-pointer opacity-0"
-            >
-              {wallets.map((w) => (
-                <option key={w.id} value={w.id}>{w.name} · {w.currency}</option>
-              ))}
-            </select>
-          </label>
-          <label className={pillClass}>
-            <CalendarDays className="size-3.5 shrink-0 text-[var(--text-tertiary)]" />
-            <span className="truncate">{/^\d{4}-\d{2}-\d{2}$/.test(date) ? dayLabel(date) : 'Pick date'}</span>
-            <input
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              aria-label="Date"
-              className="absolute inset-0 cursor-pointer opacity-0"
-            />
-          </label>
+          <Dropdown
+            aria-label="Wallet"
+            value={wallet?.id ?? ''}
+            onChange={setWalletId}
+            options={wallets.map((w) => ({ value: w.id, label: w.name, hint: w.currency }))}
+            className={pillClass}
+            trigger={
+              <>
+                <WalletIcon className="size-3.5 shrink-0 text-[var(--text-tertiary)]" />
+                <span className="truncate">{wallet ? wallet.name : 'No wallet'}</span>
+                <ChevronDown className="size-3.5 shrink-0 text-[var(--text-tertiary)]" />
+              </>
+            }
+          />
+          <DatePicker
+            aria-label="Date"
+            value={date}
+            onChange={setDate}
+            className={pillClass}
+            trigger={
+              <>
+                <CalendarDays className="size-3.5 shrink-0 text-[var(--text-tertiary)]" />
+                <span className="truncate">{/^\d{4}-\d{2}-\d{2}$/.test(date) ? dayLabel(date) : 'Pick date'}</span>
+              </>
+            }
+          />
           <button
             type="button"
             onClick={() => setNoteOpen((v) => !v)}
@@ -396,36 +422,42 @@ export function QuickAddSheet() {
           </div>
         )}
 
-        {/* Split with a person */}
-        <button
-          type="button"
-          onClick={() => setSplitOpen((v) => !v)}
-          aria-expanded={splitOpen}
-          className="mt-4 inline-flex h-8 items-center gap-2 text-[13px] font-semibold text-[var(--text-secondary)] [@media(max-height:760px)]:mt-2 transition-colors hover:text-[var(--text-primary)]"
-        >
-          <Users className="size-4" /> {splitOpen ? 'Remove split' : 'Split with someone'}
-        </button>
-        {splitOpen && (
-          <div className="mt-2.5 grid grid-cols-2 gap-2.5">
-            <select
-              value={splitPersonId ?? ''}
-              onChange={(e) => setSplitPersonId(e.target.value || null)}
-              aria-label="Split with"
-              className="h-11 rounded-xl border border-input bg-transparent px-3 text-sm"
-            >
-              <option value="">Who owes you?</option>
-              {(peopleQuery.data?.data ?? []).map((p) => (
-                <option key={p.id} value={p.id}>{p.name}</option>
-              ))}
-            </select>
-            <Input
-              inputMode="decimal"
-              placeholder="Their share"
-              value={splitAmount}
-              onChange={(e) => setSplitAmount(e.target.value)}
-              aria-label="Their share"
-              className="h-11 rounded-xl"
-            />
+        {/* Split with friends: saves a shared expense, split equally, paid by me from this wallet */}
+        {kind === 'expense' && (
+          <button
+            type="button"
+            onClick={() => { setSplitOpen((v) => !v); setSplitFriendIds([]); setError(null) }}
+            aria-expanded={splitOpen}
+            className="mt-4 inline-flex h-8 items-center gap-2 text-[13px] font-semibold text-[var(--text-secondary)] [@media(max-height:760px)]:mt-2 transition-colors hover:text-[var(--text-primary)]"
+          >
+            <Users className="size-4" /> {splitOpen ? 'Remove split' : 'Split with someone'}
+          </button>
+        )}
+        {splitting && (
+          <div className="mt-2" role="group" aria-label="Split with">
+            {friendsQuery.isLoading && <p className="text-[13px] text-[var(--text-tertiary)]">Loading friends…</p>}
+            {friendsQuery.data && friendsQuery.data.data.filter((f) => f.isFriend).length === 0 && (
+              <p className="text-[13px] text-[var(--text-tertiary)]">No friends yet. Add them under Shared.</p>
+            )}
+            <div className="flex flex-wrap gap-2">
+              {(friendsQuery.data?.data ?? []).filter((f) => f.isFriend).map((f) => {
+                const on = splitFriendIds.includes(f.personId)
+                return (
+                  <button
+                    key={f.personId}
+                    type="button"
+                    aria-pressed={on}
+                    onClick={() => { setSplitFriendIds((ids) => (on ? ids.filter((x) => x !== f.personId) : [...ids, f.personId])); setError(null) }}
+                    className={`h-9 max-w-full truncate rounded-full px-3.5 text-[13px] font-semibold ${on ? 'bg-[var(--ink)] text-[var(--cream)]' : 'bg-[var(--tint)] text-[var(--text-primary)]'}`}
+                  >
+                    {f.name}
+                  </button>
+                )
+              })}
+            </div>
+            {splitFriendIds.length > 0 && (
+              <p className="mt-2 text-[12.5px] text-[var(--text-tertiary)]">Split equally between you and {splitFriendIds.length} {splitFriendIds.length === 1 ? 'friend' : 'friends'}. Edit details under Shared.</p>
+            )}
           </div>
         )}
 
@@ -464,7 +496,7 @@ export function QuickAddSheet() {
           disabled={mutation.isPending || !wallet || amount === ''}
           className="mt-3 h-14 w-full rounded-2xl bg-[var(--ink)] [@media(max-height:760px)]:mt-2 [@media(max-height:760px)]:h-12 text-base font-bold text-[var(--cream)] transition-colors active:opacity-90 disabled:bg-[var(--tint-strong)] disabled:text-[var(--text-tertiary)]"
         >
-          {mutation.isPending ? 'Saving…' : kind === 'expense' ? 'Save expense' : 'Save income'}
+          {mutation.isPending ? 'Saving…' : splitting ? 'Save shared expense' : kind === 'expense' ? 'Save expense' : 'Save income'}
         </button>
         </div>
       </SheetContent>

@@ -1,6 +1,8 @@
 import { Link } from 'react-router-dom'
 import { WalletIcon } from './WalletIcon'
-import type { Wallet } from '../lib/api'
+import { isFriendsWallet, visibleFriendsWallets, walletBalance, type Wallet } from '../lib/api'
+import { Users } from 'lucide-react'
+import { formatAmount } from '../lib/split'
 
 interface WalletsGridProps {
   wallets: Wallet[]
@@ -19,7 +21,7 @@ const GROUP_LABELS: Record<string, string> = {
 }
 
 function WalletRow({ wallet, formatCurrency }: { wallet: Wallet; formatCurrency: WalletsGridProps['formatCurrency'] }) {
-  const balance = typeof wallet.balance === 'string' ? parseFloat(wallet.balance) : wallet.balance
+  const balance = walletBalance(wallet)
   const isPortfolio = wallet.walletType === 'investment' && wallet.portfolioValue
   const displayValue = isPortfolio ? wallet.portfolioValue!.value : balance
   const displayCurrency = isPortfolio ? wallet.portfolioValue!.currency : wallet.currency
@@ -58,8 +60,10 @@ function WalletRow({ wallet, formatCurrency }: { wallet: Wallet; formatCurrency:
 
 export function WalletsGrid({ wallets, formatCurrency }: WalletsGridProps) {
 
+  const own = wallets.filter((w) => !isFriendsWallet(w))
+  const friends = visibleFriendsWallets(wallets)
   const groups = GROUP_ORDER
-    .map((type) => ({ type, label: GROUP_LABELS[type], items: wallets.filter((w) => w.walletType === type) }))
+    .map((type) => ({ type, label: GROUP_LABELS[type], items: own.filter((w) => w.walletType === type) }))
     .filter((g) => g.items.length > 0)
 
   return (
@@ -77,6 +81,30 @@ export function WalletsGrid({ wallets, formatCurrency }: WalletsGridProps) {
             </div>
           </section>
         ))}
+        {friends.length > 0 && (
+          <section aria-label="Friends">
+            <h2 className="pb-2 text-[15px] font-bold text-[var(--text-primary)]">Friends</h2>
+            <Link
+              to="/shared"
+              className="flex items-center gap-3.5 rounded-2xl border border-[var(--border-subtle)] bg-white px-4 py-3.5 text-foreground no-underline transition-colors hover:bg-[var(--tint)] md:max-w-[calc(50%-0.45rem)]"
+            >
+              <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-[var(--tint)] text-[var(--ink)]">
+                <Users className="size-[18px]" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-[15px] font-semibold">Balances with friends</div>
+                <div className="mt-0.5 text-[13px] text-muted-foreground">Kept in step with Shared</div>
+              </div>
+              <div className="flex shrink-0 flex-col items-end gap-0.5 text-right">
+                {friends.map((w) => (
+                  <span key={w.id} className={`tabular whitespace-nowrap text-[15px] font-semibold ${walletBalance(w) < 0 ? 'text-[var(--negative)]' : ''}`}>
+                    {formatAmount(walletBalance(w), w.currency)}
+                  </span>
+                ))}
+              </div>
+            </Link>
+          </section>
+        )}
       </div>
     </>
   )

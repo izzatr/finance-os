@@ -14,7 +14,15 @@ vi.mock('@/lib/api', () => ({
       { id: 'c-sal', name: 'Salary', slug: 'salary', type: 'income', parentId: null, needsReview: false },
     ],
   }),
-  getPeople: vi.fn().mockResolvedValue({ data: [] }),
+  getSplitFriends: vi.fn().mockResolvedValue({
+    data: [
+      { personId: 'p-ana', name: 'Ana', isGuest: true, email: null, isFriend: true, balances: [] },
+      { personId: 'p-bo', name: 'Bo', isGuest: false, email: null, isFriend: true, balances: [] },
+    ],
+  }),
+  getSplitMe: vi.fn().mockResolvedValue({ data: { personId: 'p-me', displayName: 'Me', defaultCurrency: 'EUR', unreadActivity: 0, balances: { owedToMe: [], iOwe: [], net: [] }, categories: [] } }),
+  createSharedExpense: vi.fn().mockResolvedValue({ data: { id: 'x' } }),
+  pickableWallets: (ws: Array<{ isActive: boolean; systemRole?: string | null }>) => ws.filter((w) => w.isActive && !w.systemRole),
   getRecentTransactions: vi.fn().mockResolvedValue({
     data: [
       { id: 't1', entryId: 'e1', transactionDate: '2026-10-09T12:00:00Z', type: 'expense', description: 'REWE', notes: null, categoryName: 'Groceries', amount: -42.18, currency: 'EUR', walletName: 'Sparkasse' },
@@ -26,12 +34,13 @@ vi.mock('@/lib/api', () => ({
       { id: 'w-eur', name: 'Sparkasse', walletType: 'bank', assetId: 'a-eur', isActive: true, balance: 100, currency: 'EUR' },
       { id: 'w-idr', name: 'Jago', walletType: 'bank', assetId: 'a-idr', isActive: true, balance: 1000000, currency: 'IDR' },
       { id: 'w-old', name: 'Closed', walletType: 'bank', assetId: 'a-eur', isActive: false, balance: 0, currency: 'EUR' },
+      { id: 'w-fr', name: 'Friends · EUR', walletType: 'custom', assetId: 'a-eur', isActive: true, balance: 0, currency: 'EUR', systemRole: 'split' },
     ],
   }),
   parseTransactionText: vi.fn(),
 }))
 
-import { createTransaction } from '@/lib/api'
+import { createSharedExpense, createTransaction } from '@/lib/api'
 import { QuickAddProvider, useQuickAdd } from '@/contexts/QuickAddContext'
 import { QuickAddSheet } from './QuickAddSheet'
 
@@ -63,6 +72,7 @@ function setPointer(coarse: boolean) {
 describe('QuickAddSheet', () => {
   beforeEach(() => {
     vi.mocked(createTransaction).mockClear()
+    vi.mocked(createSharedExpense).mockClear()
     localStorage.clear()
   })
   afterEach(() => {
@@ -122,7 +132,43 @@ describe('QuickAddSheet', () => {
     await user.click(screen.getByRole('button', { name: '000' }))
     expect(screen.queryByRole('button', { name: 'Decimal point' })).not.toBeInTheDocument()
     expect(screen.getByLabelText('Amount')).toHaveTextContent('35.000')
+    await user.click(screen.getByRole('combobox', { name: 'Wallet' }))
+    expect(await screen.findByRole('option', { name: /Sparkasse/ })).toBeInTheDocument()
     expect(screen.queryByRole('option', { name: /Closed/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: /Friends/ })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('option', { name: /Sparkasse/ }))
+    expect(screen.getByRole('combobox', { name: 'Wallet' })).toHaveTextContent('Sparkasse')
+  })
+
+  it('splitting with friends saves a shared expense paid by me from the wallet, split equally', async () => {
+    setPointer(true)
+    localStorage.setItem('finance-os-quick-add-wallet', 'w-eur')
+    const user = userEvent.setup()
+    renderSheet()
+
+    for (const key of ['3', '0']) await user.click(await screen.findByRole('button', { name: key }))
+    await user.click(await screen.findByRole('button', { name: 'Groceries' }))
+    await user.click(screen.getByRole('button', { name: /Split with someone/ }))
+    await user.click(screen.getByRole('button', { name: 'Save shared expense' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Pick who you split with')
+
+    await user.click(await screen.findByRole('button', { name: 'Ana' }))
+    await user.click(screen.getByRole('button', { name: 'Bo' }))
+    await user.click(screen.getByRole('button', { name: 'Save shared expense' }))
+
+    await waitFor(() => expect(createSharedExpense).toHaveBeenCalledTimes(1))
+    expect(createTransaction).not.toHaveBeenCalled()
+    expect(vi.mocked(createSharedExpense).mock.calls[0][0]).toEqual({
+      kind: 'expense',
+      description: 'Groceries',
+      cost: '30',
+      currency: 'EUR',
+      date: expect.stringMatching(/T12:00:00.000Z$/),
+      category: 'general',
+      paid: { kind: 'single', personId: 'p-me' },
+      split: { method: 'equal', personIds: ['p-me', 'p-ana', 'p-bo'] },
+      myBooks: { fundingWalletId: 'w-eur', categoryId: 'c-groc' },
+    })
   })
 
   it('uses a normal input without the keypad on desktop and rejects an empty amount', async () => {

@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { safeNext } from '@/lib/nextPath'
 import { useAuth } from '@/contexts/AuthContext'
 import { signUp, signInWithGoogle } from '@/lib/auth'
 import { Button } from '@/components/ui/button'
@@ -20,6 +21,8 @@ function GoogleIcon() {
 
 export function SignUpPage() {
   const navigate = useNavigate()
+  const location = useLocation()
+  const next = safeNext(location.search)
   const { refetch } = useAuth()
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
@@ -34,7 +37,7 @@ export function SignUpPage() {
     try {
       await signUp({ email, password, name })
       await refetch()
-      navigate('/dashboard')
+      navigate(next ?? '/dashboard')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Sign up failed')
     } finally {
@@ -45,7 +48,7 @@ export function SignUpPage() {
   async function handleGoogleSignIn() {
     setError(null)
     try {
-      await signInWithGoogle()
+      await signInWithGoogle(next ?? '/dashboard')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Google sign-in failed')
     }
@@ -130,7 +133,7 @@ export function SignUpPage() {
 
       <p className="mt-6 text-sm text-muted-foreground">
         Already have an account?{' '}
-        <Link to="/sign-in" className="font-semibold text-primary underline underline-offset-4">
+        <Link to={next ? `/sign-in?next=${encodeURIComponent(next)}` : '/sign-in'} className="font-semibold text-primary underline underline-offset-4">
           Sign in
         </Link>
       </p>

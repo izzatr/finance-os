@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
+import { collapseSharedRows } from '../lib/sharedRows'
 import { Plus } from 'lucide-react'
 import { InboxNudge } from '../components/InboxNudge'
 import { HomeHeader } from '../components/HomeHeader'
@@ -99,8 +100,10 @@ export function DashboardPage() {
   )
 
   // A transfer produces one entry per wallet; key rows by entry so both legs render.
-  const recent = (recentQuery.data?.data ?? []).slice(0, HOME_ACTIVITY_LIMIT).map((tx) => ({ ...tx, id: tx.entryId }))
-  const activeWallets = wallets.filter((w) => w.isActive)
+  // A shared expense's two legs (Friends wallet + paying wallet) collapse into one row.
+  const recent = collapseSharedRows(recentQuery.data?.data ?? []).slice(0, HOME_ACTIVITY_LIMIT)
+  const navigate = useNavigate()
+  const activeWallets = wallets.filter((w) => w.isActive && !w.systemRole)
 
   return (
     <main className="mx-auto w-full max-w-[960px] px-4 pb-2 lg:px-12 lg:pb-16">
@@ -167,7 +170,11 @@ export function DashboardPage() {
         {recentQuery.data && recentQuery.data.data.length > 0 && (
           <section className="mb-8" aria-label="Recent activity">
             <SectionDivider title="Activity" action={<Link to="/transactions" className={linkAction}>See all</Link>} />
-            <ActivityList transactions={recent} />
+            <ActivityList
+              transactions={recent}
+              onSelect={(tx) => tx.sharedExpenseId && navigate(`/shared/expenses/${tx.sharedExpenseId}`)}
+              selectable={(tx) => Boolean(tx.sharedExpenseId)}
+            />
           </section>
         )}
 

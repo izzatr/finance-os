@@ -96,12 +96,12 @@ export async function signIn(payload: { email: string; password: string }) {
 // ── OAuth ────────────────────────────────────────────────────────────────────
 
 /** Starts Google OAuth (Better Auth handles callback) and redirects to the provider's consent screen */
-export async function signInWithGoogle(): Promise<void> {
+export async function signInWithGoogle(returnPath = '/dashboard'): Promise<void> {
   const data = await authFetch<{ url: string }>('/auth/sign-in/social', {
     method: 'POST',
     body: JSON.stringify({
       provider: 'google',
-      callbackURL: `${window.location.origin}/dashboard`,
+      callbackURL: `${window.location.origin}${returnPath}`,
     }),
   })
   window.location.href = data.url

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { DatePicker, keyFromDate } from '@/components/ui/date-picker'
 import { ArrowDown } from 'lucide-react'
 import { createTransfer } from '../lib/api'
 import type { Wallet } from '../lib/api'
@@ -25,12 +26,14 @@ type Props = {
   onClose: () => void
 }
 
-export function TransferForm({ wallets, onClose }: Props) {
+export function TransferForm({ wallets: allWallets, onClose }: Props) {
+  // System wallets (Friends · EUR) cannot be written directly.
+  const wallets = allWallets.filter((w) => !w.systemRole && w.isActive)
   const [sourceId, setSourceId] = useState('')
   const [targetId, setTargetId] = useState('')
   const [amount, setAmount] = useState('')
   const [description, setDescription] = useState('')
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10))
+  const [date, setDate] = useState(() => keyFromDate(new Date()))
   const qc = useQueryClient()
 
   const sourceWallet = wallets.find((w) => w.id === sourceId)
@@ -45,7 +48,7 @@ export function TransferForm({ wallets, onClose }: Props) {
       assetId: sourceWallet!.assetId,
       amount,
       description: description || 'Transfer',
-      transactionDate: `${date}T00:00:00.000Z`,
+      transactionDate: `${date}T12:00:00.000Z`,
     }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['wallets'] })
@@ -120,7 +123,7 @@ export function TransferForm({ wallets, onClose }: Props) {
             <label className="text-[13px] font-semibold text-[var(--text-secondary)]">
               Date
             </label>
-            <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+            <DatePicker aria-label="Date" value={date} onChange={setDate} />
           </div>
 
           {mutation.error && (

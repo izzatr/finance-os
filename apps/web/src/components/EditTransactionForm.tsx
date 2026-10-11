@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { DatePicker } from '@/components/ui/date-picker'
 import { Check, ChevronsUpDown, Trash2 } from 'lucide-react'
 import { patchTransaction, deleteTransaction, getCategories } from '../lib/api'
 import type { WalletTransaction } from '../lib/api'
@@ -80,7 +81,7 @@ export function EditTransactionForm({ transaction, walletId, onClose }: Props) {
     mutationFn: () => patchTransaction(transaction.id, {
       description,
       type,
-      transactionDate: `${date}T00:00:00.000Z`,
+      transactionDate: `${date}T12:00:00.000Z`,
       amount,
       notes: notes || null,
       categoryId: categoryId || null,
@@ -141,7 +142,7 @@ export function EditTransactionForm({ transaction, walletId, onClose }: Props) {
               <label className="text-[13px] font-semibold text-[var(--text-secondary)]">
                 Date
               </label>
-              <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+              <DatePicker aria-label="Date" value={date} onChange={setDate} />
             </div>
           </div>
 

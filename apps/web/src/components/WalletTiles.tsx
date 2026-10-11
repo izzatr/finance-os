@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import type { Wallet } from '@/lib/api'
+import { isFriendsWallet, visibleFriendsWallets, walletBalance, type Wallet } from '@/lib/api'
 import { formatCurrencyShort } from '@/lib/format'
 
 const TYPE_LABELS: Record<string, string> = {
@@ -17,8 +17,7 @@ export function walletDisplayValue(wallet: Wallet): { value: number; currency: s
   if (wallet.walletType === 'investment' && wallet.portfolioValue) {
     return { value: wallet.portfolioValue.value, currency: wallet.portfolioValue.currency }
   }
-  const balance = typeof wallet.balance === 'string' ? parseFloat(wallet.balance) : wallet.balance
-  return { value: balance, currency: wallet.currency }
+  return { value: walletBalance(wallet), currency: wallet.currency }
 }
 
 interface WalletTilesProps {
@@ -28,8 +27,9 @@ interface WalletTilesProps {
 
 /** Compact 2-up wallet tiles for Home. */
 export function WalletTiles({ wallets, limit = 4 }: WalletTilesProps) {
-  const active = wallets.filter((w) => w.isActive)
-  const shown = active.slice(0, limit)
+  const active = wallets.filter((w) => w.isActive && !isFriendsWallet(w))
+  const friends = visibleFriendsWallets(wallets)
+  const shown = active.slice(0, friends.length > 0 ? Math.max(limit - 1, 1) : limit)
 
   return (
     <ul className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4">
@@ -52,6 +52,21 @@ export function WalletTiles({ wallets, limit = 4 }: WalletTilesProps) {
           </li>
         )
       })}
+      {friends.length > 0 && (
+        <li>
+          <Link
+            to="/shared"
+            className="block rounded-2xl bg-[var(--tint)] px-3.5 py-3 text-[var(--text-primary)] no-underline transition-colors hover:bg-[var(--tint-strong)] focus-visible:outline-2 focus-visible:outline-[var(--ink)]"
+          >
+            <span className="block text-[11.5px] font-semibold text-[var(--text-tertiary)]">Shared</span>
+            <span className="mt-0.5 block truncate text-[13.5px] font-semibold">Friends</span>
+            <span className={`tabular mt-0.5 block truncate text-[17px] font-bold ${walletBalance(friends[0]) < 0 ? 'text-[var(--negative)]' : ''}`}>
+              {formatCurrencyShort(walletBalance(friends[0]), friends[0].currency)}
+              {friends.length > 1 && <span className="text-[12px] font-semibold text-[var(--text-tertiary)]"> +{friends.length - 1}</span>}
+            </span>
+          </Link>
+        </li>
+      )}
     </ul>
   )
 }

@@ -13,7 +13,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 
-export type NavItem = { label: string; icon: LucideIcon; path: string; match: string; badge?: 'inbox' }
+export type NavItem = { label: string; icon: LucideIcon; path: string; match: string; badge?: 'inbox' | 'shared' }
 export type NavGroup = { label: string | null; items: NavItem[] }
 
 /**
@@ -35,7 +35,7 @@ export const NAV_GROUPS: NavGroup[] = [
     label: 'Money',
     items: [
       { label: 'Wallets', icon: CreditCard, path: '/wallets', match: '/wallets' },
-      { label: 'People', icon: Users, path: '/people', match: '/people' },
+      { label: 'Shared', icon: Users, path: '/shared', match: '/shared', badge: 'shared' },
       { label: 'Recurring', icon: CalendarClock, path: '/recurring', match: '/recurring' },
     ],
   },
@@ -50,7 +50,7 @@ export const NAV_GROUPS: NavGroup[] = [
 ]
 
 /** Tabs on the phone bar; everything else lives in the More sheet. */
-export const TAB_PATHS = ['/dashboard', '/transactions', '/reports']
+export const TAB_PATHS = ['/dashboard', '/reports', '/shared']
 
 export function isActive(item: NavItem, pathname: string): boolean {
   return pathname === item.match || pathname.startsWith(`${item.match}/`)

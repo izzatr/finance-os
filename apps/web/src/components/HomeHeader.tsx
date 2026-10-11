@@ -56,8 +56,8 @@ export function HomeHeader({ netWorth, currency, monthNet, onTransfer, onAdd }: 
         <button type="button" onClick={onTransfer} className={pill}>
           <ArrowLeftRight className="size-4" /> Transfer
         </button>
-        <Link to="/people" className={`${pill} no-underline`}>
-          <Users className="size-4" /> People
+        <Link to="/shared" className={`${pill} no-underline`}>
+          <Users className="size-4" /> Shared
         </Link>
         <Link to="/reports" className={`${pill} no-underline`}>
           <BarChart3 className="size-4" /> Reports

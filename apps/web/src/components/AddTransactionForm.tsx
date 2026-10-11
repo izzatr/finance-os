@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { DatePicker, keyFromDate } from '@/components/ui/date-picker'
 import { Check, ChevronsUpDown } from 'lucide-react'
 import { getWallets, getCategories, createTransaction } from '../lib/api'
 import {
@@ -43,7 +44,7 @@ const TX_TYPES = ['expense', 'income', 'transfer', 'adjustment', 'fee']
 export function AddTransactionForm({ onClose }: Props) {
   const [description, setDescription] = useState('')
   const [type, setType] = useState('expense')
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10))
+  const [date, setDate] = useState(() => keyFromDate(new Date()))
   const [amount, setAmount] = useState('')
   const [walletId, setWalletId] = useState('')
   const [categoryId, setCategoryId] = useState('')
@@ -71,7 +72,7 @@ export function AddTransactionForm({ onClose }: Props) {
 
   const mutation = useMutation({
     mutationFn: () => createTransaction({
-      transactionDate: `${date}T00:00:00.000Z`,
+      transactionDate: `${date}T12:00:00.000Z`,
       type,
       description,
       notes: notes || undefined,
@@ -129,7 +130,7 @@ export function AddTransactionForm({ onClose }: Props) {
               <label className="text-[13px] font-semibold text-[var(--text-secondary)]">
                 Date
               </label>
-              <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+              <DatePicker aria-label="Date" value={date} onChange={setDate} />
             </div>
           </div>
 

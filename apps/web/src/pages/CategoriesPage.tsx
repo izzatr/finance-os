@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Dropdown } from '@/components/ui/dropdown'
 import { CornerDownRight, Plus, Tags } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -71,15 +72,19 @@ function AddCategoryDialog({ categories, onClose }: { categories: Category[]; on
         <div className="grid gap-2.5">
           <Input autoFocus placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} aria-label="Name" />
           <div className="grid grid-cols-2 gap-2.5">
-            <select value={type} onChange={(e) => { setType(e.target.value as CategoryType); setParentId('') }} aria-label="Type" className="h-9 rounded-md border border-input bg-transparent px-3 text-sm">
-              <option value="expense">Expense</option>
-              <option value="income">Income</option>
-              <option value="transfer">Transfer</option>
-            </select>
-            <select value={parentId} onChange={(e) => setParentId(e.target.value)} aria-label="Parent category" className="h-9 rounded-md border border-input bg-transparent px-3 text-sm">
-              <option value="">Top level</option>
-              {parents.map((p) => <option key={p.id} value={p.id}>Under {p.name}</option>)}
-            </select>
+            <Dropdown
+              aria-label="Type"
+              value={type}
+              onChange={(v) => { setType(v as CategoryType); setParentId('') }}
+              options={[{ value: 'expense', label: 'Expense' }, { value: 'income', label: 'Income' }, { value: 'transfer', label: 'Transfer' }]}
+            />
+            <Dropdown
+              aria-label="Parent category"
+              searchable={parents.length > 8}
+              value={parentId}
+              onChange={setParentId}
+              options={[{ value: '', label: 'Top level' }, ...parents.map((p) => ({ value: p.id, label: `Under ${p.name}` }))]}
+            />
           </div>
           {error && <p className="text-xs text-[var(--negative)]" role="alert">{error}</p>}
           <Button onClick={() => mutation.mutate()} disabled={!name.trim() || mutation.isPending}>

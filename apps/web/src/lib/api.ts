@@ -1,5 +1,17 @@
 export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '')
 
+/** A failed API call. `code` is the server's machine code (e.g. VERSION_CONFLICT) when it sent one. */
+export class ApiError extends Error {
+  status: number
+  code: string | null
+  constructor(message: string, status: number, code: string | null) {
+    super(message)
+    this.name = 'ApiError'
+    this.status = status
+    this.code = code
+  }
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const target = `${API_BASE_URL}${path}`
   const response = await fetch(target, {
@@ -16,7 +28,11 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
   if (!response.ok) {
     const payload = isJson ? await response.json().catch(() => null) : null
-    throw new Error(payload?.error?.message ?? payload?.message ?? `Request failed with status ${response.status}`)
+    throw new ApiError(
+      payload?.error?.message ?? payload?.message ?? `Request failed with status ${response.status}`,
+      response.status,
+      payload?.error?.code ?? null,
+    )
   }
 
   if (!isJson) {
@@ -59,7 +75,21 @@ export type Wallet = {
     currency: string
     asOf: string
   } | null
+  /** 'split' = the system "Friends" wallet that holds balances with friends; never written directly. */
+  systemRole?: string | null
 }
+
+export const isFriendsWallet = (w: Pick<Wallet, 'systemRole'>) => Boolean(w.systemRole)
+
+/** Wallets a user may pick for writing (system wallets never are). */
+export const pickableWallets = (wallets: Wallet[]) => wallets.filter((w) => w.isActive && !isFriendsWallet(w))
+
+/** Wallet balances can arrive as numeric strings like '-128.40000000'. */
+export const walletBalance = (w: Pick<Wallet, 'balance'>): number => (typeof w.balance === 'string' ? Number(w.balance) : w.balance)
+
+/** Friends wallets worth showing: only those still holding a balance. */
+export const visibleFriendsWallets = (wallets: Wallet[]) =>
+  wallets.filter((w) => isFriendsWallet(w) && Math.abs(walletBalance(w)) >= 0.005)
 
 export type Transaction = {
   id: string
@@ -87,6 +117,10 @@ export type RecentTransaction = {
   amount: number
   currency: string
   walletName: string
+  /** Entry sits in the system Friends wallet. */
+  friendsWallet?: boolean
+  /** Set when a shared expense manages this transaction: edit it from Shared. */
+  sharedExpenseId?: string | null
 }
 
 export type SummaryResponse = {
@@ -164,7 +198,6 @@ export function createTransaction(body: {
   notes?: string
   categoryId?: string
   entries: Array<{ walletId: string; assetId: string; amount: string }>
-  splits?: Array<{ personId: string; assetId?: string; amount: string }>
 }) {
   return request<{ data: Transaction }>('/api/transactions', {
     method: 'POST',
@@ -285,6 +318,7 @@ export type WalletTransaction = {
   amount: number
   currency: string
   createdAt: string
+  sharedExpenseId?: string | null
 }
 
 export type WalletDetail = {
@@ -402,52 +436,6 @@ export function searchTransactions(q: string) {
   return request<{ data: RecentTransaction[] }>(`/api/transactions/search?q=${encodeURIComponent(q)}`)
 }
 
-// ── People & shared expenses ─────────────────────────────────────────────
-
-export type Person = {
-  id: string
-  name: string
-  email: string | null
-  notes: string | null
-}
-
-export type PersonBalance = { assetCode: string; amount: number }
-
-export function getPeople() {
-  return request<{ data: Person[] }>('/api/people')
-}
-
-export function createPerson(body: { name: string; email?: string; notes?: string }) {
-  return request<{ data: Person }>('/api/people', { method: 'POST', body: JSON.stringify(body) })
-}
-
-export function patchPerson(id: string, body: { name?: string; email?: string | null; notes?: string | null }) {
-  return request<{ data: Person }>(`/api/people/${id}`, { method: 'PATCH', body: JSON.stringify(body) })
-}
-
-export function deletePerson(id: string) {
-  return request<{ data: { id: string } }>(`/api/people/${id}`, { method: 'DELETE' })
-}
-
-export function getPersonBalance(id: string) {
-  return request<{ data: { personId: string; balances: PersonBalance[] } }>(`/api/people/${id}/balance`)
-}
-
-export type SharedBalance = { personId: string; name: string; balances: PersonBalance[] }
-
-export function getSharedBalances() {
-  return request<{ data: SharedBalance[] }>('/api/analytics/shared-balances')
-}
-
-export function settlePerson(id: string, body: { walletId: string; assetId: string; amount?: string; splitIds?: string[] }) {
-  return request<{ data: { transactionId: string; amount: string; settledSplitIds: string[] } }>(
-    `/api/people/${id}/settle`,
-    { method: 'POST', body: JSON.stringify(body) },
-  )
-}
-
-export type TransactionSplitInput = { personId: string; assetId?: string; amount: string }
-
 // ── Recurring rules ──────────────────────────────────────────────────────
 
 export type RecurringRule = {
@@ -458,7 +446,6 @@ export type RecurringRule = {
     description: string
     categoryId?: string | null
     entries: Array<{ walletId: string; assetId: string; amount: string }>
-    splits?: TransactionSplitInput[]
   }
   freq: 'daily' | 'weekly' | 'monthly' | 'yearly'
   interval: number
@@ -694,4 +681,296 @@ export function parseTransactionText(text: string) {
     method: 'POST',
     body: JSON.stringify({ text }),
   })
+}
+
+// ── Shared expenses (Splitwise-style) ───────────────────────────────────
+
+export type Money = { currency: string; amount: string }
+export type SharedCategory = { slug: string; label: string; group: string }
+export type RepeatInterval = 'never' | 'weekly' | 'fortnightly' | 'monthly' | 'yearly'
+export type GroupType = 'home' | 'trip' | 'couple' | 'other'
+
+export type SplitMe = {
+  personId: string
+  displayName: string
+  booksStart: string
+  defaultCurrency: string
+  unreadActivity: number
+  balances: { owedToMe: Money[]; iOwe: Money[]; net: Money[] }
+  categories: SharedCategory[]
+}
+
+export type SplitFriend = {
+  personId: string
+  name: string
+  isGuest: boolean
+  email: string | null
+  isFriend: boolean
+  /** Positive = they owe me. */
+  balances: Money[]
+  /** All balances converted to my default currency; null when a rate is missing. */
+  totalInDefault?: { currency: string; owedToMe: number | string; iOwe: number | string; net: number | string } | null
+}
+
+export type SplitFriendDetail = SplitFriend & {
+  canEdit: boolean
+  breakdown: Array<{ groupId: string | null; groupName: string | null; balances: Money[] }>
+  sharedGroups: Array<{ id: string; name: string }>
+}
+
+export type SplitGroupSummary = {
+  id: string
+  name: string
+  groupType: GroupType
+  simplifyDebts: boolean
+  memberCount: number
+  myBalances: Money[]
+}
+
+export type SplitGroupMember = {
+  personId: string
+  name: string
+  isGuest: boolean
+  isMe: boolean
+  isCurrent: boolean
+  /** Net in this group: positive = gets back. */
+  balances: Money[]
+}
+
+export type SplitGroup = {
+  id: string
+  name: string
+  groupType: GroupType
+  simplifyDebts: boolean
+  members: SplitGroupMember[]
+  suggested: Array<{ fromPersonId: string; toPersonId: string; currency: string; amount: string }>
+}
+
+export type SplitShare = { personId: string; name: string; isGuest: boolean; paid: string; owed: string }
+
+export type SharedExpense = {
+  id: string
+  groupId: string | null
+  groupName: string | null
+  kind: 'expense' | 'payment'
+  description: string
+  cost: string
+  currency: string
+  date: string
+  category: string
+  notes: string | null
+  splitMethod: string
+  splitInput: import('./split').SplitInput | null
+  paidInput: import('./split').PaidInput | null
+  repeatInterval: RepeatInterval
+  shares: SplitShare[]
+  createdBy: { personId: string; name: string }
+  updatedBy: { personId: string; name: string } | null
+  createdAt: string
+  updatedAt: string
+  deletedAt: string | null
+  version: number
+  me: { paid: string; owed: string; net: string } | null
+  myBooks: {
+    fundingWalletId: string | null
+    fundingAmount: string | null
+    categoryId: string | null
+    linkedTransactionId: string | null
+    transactionId: string | null
+  } | null
+}
+
+export type MyBooksInput = {
+  fundingWalletId?: string | null
+  fundingAmount?: string | null
+  categoryId?: string | null
+  linkedTransactionId?: string | null
+}
+
+export type SharedExpenseInput = {
+  groupId?: string | null
+  kind: 'expense' | 'payment'
+  description?: string
+  cost: string
+  currency: string
+  date: string
+  category?: string
+  notes?: string | null
+  paid?: import('./split').PaidInput
+  split?: import('./split').SplitInput
+  payment?: { fromPersonId: string; toPersonId: string }
+  repeatInterval?: RepeatInterval
+  myBooks?: MyBooksInput
+}
+
+export type SplitComment = { id: string; personId: string; name: string; body: string; createdAt: string; isMine: boolean }
+
+export type SplitActivity = {
+  id: string
+  kind: string
+  actorPersonId: string | null
+  actorName: string | null
+  groupId: string | null
+  groupName: string | null
+  expenseId: string | null
+  data: Record<string, unknown>
+  createdAt: string
+  isMine: boolean
+  unread: boolean
+}
+
+export type InvitePreview = { status: 'valid' | 'expired' | 'claimed' | 'revoked'; guestName: string; inviterName: string }
+
+const json = (method: string, body?: unknown): RequestInit => ({ method, ...(body === undefined ? {} : { body: JSON.stringify(body) }) })
+
+export function getSplitMe() {
+  return request<{ data: SplitMe }>('/api/split/me')
+}
+
+export function patchSplitMe(body: { defaultCurrency?: string; activitySeen?: boolean; booksStart?: string }) {
+  return request<{ data: { ok: true } }>('/api/split/me', json('PATCH', body))
+}
+
+/** Turns an existing wallet (e.g. a hand-kept "Splitwise €" wallet) into the Friends wallet for its currency. */
+export function adoptFriendsWallet(walletId: string) {
+  return request<{ data: { ok: true } }>('/api/split/me/adopt-wallet', json('POST', { walletId }))
+}
+
+export function getSplitFriends() {
+  return request<{ data: SplitFriend[] }>('/api/split/friends')
+}
+
+export function addSplitFriend(body: { name: string; email?: string | null }) {
+  return request<{ data: { id: string } }>('/api/split/friends', json('POST', body))
+}
+
+export function getSplitFriend(id: string) {
+  return request<{ data: SplitFriendDetail }>(`/api/split/friends/${id}`)
+}
+
+export function patchSplitFriend(id: string, body: { name?: string; email?: string | null }) {
+  return request<{ data: { ok: true } }>(`/api/split/friends/${id}`, json('PATCH', body))
+}
+
+export function removeSplitFriend(id: string) {
+  return request<{ data: { ok: true } }>(`/api/split/friends/${id}`, json('DELETE'))
+}
+
+export function createSplitInvite(personId: string) {
+  return request<{ data: { token: string; expiresAt: string; guestName: string } }>(`/api/split/persons/${personId}/invite`, json('POST'))
+}
+
+export function getInvitePreview(token: string) {
+  return request<{ data: InvitePreview }>(`/api/public/split-invites/${encodeURIComponent(token)}`)
+}
+
+export function claimSplitInvite(token: string) {
+  return request<{ data: { personId: string; mergedGuestId: string; expenses: number } }>(`/api/split/invites/${encodeURIComponent(token)}/claim`, json('POST'))
+}
+
+export function getSplitGroups() {
+  return request<{ data: SplitGroupSummary[] }>('/api/split/groups')
+}
+
+export function getDeletedSplitGroups() {
+  return request<{ data: Array<{ id: string; name: string; deletedAt: string }> }>('/api/split/groups?deleted=true')
+}
+
+export function createSplitGroup(body: { name: string; groupType?: GroupType; simplifyDebts?: boolean; memberIds?: string[] }) {
+  return request<{ data: { id: string } }>('/api/split/groups', json('POST', body))
+}
+
+export function getSplitGroup(id: string) {
+  return request<{ data: SplitGroup }>(`/api/split/groups/${id}`)
+}
+
+export function patchSplitGroup(id: string, body: { name?: string; groupType?: GroupType; simplifyDebts?: boolean }) {
+  return request<{ data: { ok: true } }>(`/api/split/groups/${id}`, json('PATCH', body))
+}
+
+export function deleteSplitGroup(id: string) {
+  return request<{ data: { ok: true } }>(`/api/split/groups/${id}`, json('DELETE'))
+}
+
+export function restoreSplitGroup(id: string) {
+  return request<{ data: { ok: true } }>(`/api/split/groups/${id}/restore`, json('POST'))
+}
+
+export function addSplitGroupMember(groupId: string, body: { personId: string } | { name: string; email?: string | null }) {
+  return request<{ data: { id: string } }>(`/api/split/groups/${groupId}/members`, json('POST', body))
+}
+
+export function removeSplitGroupMember(groupId: string, personId: string) {
+  return request<{ data: { ok: true } }>(`/api/split/groups/${groupId}/members/${personId}`, json('DELETE'))
+}
+
+export function splitGroupExportUrl(groupId: string) {
+  return `${API_BASE_URL}/api/split/groups/${groupId}/export.csv`
+}
+
+export type ExpenseCursor = { date: string; id: string }
+
+export function getSharedExpenses(params: { groupId?: string; friendId?: string; q?: string; before?: ExpenseCursor; limit?: number; includeDeleted?: boolean }) {
+  const sp = new URLSearchParams()
+  if (params.groupId) sp.set('groupId', params.groupId)
+  if (params.friendId) sp.set('friendId', params.friendId)
+  if (params.q) sp.set('q', params.q)
+  if (params.before) {
+    sp.set('beforeDate', params.before.date)
+    sp.set('beforeId', params.before.id)
+  }
+  if (params.limit) sp.set('limit', String(params.limit))
+  if (params.includeDeleted) sp.set('includeDeleted', 'true')
+  const qs = sp.toString()
+  return request<{ data: SharedExpense[]; next: ExpenseCursor | null }>(`/api/split/expenses${qs ? `?${qs}` : ''}`)
+}
+
+export function createSharedExpense(body: SharedExpenseInput) {
+  return request<{ data: { id: string } }>('/api/split/expenses', json('POST', body))
+}
+
+export function getSharedExpense(id: string) {
+  return request<{ data: SharedExpense }>(`/api/split/expenses/${id}`)
+}
+
+export function updateSharedExpense(id: string, body: SharedExpenseInput & { version?: number }) {
+  return request<{ data: { ok: true } }>(`/api/split/expenses/${id}`, json('PATCH', body))
+}
+
+export function deleteSharedExpense(id: string) {
+  return request<{ data: { ok: true } }>(`/api/split/expenses/${id}`, json('DELETE'))
+}
+
+export function restoreSharedExpense(id: string) {
+  return request<{ data: { ok: true } }>(`/api/split/expenses/${id}/restore`, json('POST'))
+}
+
+export function putMyBooks(id: string, body: MyBooksInput) {
+  return request<{ data: { ok: true } }>(`/api/split/expenses/${id}/my-books`, json('PUT', body))
+}
+
+export function getSplitComments(expenseId: string) {
+  return request<{ data: SplitComment[] }>(`/api/split/expenses/${expenseId}/comments`)
+}
+
+export function addSplitComment(expenseId: string, body: string) {
+  return request<{ data: { id: string } }>(`/api/split/expenses/${expenseId}/comments`, json('POST', { body }))
+}
+
+export function deleteSplitComment(commentId: string) {
+  return request<{ data: { ok: true } }>(`/api/split/comments/${commentId}`, json('DELETE'))
+}
+
+export type ActivityCursor = { at: string; id: string }
+
+export function getSplitActivity(params: { groupId?: string; before?: ActivityCursor; limit?: number } = {}) {
+  const sp = new URLSearchParams()
+  if (params.groupId) sp.set('groupId', params.groupId)
+  if (params.before) {
+    sp.set('beforeAt', params.before.at)
+    sp.set('beforeId', params.before.id)
+  }
+  if (params.limit) sp.set('limit', String(params.limit))
+  const qs = sp.toString()
+  return request<{ data: SplitActivity[]; next: ActivityCursor | null }>(`/api/split/activity${qs ? `?${qs}` : ''}`)
 }

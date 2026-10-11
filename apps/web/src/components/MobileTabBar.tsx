@@ -1,15 +1,16 @@
 import { useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { BarChart3, LayoutGrid, ListOrdered, Menu, Plus } from 'lucide-react'
+import { BarChart3, LayoutGrid, Menu, Plus, Users } from 'lucide-react'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 import { useQuickAdd } from '@/contexts/QuickAddContext'
 import { usePendingInbox } from '@/hooks/use-pending-inbox'
+import { useSplitUnread } from '@/hooks/use-split'
 import { NAV_GROUPS, TAB_PATHS, isActive } from '@/lib/nav'
 
 const TABS = [
   { label: 'Home', icon: LayoutGrid, path: '/dashboard' },
-  { label: 'Activity', icon: ListOrdered, path: '/transactions' },
   { label: 'Reports', icon: BarChart3, path: '/reports' },
+  { label: 'Shared', icon: Users, path: '/shared' },
 ] as const
 
 const MORE_GROUPS = NAV_GROUPS
@@ -17,7 +18,7 @@ const MORE_GROUPS = NAV_GROUPS
   .filter((g) => g.items.length > 0)
 const MORE_ITEMS = MORE_GROUPS.flatMap((g) => g.items)
 
-function TabLink({ label, icon: Icon, path }: { label: string; icon: typeof LayoutGrid; path: string }) {
+function TabLink({ label, icon: Icon, path, badge = 0 }: { label: string; icon: typeof LayoutGrid; path: string; badge?: number }) {
   const location = useLocation()
   const active = location.pathname.startsWith(path)
   return (
@@ -28,7 +29,17 @@ function TabLink({ label, icon: Icon, path }: { label: string; icon: typeof Layo
         active ? 'text-[var(--ink)]' : 'text-[var(--text-tertiary)]'
       }`}
     >
-      <Icon className="size-[22px]" strokeWidth={active ? 2.2 : 1.8} />
+      <span className="relative">
+        <Icon className="size-[22px]" strokeWidth={active ? 2.2 : 1.8} />
+        {badge > 0 && (
+          <span
+            aria-label={`${badge} new`}
+            className="absolute -right-1.5 -top-1 flex size-3.5 items-center justify-center rounded-full bg-[var(--negative)] text-[8px] font-bold text-white"
+          >
+            {badge > 9 ? '9+' : badge}
+          </span>
+        )}
+      </span>
       {label}
     </Link>
   )
@@ -39,6 +50,8 @@ export function MobileTabBar() {
   const [moreOpen, setMoreOpen] = useState(false)
   const location = useLocation()
   const pendingCount = usePendingInbox()
+  const unreadShared = useSplitUnread()
+  const moreCount = pendingCount
 
   return (
     <nav
@@ -60,7 +73,7 @@ export function MobileTabBar() {
           </button>
         </div>
 
-        <TabLink {...TABS[2]} />
+        <TabLink {...TABS[2]} badge={unreadShared} />
 
         <Sheet open={moreOpen} onOpenChange={setMoreOpen}>
           <SheetTrigger
@@ -72,12 +85,12 @@ export function MobileTabBar() {
           >
             <span className="relative">
               <Menu className="size-[22px]" strokeWidth={1.8} />
-              {pendingCount > 0 && (
+              {moreCount > 0 && (
                 <span
-                  aria-label={`${pendingCount} pending approvals`}
+                  aria-label={`${moreCount} waiting for you`}
                   className="absolute -right-1.5 -top-1 flex size-3.5 items-center justify-center rounded-full bg-[var(--negative)] text-[8px] font-bold text-white"
                 >
-                  {pendingCount > 9 ? '9+' : pendingCount}
+                  {moreCount > 9 ? '9+' : moreCount}
                 </span>
               )}
             </span>
@@ -94,7 +107,7 @@ export function MobileTabBar() {
                   <div className="grid gap-1">
                   {group.items.map((item) => {
                     const active = isActive(item, location.pathname)
-                    const count = item.badge === 'inbox' ? pendingCount : 0
+                    const count = item.badge === 'inbox' ? pendingCount : item.badge === 'shared' ? unreadShared : 0
                     return (
                       <Link
                         key={item.path}
@@ -108,7 +121,7 @@ export function MobileTabBar() {
                         </span>
                         <span className="flex-1">{item.label}</span>
                         {count > 0 && (
-                          <span className="tabular flex h-6 min-w-6 items-center justify-center rounded-full bg-[var(--negative)] px-2 text-[12px] font-bold text-white" aria-label={`${count} waiting for approval`}>{count}</span>
+                          <span className="tabular flex h-6 min-w-6 items-center justify-center rounded-full bg-[var(--negative)] px-2 text-[12px] font-bold text-white" aria-label={item.badge === 'shared' ? `${count} new` : `${count} waiting for approval`}>{count}</span>
                         )}
                       </Link>
                     )

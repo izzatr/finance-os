@@ -71,7 +71,7 @@ function QuickAdd() {
   const points = [
     ['A keypad, not a keyboard', 'Amount, category, save. The phone keyboard never covers the form, so it works one-handed in a checkout line.'],
     ['It remembers', 'Your last wallet and recent merchants are one tap away, so repeat purchases take a second.'],
-    ['Split as you go', 'Paid for dinner? Mark who owes you their share and it shows up under People.'],
+    ['Split as you go', 'Paid for dinner? Mark who owes you their share and it shows up under Shared.'],
   ]
   return (
     <section className="bg-[var(--bg-base)] pt-[300px] lg:pt-44">

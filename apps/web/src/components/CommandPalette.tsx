@@ -28,7 +28,7 @@ import {
   CommandShortcut,
 } from '@/components/ui/command'
 import { Badge } from '@/components/ui/badge'
-import { getWallets, searchTransactions } from '../lib/api'
+import { getWallets, isFriendsWallet, searchTransactions, visibleFriendsWallets } from '../lib/api'
 
 const CURRENCY_SYMBOLS: Record<string, string> = { IDR: 'Rp', EUR: '\u20ac', USD: '$' }
 
@@ -196,10 +196,10 @@ export function CommandPalette() {
               <>
                 <CommandSeparator />
                 <CommandGroup heading="Wallets">
-                  {walletsQuery.data.data.map((wallet) => (
+                  {walletsQuery.data.data.filter((w) => !isFriendsWallet(w) || visibleFriendsWallets([w]).length > 0).map((wallet) => (
                     <CommandItem
                       key={wallet.id}
-                      onSelect={() => runCommand(() => navigate(`/wallets/${wallet.id}`))}
+                      onSelect={() => runCommand(() => navigate(isFriendsWallet(wallet) ? '/shared' : `/wallets/${wallet.id}`))}
                     >
                       <Wallet className="size-4" />
                       <span>{wallet.name}</span>

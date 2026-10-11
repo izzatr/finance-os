@@ -19,6 +19,8 @@ interface ActivityListProps<T extends ActivityItem> {
   renderActions?: (tx: T) => ReactNode
   /** Make a whole row clickable. */
   onSelect?: (tx: T) => void
+  /** Limit which rows are clickable (default: all, when onSelect is set). */
+  selectable?: (tx: T) => boolean
   emptyLabel?: string
   now?: Date
 }
@@ -28,7 +30,7 @@ function amountClass(tx: ActivityItem) {
   return tx.amount >= 0 ? 'text-[var(--positive)]' : 'text-[var(--text-primary)]'
 }
 
-export function ActivityRow<T extends ActivityItem>({ tx, renderActions, onSelect }: { tx: T } & Pick<ActivityListProps<T>, 'renderActions' | 'onSelect'>) {
+export function ActivityRow<T extends ActivityItem>({ tx, renderActions, onSelect, selectable }: { tx: T } & Pick<ActivityListProps<T>, 'renderActions' | 'onSelect' | 'selectable'>) {
   const Icon = categoryIcon(tx.categoryName, tx.type)
   const isIncome = tx.type === 'income' || (tx.type !== 'transfer' && tx.amount > 0)
   const meta = [tx.type === 'transfer' ? 'Transfer' : tx.categoryName, tx.walletName].filter(Boolean).join(' · ')
@@ -51,7 +53,7 @@ export function ActivityRow<T extends ActivityItem>({ tx, renderActions, onSelec
   )
   return (
     <li className="flex items-center gap-2">
-      {onSelect ? (
+      {onSelect && (selectable?.(tx) ?? true) ? (
         <button
           type="button"
           onClick={() => onSelect(tx)}
@@ -68,7 +70,7 @@ export function ActivityRow<T extends ActivityItem>({ tx, renderActions, onSelec
 }
 
 /** Transactions grouped by calendar day, with the day's net per currency on the band. */
-export function ActivityList<T extends ActivityItem>({ transactions, renderActions, onSelect, emptyLabel = 'No transactions yet', now }: ActivityListProps<T>) {
+export function ActivityList<T extends ActivityItem>({ transactions, renderActions, onSelect, selectable, emptyLabel = 'No transactions yet', now }: ActivityListProps<T>) {
   if (transactions.length === 0) {
     return <p className="py-8 text-center text-sm text-[var(--text-tertiary)]">{emptyLabel}</p>
   }
@@ -85,7 +87,7 @@ export function ActivityList<T extends ActivityItem>({ transactions, renderActio
           </h3>
           <ul className="pb-2">
             {group.items.map((tx) => (
-              <ActivityRow key={tx.id} tx={tx} renderActions={renderActions} onSelect={onSelect} />
+              <ActivityRow key={tx.id} tx={tx} renderActions={renderActions} onSelect={onSelect} selectable={selectable} />
             ))}
           </ul>
         </section>

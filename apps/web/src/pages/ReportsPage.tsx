@@ -77,7 +77,7 @@ export function ReportsPage() {
         </div>
         {(walletsQuery.data?.data.length ?? 0) > 1 && (
           <div className="min-w-0 flex-1 sm:max-w-[240px]">
-            <WalletMultiSelect wallets={walletsQuery.data?.data ?? []} selectedWalletIds={walletIds} onChange={setWalletIds} />
+            <WalletMultiSelect wallets={(walletsQuery.data?.data ?? []).filter((w) => !w.systemRole)} selectedWalletIds={walletIds} onChange={setWalletIds} />
           </div>
         )}
       </div>
@@ -158,7 +158,7 @@ function Hero({ report: r }: { report: MonthReport }) {
       </dl>
       {r.fronted > 0 && (
         <p className="mt-3 text-[13px] text-white/65">
-          Spent is your share. You also paid {formatMoney(r.fronted, r.currency)} for others, tracked under People.
+          Spent is your share. You also paid {formatMoney(r.fronted, r.currency)} for others, tracked under Shared.
         </p>
       )}
     </section>

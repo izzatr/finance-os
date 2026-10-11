@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ChevronLeft, Settings, Trash2 } from 'lucide-react'
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts'
@@ -42,6 +42,7 @@ export function WalletDetailPage() {
   const [editingWallet, setEditingWallet] = useState(false)
   const [deletingWallet, setDeletingWallet] = useState(false)
   const [editingTx, setEditingTx] = useState<WalletTransaction | null>(null)
+  const navigate = useNavigate()
 
   const query = useQuery({
     queryKey: ['wallet-transactions', walletId],
@@ -114,7 +115,7 @@ export function WalletDetailPage() {
                   {detail.wallet.institution ? ` · ${detail.wallet.institution}` : ''}
                 </p>
               </div>
-              <div className="-mr-2 flex shrink-0 items-center">
+              {!detail.wallet.systemRole && <div className="-mr-2 flex shrink-0 items-center">
                 <Button
                   variant="ghost"
                   size="icon"
@@ -133,16 +134,23 @@ export function WalletDetailPage() {
                 >
                   <Trash2 size={19} />
                 </Button>
-              </div>
+              </div>}
             </div>
 
             <p className="mt-6 text-[14px] font-medium text-white/70">
               {detail.wallet.walletType === 'investment' ? 'Cash balance' : 'Balance'}
             </p>
-            <p className={`tabular text-[38px] font-bold leading-tight tracking-[-0.03em] ${detail.wallet.balance < 0 ? 'text-[#ffb4a8]' : ''}`}>
-              {formatCurrency(detail.wallet.balance, detail.wallet.currency)}
+            <p className={`tabular text-[38px] font-bold leading-tight tracking-[-0.03em] ${Number(detail.wallet.balance) < 0 ? 'text-[#ffb4a8]' : ''}`}>
+              {formatCurrency(Number(detail.wallet.balance), detail.wallet.currency)}
             </p>
           </header>
+
+          {detail.wallet.systemRole && (
+            <p className="mb-6 rounded-lg bg-[var(--tint)] px-4 py-3 text-[14px] text-[var(--text-secondary)]">
+              This wallet holds your balances with friends and updates itself. Change it from{' '}
+              <Link to="/shared" className="font-semibold text-[var(--ink)]">Shared</Link>.
+            </p>
+          )}
 
           {detail.wallet.walletType === 'investment' && <WalletPortfolio walletId={walletId!} />}
 
@@ -209,7 +217,7 @@ export function WalletDetailPage() {
 
           <ActivityList
             transactions={detail.transactions}
-            onSelect={(tx) => setEditingTx(tx)}
+            onSelect={(tx) => (tx.sharedExpenseId ? navigate(`/shared/expenses/${tx.sharedExpenseId}`) : setEditingTx(tx))}
             emptyLabel="No transactions in this wallet yet"
           />
 

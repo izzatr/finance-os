@@ -71,7 +71,7 @@ export function HomePreview() {
           </p>
           <p className="mt-2.5 inline-flex rounded-md bg-[var(--cream)] px-2 py-0.5 text-[11px] font-bold text-[var(--ink)]">+$1,284.00 this month</p>
           <div className="mt-4 flex gap-2">
-            {[[ArrowLeftRight, 'Transfer'], [Users, 'People'], [BarChart3, 'Reports']].map(([Icon, label]) => {
+            {[[ArrowLeftRight, 'Transfer'], [Users, 'Shared'], [BarChart3, 'Reports']].map(([Icon, label]) => {
               const I = Icon as typeof Home
               return (
                 <span key={label as string} className="flex h-9 flex-1 items-center justify-center gap-1 rounded-xl bg-white/10 text-[11px] font-semibold">

@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { DatePicker } from '@/components/ui/date-picker'
+import { Dropdown } from '@/components/ui/dropdown'
 import { CalendarClock, Plus, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -35,7 +37,7 @@ function CreateRuleDialog({ onClose }: { onClose: () => void }) {
   const [mode, setMode] = useState<RecurringRule['mode']>('draft')
   const [error, setError] = useState<string | null>(null)
 
-  const wallets = walletsQuery.data?.data ?? []
+  const wallets = (walletsQuery.data?.data ?? []).filter((w) => w.isActive && !w.systemRole)
   const wallet = wallets.find((w) => w.id === walletId) ?? wallets[0]
   const categories = (categoriesQuery.data?.data ?? []).filter((c) => c.type === kind)
 
@@ -75,29 +77,16 @@ function CreateRuleDialog({ onClose }: { onClose: () => void }) {
         <div className="grid gap-2.5">
           <Input autoFocus placeholder="Name (e.g. Rent)" value={name} onChange={(e) => setName(e.target.value)} aria-label="Name" />
           <div className="grid grid-cols-2 gap-2.5">
-            <select value={kind} onChange={(e) => { setKind(e.target.value as 'expense' | 'income'); setCategoryId('') }} aria-label="Type" className="h-9 rounded-md border border-input bg-transparent px-3 text-sm">
-              <option value="expense">Expense</option>
-              <option value="income">Income</option>
-            </select>
+            <Dropdown aria-label="Type" value={kind} onChange={(v) => { setKind(v as 'expense' | 'income'); setCategoryId('') }} options={[{ value: 'expense', label: 'Expense' }, { value: 'income', label: 'Income' }]} />
             <Input inputMode="decimal" placeholder="Amount" value={amount} onChange={(e) => setAmount(e.target.value)} aria-label="Amount" />
           </div>
           <div className="grid grid-cols-2 gap-2.5">
-            <select value={wallet?.id ?? ''} onChange={(e) => setWalletId(e.target.value)} aria-label="Wallet" className="h-9 rounded-md border border-input bg-transparent px-3 text-sm">
-              {wallets.map((w) => <option key={w.id} value={w.id}>{w.name} · {w.currency}</option>)}
-            </select>
-            <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} aria-label="Category" className="h-9 rounded-md border border-input bg-transparent px-3 text-sm">
-              <option value="">No category</option>
-              {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
+            <Dropdown aria-label="Wallet" value={wallet?.id ?? ''} onChange={setWalletId} options={wallets.map((w) => ({ value: w.id, label: w.name, hint: w.currency }))} />
+            <Dropdown aria-label="Category" searchable value={categoryId} onChange={setCategoryId} options={[{ value: '', label: 'No category' }, ...categories.map((c) => ({ value: c.id, label: c.name }))]} />
           </div>
           <div className="grid grid-cols-2 gap-2.5">
-            <select value={freq} onChange={(e) => setFreq(e.target.value as RecurringRule['freq'])} aria-label="Frequency" className="h-9 rounded-md border border-input bg-transparent px-3 text-sm">
-              <option value="daily">Daily</option>
-              <option value="weekly">Weekly</option>
-              <option value="monthly">Monthly</option>
-              <option value="yearly">Yearly</option>
-            </select>
-            <Input type="date" value={startAt} onChange={(e) => setStartAt(e.target.value)} aria-label="First occurrence" />
+            <Dropdown aria-label="Frequency" value={freq} onChange={(v) => setFreq(v as RecurringRule['freq'])} options={[{ value: 'daily', label: 'Daily' }, { value: 'weekly', label: 'Weekly' }, { value: 'monthly', label: 'Monthly' }, { value: 'yearly', label: 'Yearly' }]} />
+            <DatePicker aria-label="First occurrence" value={startAt} onChange={setStartAt} />
           </div>
           <label className="flex items-center gap-2 text-xs text-[var(--text-secondary)]">
             <input

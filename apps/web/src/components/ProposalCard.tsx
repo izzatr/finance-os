@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
+import { DatePicker } from '@/components/ui/date-picker'
+import { Dropdown } from '@/components/ui/dropdown'
 import { AlertTriangle, Check, Pencil, X } from 'lucide-react'
 import {
   approveProposal,
@@ -17,7 +19,7 @@ import { dayLabel, formatSigned } from '@/lib/format'
 export function invalidateLedger(qc: QueryClient) {
   for (const key of [
     'inbox', 'wallets', 'wallet', 'recent', 'recent-page', 'transactions', 'dashboard', 'summary', 'summary-monthly',
-    'categories', 'monthly-trend', 'asset-growth', 'net-worth', 'shared-balances', 'month-report', 'people',
+    'categories', 'monthly-trend', 'asset-growth', 'net-worth', 'month-report', 'split', 'wallet-transactions',
   ]) {
     qc.invalidateQueries({ queryKey: [key] })
   }
@@ -199,7 +201,7 @@ function EditForm({
 }) {
   const qc = useQueryClient()
   const [form, setForm] = useState(initial)
-  const wallets = (useQuery({ queryKey: ['wallets'], queryFn: getWallets }).data?.data ?? []).filter((w) => w.isActive || w.id === initial.walletId)
+  const wallets = (useQuery({ queryKey: ['wallets'], queryFn: getWallets }).data?.data ?? []).filter((w) => (w.isActive && !w.systemRole) || w.id === initial.walletId)
   const categories = (useQuery({ queryKey: ['category-list'], queryFn: getCategories }).data?.data ?? []).filter((c) => c.type === type)
   const save = useMutation({
     mutationFn: () =>
@@ -232,25 +234,20 @@ function EditForm({
           Amount
           <input className={`${field} tabular`} inputMode="decimal" value={form.amount} onChange={set('amount')} />
         </label>
-        <label className="grid gap-1 text-[13px] font-semibold text-[var(--text-secondary)]">
-          Date
-          <input className={field} type="date" value={form.date} onChange={set('date')} />
-        </label>
+        <div className="grid gap-1 text-[13px] font-semibold text-[var(--text-secondary)]">
+          <span aria-hidden>Date</span>
+          <DatePicker aria-label="Date" value={form.date} onChange={(v) => set('date')({ target: { value: v } })} />
+        </div>
       </div>
       <div className="grid grid-cols-2 gap-2.5">
-        <label className="grid gap-1 text-[13px] font-semibold text-[var(--text-secondary)]">
-          Wallet
-          <select className={field} value={form.walletId} onChange={set('walletId')}>
-            {wallets.map((w) => <option key={w.id} value={w.id}>{w.name} · {w.currency}</option>)}
-          </select>
-        </label>
-        <label className="grid gap-1 text-[13px] font-semibold text-[var(--text-secondary)]">
-          Category
-          <select className={field} value={form.categoryId} onChange={set('categoryId')}>
-            <option value="">No category</option>
-            {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
-        </label>
+        <div className="grid gap-1 text-[13px] font-semibold text-[var(--text-secondary)]">
+          <span aria-hidden>Wallet</span>
+          <Dropdown aria-label="Wallet" value={form.walletId} onChange={(v) => set('walletId')({ target: { value: v } })} options={wallets.map((w) => ({ value: w.id, label: w.name, hint: w.currency }))} />
+        </div>
+        <div className="grid gap-1 text-[13px] font-semibold text-[var(--text-secondary)]">
+          <span aria-hidden>Category</span>
+          <Dropdown aria-label="Category" searchable value={form.categoryId} onChange={(v) => set('categoryId')({ target: { value: v } })} options={[{ value: '', label: 'No category' }, ...categories.map((c) => ({ value: c.id, label: c.name }))]} />
+        </div>
       </div>
       {save.isError && <p className="text-[13px] text-[var(--negative)]" role="alert">{(save.error as Error).message}</p>}
       <div className="flex gap-2 pt-1">

@@ -16,6 +16,7 @@ import {
 import { useAuth } from '@/contexts/AuthContext'
 import { useQuickAdd } from '@/contexts/QuickAddContext'
 import { usePendingInbox } from '@/hooks/use-pending-inbox'
+import { useSplitUnread } from '@/hooks/use-split'
 import { NAV_GROUPS, isActive } from '@/lib/nav'
 
 const ITEM =
@@ -34,6 +35,7 @@ export function AppSidebar() {
   const { toggleSidebar } = useSidebar()
   const { openQuickAdd } = useQuickAdd()
   const pending = usePendingInbox()
+  const unread = useSplitUnread()
   const auth = useAuth()
   const user = auth.state.status === 'authenticated' ? auth.state.user : null
 
@@ -90,12 +92,12 @@ export function AppSidebar() {
             <SidebarGroupContent>
               <SidebarMenu className="gap-0.5">
                 {group.items.map((item) => {
-                  const count = item.badge === 'inbox' ? pending : 0
+                  const count = item.badge === 'inbox' ? pending : item.badge === 'shared' ? unread : 0
                   return (
                     <SidebarMenuItem key={item.path}>
                       <SidebarMenuButton
                         isActive={isActive(item, location.pathname)}
-                        tooltip={count ? `${item.label} · ${count} waiting` : item.label}
+                        tooltip={count ? `${item.label} · ${count} ${item.badge === 'shared' ? 'new' : 'waiting'}` : item.label}
                         render={<Link to={item.path} />}
                         className={ITEM}
                       >
