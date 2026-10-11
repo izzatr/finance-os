@@ -495,7 +495,18 @@ export type Proposal = {
   id: string
   source: string
   actorLabel: string
-  payload: { transaction?: { description?: string; type?: string; transactionDate?: string; entries?: Array<{ amount: string }> } }
+  payload: {
+    transaction?: {
+      description?: string
+      type?: string
+      transactionDate?: string
+      categoryId?: string | null
+      notes?: string | null
+      entries?: Array<{ walletId?: string; assetId?: string; amount: string }>
+      splits?: Array<{ personId: string; amount: string }>
+    }
+    digest?: string | null
+  }
   status: 'pending' | 'approved' | 'rejected'
   createdAt: string
   resolvedAt: string | null
@@ -507,6 +518,12 @@ export function getInbox() {
 
 export function approveProposal(id: string) {
   return request<{ data: Proposal }>(`/api/inbox/${id}/approve`, { method: 'POST' })
+}
+
+export type ProposalEdit = { description?: string; amount?: string; date?: string; walletId?: string; categoryId?: string | null }
+
+export function editProposal(id: string, patch: ProposalEdit) {
+  return request<{ data: Proposal }>(`/api/inbox/${id}`, { method: 'PATCH', body: JSON.stringify(patch) })
 }
 
 export function rejectProposal(id: string) {

@@ -60,8 +60,7 @@ function setPointer(coarse: boolean) {
   })) as unknown as typeof window.matchMedia
 }
 
-// Generous timeout: these drive many userEvent clicks and can exceed 5s when the suite runs under load (CI, parallel build).
-describe('QuickAddSheet', { timeout: 20_000 }, () => {
+describe('QuickAddSheet', () => {
   beforeEach(() => {
     vi.mocked(createTransaction).mockClear()
     localStorage.clear()
