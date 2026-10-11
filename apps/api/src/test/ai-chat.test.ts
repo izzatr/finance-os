@@ -14,7 +14,7 @@ let appBase: string
 let mock: Server
 let mockScript: string[][] = [] // each element: SSE data payloads for one completions call
 let mockJson: string[] = [] // scripted contents for non-streaming (stream:false) calls
-let mockCalls: Array<{ model: string; toolCount: number }> = []
+let mockCalls: Array<{ model: string; toolCount: number; toolNames: string[]; system: string }> = []
 
 function sse(events: unknown[]): string[] {
   return [...events.map((e) => JSON.stringify(e)), '[DONE]']
@@ -33,8 +33,13 @@ beforeAll(async () => {
     let body = ''
     req.on('data', (chunk) => { body += chunk })
     req.on('end', () => {
-      const parsed = JSON.parse(body) as { model: string; tools?: unknown[]; stream?: boolean }
-      mockCalls.push({ model: parsed.model, toolCount: parsed.tools?.length ?? 0 })
+      const parsed = JSON.parse(body) as { model: string; tools?: Array<{ function: { name: string } }>; stream?: boolean; messages?: Array<{ role: string; content: string }> }
+      mockCalls.push({
+        model: parsed.model,
+        toolCount: parsed.tools?.length ?? 0,
+        toolNames: (parsed.tools ?? []).map((t) => t.function.name),
+        system: parsed.messages?.find((m) => m.role === 'system')?.content ?? '',
+      })
       if (parsed.stream === false) {
         const content = mockJson.shift() ?? '{}'
         res.writeHead(200, { 'content-type': 'application/json' })
@@ -73,11 +78,11 @@ async function setup() {
   return { cookie }
 }
 
-async function chat(cookie: string, content: string): Promise<Array<{ type: string; [k: string]: unknown }>> {
+async function chat(cookie: string, content: string, extra: Record<string, unknown> = {}): Promise<Array<{ type: string; [k: string]: unknown }>> {
   const res = await fetch(`${appBase}/api/ai/chat`, {
     method: 'POST',
     headers: { 'content-type': 'application/json', cookie },
-    body: JSON.stringify({ messages: [{ role: 'user', content }] }),
+    body: JSON.stringify({ messages: [{ role: 'user', content }], ...extra }),
   })
   expect(res.status).toBe(200)
   const text = await res.text()
@@ -114,7 +119,48 @@ describe('ai chat', () => {
     const textDeltas = events.filter((e) => e.type === 'text').map((e) => e.delta).join('')
     expect(textDeltas).toBe('You have one wallet.')
     expect(events.at(-1)?.type).toBe('done')
-    expect(mockCalls[0].toolCount).toBeGreaterThanOrEqual(25)
+    expect(mockCalls[0].toolCount).toBeGreaterThanOrEqual(15)
+  })
+
+  it('runs tool calls even when the provider ends the turn with finish_reason stop', async () => {
+    const { cookie } = await setup()
+    mockScript = [
+      sse([{
+        choices: [{ delta: { tool_calls: [{ index: 0, id: 'call_s', function: { name: 'finance_wallets', arguments: '{}' } }] }, finish_reason: 'stop' }],
+      }]),
+      sse([{ choices: [{ delta: { content: 'You have one wallet.' }, finish_reason: 'stop' }] }]),
+    ]
+    const events = await chat(cookie, 'which wallets do I have?')
+    expect(events.find((e) => e.type === 'tool_result')).toMatchObject({ name: 'finance_wallets', ok: true })
+    expect(events.filter((e) => e.type === 'text').map((e) => e.delta).join('')).toBe('You have one wallet.')
+  })
+
+  it('offers only tools that work in propose scope and grounds the prompt in wallets, date and currency', async () => {
+    const { cookie } = await setup()
+    mockScript = [sse([{ choices: [{ delta: { content: 'Hi' }, finish_reason: 'stop' }] }])]
+    await chat(cookie, 'hello', { today: '2026-10-11', currency: 'usd' })
+    const call = mockCalls[0]
+    expect(call.toolNames).toContain('finance_add_transaction')
+    expect(call.toolNames).toContain('finance_monthly_report')
+    for (const blocked of ['finance_edit_transaction', 'finance_delete_transaction', 'finance_approve_proposal', 'finance_create_wallet']) {
+      expect(call.toolNames).not.toContain(blocked)
+    }
+    expect(call.system).toContain('Today is 2026-10-11')
+    expect(call.system).toContain('display currency is USD')
+    expect(call.system).toContain('Main Bank (EUR)')
+  })
+
+  it('returns the proposal id with the tool result so the chat can approve inline', async () => {
+    const { cookie } = await setup()
+    mockScript = [
+      sse([{ choices: [{ delta: { tool_calls: [{ index: 0, id: 'call_p', function: { name: 'finance_add_transaction', arguments: JSON.stringify({ date: '2026-10-11', type: 'expense', description: 'Coffee', amount: '4.20', walletName: 'Main Bank' }) } }] }, finish_reason: 'tool_calls' }] }]),
+      sse([{ choices: [{ delta: { content: 'Proposed.' }, finish_reason: 'stop' }] }]),
+    ]
+    const events = await chat(cookie, 'coffee 4.20')
+    const result = events.find((e) => e.type === 'tool_result') as { proposalId?: string }
+    const inbox = (await (await app.request('/api/inbox', { headers: { cookie } })).json()) as { data: Array<{ id: string; actorLabel: string }> }
+    expect(result.proposalId).toBe(inbox.data[0].id)
+    expect(inbox.data[0].actorLabel).toBe('Assistant')
   })
 
   it('executes a tool round and the write lands as a proposal, never a booking', async () => {

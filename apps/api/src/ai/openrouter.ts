@@ -22,7 +22,7 @@ export type ChatMessage = {
 export type StreamEvent =
   | { type: 'text'; delta: string }
   | { type: 'tool_start'; id: string; name: string }
-  | { type: 'tool_result'; id: string; name: string; ok: boolean; proposed: boolean }
+  | { type: 'tool_result'; id: string; name: string; ok: boolean; proposed: boolean; proposalId?: string; error?: string }
   | { type: 'error'; message: string }
   | { type: 'done' }
 
@@ -113,6 +113,7 @@ export async function* runChat(opts: {
       for (const tc of choice.delta?.tool_calls ?? []) {
         const slot = toolCalls.get(tc.index) ?? { id: '', name: '', args: '' }
         if (tc.id) slot.id = tc.id
+        if (!slot.id) slot.id = `call_${tc.index}`
         if (tc.function?.name) slot.name += tc.function.name
         if (tc.function?.arguments) slot.args += tc.function.arguments
         toolCalls.set(tc.index, slot)
@@ -120,7 +121,10 @@ export async function* runChat(opts: {
       if (choice.finish_reason) finish = choice.finish_reason
     }
 
-    if (finish !== 'tool_calls' || toolCalls.size === 0) {
+    // Some providers end a tool-calling turn with finish_reason "stop" (or none at all),
+    // so run whatever tool calls arrived instead of trusting the finish reason.
+    void finish
+    if (toolCalls.size === 0) {
       yield { type: 'done' }
       return
     }
@@ -143,6 +147,7 @@ export async function* runChat(opts: {
       let resultText: string
       let ok = true
       let proposed = false
+      let proposalId: string | undefined
       if (!tool) {
         ok = false
         resultText = `Unknown tool: ${call.name}`
@@ -151,13 +156,14 @@ export async function* runChat(opts: {
           const args = tool.schema.parse(JSON.parse(call.args || '{}'))
           const result = await tool.execute(opts.ctx, args as Record<string, unknown>)
           proposed = (result as { status?: string } | null)?.status === 'proposed'
+          proposalId = proposed ? (result as { proposalId?: string }).proposalId : undefined
           resultText = JSON.stringify(result)
         } catch (err) {
           ok = false
           resultText = err instanceof ToolError || err instanceof Error ? err.message : 'Tool execution failed'
         }
       }
-      yield { type: 'tool_result', id: call.id, name: call.name, ok, proposed }
+      yield { type: 'tool_result', id: call.id, name: call.name, ok, proposed, ...(proposalId ? { proposalId } : {}), ...(ok ? {} : { error: resultText.slice(0, 300) }) }
       messages.push({ role: 'tool', content: resultText, tool_call_id: call.id })
     }
   }

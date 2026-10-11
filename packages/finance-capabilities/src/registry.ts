@@ -28,6 +28,10 @@ export type FinanceToolContext = {
   actorLabel?: string
   /** Inbox source attribution for session-backed proposers (the AI chat). */
   proposalSource?: 'ai_chat' | 'draft'
+  /** Currency reports are converted into when the caller does not name one (the web app's default). */
+  defaultCurrency?: string
+  /** The caller's local date (YYYY-MM-DD); "this month" follows it instead of the server's UTC clock. */
+  today?: string
 }
 
 export class ToolError extends Error {}
@@ -36,6 +40,8 @@ export type FinanceTool = {
   name: string
   description: string
   kind: 'read' | 'write'
+  /** Write tools that still work with a propose-scoped caller (they park the change in the inbox). */
+  proposable?: boolean
   schema: z.ZodObject<z.ZodRawShape>
   execute: (ctx: FinanceToolContext, args: Record<string, unknown>) => Promise<unknown>
 }
@@ -160,6 +166,15 @@ async function bookOrPropose(
   return { status: 'booked', ...summary }
 }
 
+const todayOf = (ctx: FinanceToolContext) => ctx.today ?? new Date().toISOString().slice(0, 10)
+
+function monthBounds(month: string): { from: string; to: string } {
+  const next = new Date(`${month}-01T00:00:00.000Z`)
+  next.setUTCMonth(next.getUTCMonth() + 1)
+  // `to` is inclusive end-of-month so the API's lte() keeps the last day.
+  return { from: `${month}-01T00:00:00.000Z`, to: new Date(next.getTime() - 1).toISOString() }
+}
+
 const num = (v: number | string) => (typeof v === 'string' ? parseFloat(v) : v)
 
 // ── The registry ─────────────────────────────────────────────────────────────
@@ -221,27 +236,31 @@ export const financeTools: FinanceTool[] = [
   },
   {
     name: 'finance_spending',
-    description: 'Spending breakdown by category, grouped by currency — top expense categories with totals and counts',
+    description: 'Spending by category for one month (defaults to the current month), grouped by currency. Use this for "where did my money go" questions; use finance_monthly_report for totals and comparisons.',
     kind: 'read',
     schema: z.object({
+      month: z.string().regex(/^\d{4}-\d{2}$/).optional().describe('Month in YYYY-MM (defaults to the current month)'),
       currency: z.string().optional().describe('Filter by currency code (e.g. IDR, EUR, USD)'),
       limit: z.number().int().min(1).max(50).optional().describe('Max categories per currency (default 10)'),
     }),
-    execute: async (ctx, { currency, limit }) => {
+    execute: async (ctx, { month, currency, limit }) => {
+      const m = (month as string | undefined) ?? todayOf(ctx).slice(0, 7)
+      const { from, to } = monthBounds(m)
+      const qs = new URLSearchParams({ type: 'expense', from, to })
       const { data } = await request<{ data: Array<{ type: string; categoryName: string | null; currency: string }> }>(
-        ctx, '/api/analytics/category-breakdown?type=expense',
+        ctx, `/api/analytics/category-breakdown?${qs}`,
       )
       const n = (limit as number | undefined) ?? 10
       let expenses = data.filter((c) => c.categoryName)
       if (typeof currency === 'string' && currency) {
         expenses = expenses.filter((c) => c.currency.toLowerCase() === currency.toLowerCase())
       }
-      const grouped: Record<string, unknown[]> = {}
+      const byCurrency: Record<string, unknown[]> = {}
       for (const c of expenses) {
-        const bucket = (grouped[c.currency] ??= [])
+        const bucket = (byCurrency[c.currency] ??= [])
         if (bucket.length < n) bucket.push(c)
       }
-      return grouped
+      return { month: m, byCurrency }
     },
   },
   {
@@ -286,48 +305,24 @@ export const financeTools: FinanceTool[] = [
   },
   {
     name: 'finance_monthly_report',
-    description: 'Monthly financial report: income, expenses, net, and top spending categories. Defaults to the current month.',
+    description: 'One month in a single currency, the same numbers as the Reports page: income, spending (your share of split bills), net, savings rate, the usual month (average of up to 3 earlier months), spending so far vs the usual pace by the same day, categories with their usual amount, top merchants and 12 months of cash flow. Defaults to the current month.',
     kind: 'read',
     schema: z.object({
       month: z.string().regex(/^\d{4}-\d{2}$/).optional().describe('Month in YYYY-MM format (defaults to current month)'),
-      walletName: z.string().optional().describe('Filter to a specific wallet'),
+      currency: z.string().length(3).optional().describe('Currency to report in (defaults to the owner\'s display currency)'),
+      walletName: z.string().optional().describe('Limit to one wallet'),
     }),
-    execute: async (ctx, { month, walletName }) => {
-      const m = (month as string | undefined) ?? new Date().toISOString().slice(0, 7)
-      const from = `${m}-01`
-      const next = new Date(`${m}-01T00:00:00.000Z`)
-      next.setUTCMonth(next.getUTCMonth() + 1)
-      const to = next.toISOString().slice(0, 10)
-      const params: Record<string, string> = { from, to }
-      if (typeof walletName === 'string' && walletName) {
-        params.wallet = (await resolveWallet(ctx, walletName)).id
-      }
-      const qs = new URLSearchParams(params).toString()
-      const { data: txns } = await request<{ data: RecentTx[] }>(ctx, `/api/transactions/search?${qs}`)
-      let income = 0
-      let expense = 0
-      const byCategory: Record<string, { total: number; count: number }> = {}
-      for (const tx of txns) {
-        if (tx.amount > 0) income += tx.amount
-        else expense += tx.amount
-        const cat = tx.categoryName ?? 'Uncategorized'
-        const entry = (byCategory[cat] ??= { total: 0, count: 0 })
-        entry.total += Math.abs(tx.amount)
-        entry.count++
-      }
-      const topCategories = Object.entries(byCategory)
-        .sort(([, a], [, b]) => b.total - a.total)
-        .slice(0, 10)
-        .map(([name, v]) => ({ name, ...v }))
-      return {
-        month: m,
-        wallet: (walletName as string | undefined) ?? 'all',
-        transactionCount: txns.length,
-        income: Math.round(income * 100) / 100,
-        expense: Math.round(expense * 100) / 100,
-        net: Math.round((income + expense) * 100) / 100,
-        topCategories,
-      }
+    execute: async (ctx, { month, currency, walletName }) => {
+      const today = todayOf(ctx)
+      const params = new URLSearchParams({ month: (month as string | undefined) ?? today.slice(0, 7), today })
+      const cur = (currency as string | undefined) ?? ctx.defaultCurrency
+      if (cur) params.set('currency', cur.toUpperCase())
+      if (typeof walletName === 'string' && walletName) params.append('walletId', (await resolveWallet(ctx, walletName)).id)
+      const { data } = await request<{ data: Record<string, unknown> & { pace?: unknown; history?: unknown[] } }>(ctx, `/api/analytics/month-report?${params}`)
+      // The per-day pace series is for charts; keep the answer small for the model.
+      const { pace: _pace, ...rest } = data
+      void _pace
+      return rest
     },
   },
   {
@@ -401,6 +396,7 @@ export const financeTools: FinanceTool[] = [
     name: 'finance_add_transaction',
     description: 'Record an expense or income. With a propose-scoped credential the transaction waits in the approval inbox instead of booking directly.',
     kind: 'write',
+    proposable: true,
     schema: z.object({
       date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).describe('Transaction date YYYY-MM-DD'),
       type: z.enum(['expense', 'income', 'adjustment', 'fee']).describe('Transaction type'),
@@ -445,6 +441,7 @@ export const financeTools: FinanceTool[] = [
     name: 'finance_transfer',
     description: 'Transfer money between two of the owner\'s wallets (same currency). Propose-scoped credentials send it to the approval inbox.',
     kind: 'write',
+    proposable: true,
     schema: z.object({
       date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).describe('Transfer date YYYY-MM-DD'),
       amount: z.string().regex(/^\d+(\.\d+)?$/).describe('Amount to transfer, e.g. "50.00"'),
@@ -638,6 +635,7 @@ export const financeTools: FinanceTool[] = [
     name: 'finance_reconcile',
     description: 'Compare a wallet\'s computed balance with an expected balance. Creating the fixing adjustment requires a write-scoped credential.',
     kind: 'write',
+    proposable: true,
     schema: z.object({
       walletName: z.string().describe('Wallet to reconcile'),
       expectedBalance: z.string().regex(/^-?\d+(\.\d+)?$/).describe('Expected balance, e.g. "2212.90"'),

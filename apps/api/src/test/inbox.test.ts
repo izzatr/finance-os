@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { db, proposals, transactions } from '@finance-os/db'
+import { db, proposals, transactionEntries, transactions } from '@finance-os/db'
 import { and, eq } from 'drizzle-orm'
 import app from '../app'
 import { materializeDueRules } from '../jobs/materialize-recurring'
@@ -167,6 +167,49 @@ describe('inbox', () => {
     const txRows = await db.select().from(transactions)
       .where(and(eq(transactions.userId, userId), eq(transactions.externalRef, dedupeRef)))
     expect(txRows).toHaveLength(0)
+  })
+
+  it('edits a pending proposal before approval and books the corrected values', async () => {
+    const { cookie } = await createTestUser(app)
+    const { walletId, assetId } = await createWallet(cookie, 'Checking')
+    const other = await createWallet(cookie, 'Card')
+    const cat = (await (await app.request('/api/categories', {
+      method: 'POST', headers: { 'content-type': 'application/json', cookie }, body: JSON.stringify({ name: 'Coffee', type: 'expense' }),
+    })).json()) as { data: { id: string } }
+    const created = (await (await app.request('/api/proposals', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie },
+      body: JSON.stringify({ transaction: { transactionDate: '2026-10-11T12:00:00.000Z', type: 'expense', description: 'coffe', entries: [{ walletId, assetId, amount: '-6.00' }] } }),
+    })).json()) as { data: { id: string } }
+
+    const patch = await app.request(`/api/inbox/${created.data.id}`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json', cookie },
+      body: JSON.stringify({ description: 'Blue Bottle', amount: '6.50', date: '2026-10-10', walletId: other.walletId, categoryId: cat.data.id }),
+    })
+    expect(patch.status).toBe(200)
+
+    const approve = await app.request(`/api/inbox/${created.data.id}/approve`, { method: 'POST', headers: { cookie } })
+    expect(approve.status).toBe(200)
+    const [tx] = await db.select().from(transactions)
+    expect(tx.description).toBe('Blue Bottle')
+    expect(tx.categoryId).toBe(cat.data.id)
+    expect(tx.transactionDate.toISOString().slice(0, 10)).toBe('2026-10-10')
+    const [entry] = await db.select().from(transactionEntries).where(eq(transactionEntries.transactionId, tx.id))
+    expect(entry.walletId).toBe(other.walletId)
+    expect(Number(entry.amount)).toBe(-6.5)
+  })
+
+  it('refuses to edit resolved or foreign proposals and unknown wallets', async () => {
+    const { cookie } = await createTestUser(app)
+    const stranger = await createTestUser(app)
+    const { proposalId } = await seedDraftProposal(cookie)
+    const body = JSON.stringify({ description: 'x' })
+    const headers = (c: string) => ({ 'content-type': 'application/json', cookie: c })
+    expect((await app.request(`/api/inbox/${proposalId}`, { method: 'PATCH', headers: headers(stranger.cookie), body })).status).toBe(404)
+    expect((await app.request(`/api/inbox/${proposalId}`, { method: 'PATCH', headers: headers(cookie), body: JSON.stringify({ walletId: '00000000-0000-4000-8000-000000000000' }) })).status).toBe(404)
+    await app.request(`/api/inbox/${proposalId}/reject`, { method: 'POST', headers: { cookie } })
+    expect((await app.request(`/api/inbox/${proposalId}`, { method: 'PATCH', headers: headers(cookie), body })).status).toBe(409)
   })
 
   it('returns 404 for a foreign or missing proposal', async () => {

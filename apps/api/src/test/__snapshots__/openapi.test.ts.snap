@@ -40,6 +40,7 @@ exports[`openapi document > exposes the full route inventory 1`] = `
   "GET /health",
   "GET /ready",
   "PATCH /api/categories/{id}",
+  "PATCH /api/inbox/{id}",
   "PATCH /api/people/{id}",
   "PATCH /api/portfolio/holdings/{id}",
   "PATCH /api/recurring-rules/{id}",

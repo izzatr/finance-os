@@ -1,7 +1,7 @@
 import { createRoute, z } from '@hono/zod-openapi'
 import type { OpenAPIHono } from '@hono/zod-openapi'
-import { db, proposals, transactions } from '@finance-os/db'
-import { and, desc, eq, sql } from 'drizzle-orm'
+import { categories, db, proposals, transactions, wallets } from '@finance-os/db'
+import { and, desc, eq, isNull, sql } from 'drizzle-orm'
 import { recordAudit } from '../lib/audit'
 import { CreateTransactionError, createTransactionForUser } from '../lib/create-transaction'
 import type { NewTransactionInput } from '../lib/create-transaction'
@@ -155,6 +155,82 @@ export function registerInboxRoutes(app: OpenAPIHono) {
       resourceId: id,
     })
 
+    return c.json({ data: toResponseShape(updated) }, 200)
+  })
+
+  const editRoute = createRoute({
+    method: 'patch',
+    path: '/api/inbox/{id}',
+    tags: ['inbox'],
+    description: 'Correct a pending single-entry expense or income proposal before approving it (description, amount, date, wallet, category).',
+    request: {
+      params: z.object({ id: z.string().uuid() }),
+      body: {
+        content: {
+          'application/json': {
+            schema: z.object({
+              description: z.string().trim().min(1).max(255).optional(),
+              amount: z.string().regex(/^\d+(\.\d+)?$/).optional().describe('Positive amount; the sign follows the transaction type'),
+              date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+              walletId: z.string().uuid().optional(),
+              categoryId: z.string().uuid().nullable().optional(),
+            }),
+          },
+        },
+      },
+    },
+    responses: {
+      200: { description: 'Proposal updated', content: { 'application/json': { schema: z.object({ data: proposalShape }) } } },
+      400: { description: 'This proposal cannot be edited', content: { 'application/json': { schema: errorShape } } },
+      404: { description: 'Proposal, wallet or category not found', content: { 'application/json': { schema: errorShape } } },
+      409: { description: 'Proposal already resolved', content: { 'application/json': { schema: errorShape } } },
+    },
+  })
+
+  app.openapi(editRoute, async (c) => {
+    const user = c.get('user')
+    const { id } = c.req.valid('param')
+    const patch = c.req.valid('json')
+
+    const row = await loadOwnProposal(user.id, id)
+    if (!row) return c.json({ error: { code: 'NOT_FOUND', message: 'Proposal not found' } }, 404)
+    if (row.status !== 'pending') return c.json({ error: { code: 'ALREADY_RESOLVED', message: 'Proposal has already been resolved' } }, 409)
+
+    const payload = row.payload as { transaction?: NewTransactionInput } & Record<string, unknown>
+    const tx = payload.transaction
+    if (!tx || tx.entries.length !== 1 || (tx.type !== 'expense' && tx.type !== 'income')) {
+      return c.json({ error: { code: 'NOT_EDITABLE', message: 'Only single-wallet expenses and income can be edited here' } }, 400)
+    }
+
+    const next: NewTransactionInput = { ...tx, entries: [{ ...tx.entries[0] }] }
+    if (patch.description !== undefined) next.description = patch.description
+    if (patch.date !== undefined) next.transactionDate = `${patch.date}T12:00:00.000Z`
+    if (patch.amount !== undefined) next.entries[0].amount = tx.type === 'income' ? patch.amount : `-${patch.amount}`
+    if (patch.walletId !== undefined) {
+      const [wallet] = await db.select({ id: wallets.id, assetId: wallets.assetId }).from(wallets)
+        .where(and(eq(wallets.id, patch.walletId), eq(wallets.userId, user.id), isNull(wallets.deletedAt)))
+      if (!wallet) return c.json({ error: { code: 'WALLET_NOT_FOUND', message: 'Wallet not found' } }, 404)
+      next.entries[0].walletId = wallet.id
+      next.entries[0].assetId = wallet.assetId
+      // Split shares are denominated in the wallet's asset; keep them consistent with the new wallet.
+      if (next.splits) next.splits = next.splits.map((s) => ({ ...s, assetId: wallet.assetId }))
+    }
+    if (patch.categoryId !== undefined) {
+      if (patch.categoryId !== null) {
+        const [category] = await db.select({ id: categories.id }).from(categories)
+          .where(and(eq(categories.id, patch.categoryId), eq(categories.userId, user.id)))
+        if (!category) return c.json({ error: { code: 'CATEGORY_NOT_FOUND', message: 'Category not found' } }, 404)
+      }
+      next.categoryId = patch.categoryId
+    }
+
+    const [updated] = await db.update(proposals)
+      .set({ payload: { ...payload, transaction: next } })
+      .where(and(eq(proposals.id, id), eq(proposals.userId, user.id), eq(proposals.status, 'pending')))
+      .returning()
+    if (!updated) return c.json({ error: { code: 'ALREADY_RESOLVED', message: 'Proposal has already been resolved' } }, 409)
+
+    await recordAudit({ actorType: c.get('authMethod') ?? 'user', actorId: user.id, action: 'proposal.edit', resourceType: 'proposal', resourceId: id })
     return c.json({ data: toResponseShape(updated) }, 200)
   })
 

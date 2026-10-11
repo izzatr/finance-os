@@ -30,16 +30,34 @@ function loopbackBase(): string {
   return process.env.MCP_LOOPBACK_URL ?? `http://127.0.0.1:${process.env.PORT ?? 27032}`
 }
 
-function systemPrompt(): string {
-  const today = new Date().toISOString().slice(0, 10)
-  return [
+/** Tools the chat can actually use: reads, plus writes that park in the inbox. Offering
+ *  edit/delete/approve tools that always refuse in propose scope only made the model
+ *  try them and then tell the owner to go create a write-scoped API key. */
+const chatTools = financeTools.filter((tool) => tool.kind === 'read' || tool.proposable)
+
+type Grounding = { wallets: Array<{ name: string; currency: string; isActive?: boolean }>; categories: Array<{ name: string; type: string }> }
+
+function systemPrompt(today: string, currency: string, grounding: Grounding | null): string {
+  const lines = [
     'You are the finance assistant inside Finance OS, a personal finance tracker.',
-    `Today is ${today}.`,
-    'Use the finance_* tools to answer with real data — never guess numbers.',
-    'Any transaction you record becomes a PROPOSAL in the owner\'s approval inbox; it books nothing until they approve. Say so when you propose one.',
-    'Amounts: be precise, name the currency. Prefer concise answers.',
-  ].join(' ')
+    `Today is ${today} (the owner's local date). Their display currency is ${currency}.`,
+    'Use the finance_* tools to answer with real data. Never guess numbers.',
+    'For "how much did I spend / save / earn" questions about a month, call finance_monthly_report: it matches the Reports page (spending is the owner\'s share of split bills, compared with their usual month). Use finance_spending for a category breakdown and finance_search to find specific transactions.',
+    'Anything you record (expenses, income, transfers) becomes a proposal in the approval Inbox and books nothing until the owner approves. Say so in one short line. You cannot edit, delete or approve existing transactions; tell the owner to do that in the app (tap the transaction, or approve in Inbox).',
+    'When recording: use today unless a date is given, pick the wallet and category from the lists below by meaning (e.g. "starbucks" is Coffee), and ask one short question only when the wallet is genuinely ambiguous.',
+    'Answer in a sentence or two, then at most a short bullet list. Name the currency. No tables, no headings.',
+  ]
+  if (grounding) {
+    const wallets = grounding.wallets.filter((w) => w.isActive !== false).map((w) => `${w.name} (${w.currency})`).join(', ')
+    const expense = grounding.categories.filter((c) => c.type === 'expense').map((c) => c.name).join(', ')
+    const income = grounding.categories.filter((c) => c.type === 'income').map((c) => c.name).join(', ')
+    lines.push(`Wallets: ${wallets || 'none yet'}.`, `Expense categories: ${expense || 'none'}.`, `Income categories: ${income || 'none'}.`)
+  }
+  return lines.join('\n')
 }
+
+const isoDate = (v: unknown) => (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null)
+const currencyCode = (v: unknown) => (typeof v === 'string' && /^[A-Za-z]{3}$/.test(v) ? v.toUpperCase() : null)
 
 export function registerAiRoutes(app: OpenAPIHono) {
   app.use('/api/ai/*', rateLimit({ windowMs: 60_000, max: 20, keyPrefix: 'ai' }))
@@ -84,7 +102,9 @@ export function registerAiRoutes(app: OpenAPIHono) {
       return c.json({ error: { code: 'SESSION_REQUIRED', message: 'The assistant is for the web app — agents should use /mcp' } }, 403)
     }
 
-    const body = (await c.req.json().catch(() => null)) as { messages?: Array<{ role: string; content: string }> } | null
+    const body = (await c.req.json().catch(() => null)) as { messages?: Array<{ role: string; content: string }>; today?: string; currency?: string } | null
+    const today = isoDate(body?.today) ?? new Date().toISOString().slice(0, 10)
+    const currency = currencyCode(body?.currency) ?? 'EUR'
     const history = (body?.messages ?? []).filter(
       (m) => (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string' && m.content.length > 0,
     ).slice(-30)
@@ -99,12 +119,21 @@ export function registerAiRoutes(app: OpenAPIHono) {
       baseUrl: loopbackBase(),
       cookie: c.req.header('cookie'),
       scope: 'propose',
-      actorLabel: model,
+      actorLabel: 'Assistant',
       proposalSource: 'ai_chat',
+      defaultCurrency: currency,
+      today,
     }
 
+    // Ground names up front so "log coffee on chase" needs no lookup round.
+    const readCtx: FinanceToolContext = { ...ctx, scope: 'read' }
+    const grounding = await Promise.all([
+      financeTools.find((t) => t.name === 'finance_wallets')!.execute(readCtx, {}),
+      financeTools.find((t) => t.name === 'finance_categories')!.execute(readCtx, {}),
+    ]).then(([wallets, categories]) => ({ wallets, categories }) as Grounding).catch(() => null)
+
     const messages: ChatMessage[] = [
-      { role: 'system', content: systemPrompt() },
+      { role: 'system', content: systemPrompt(today, currency, grounding) },
       ...history.map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content })),
     ]
 
@@ -113,7 +142,7 @@ export function registerAiRoutes(app: OpenAPIHono) {
         for await (const event of runChat({
           messages,
           model,
-          tools: financeTools,
+          tools: chatTools,
           ctx,
           apiKey: process.env.OPENROUTER_API_KEY!,
           baseUrl: process.env.OPENROUTER_BASE_URL,
