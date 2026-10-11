@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowUp, Check, Loader2, RotateCcw, Sparkles, X } from 'lucide-react'
+import { ArrowUp, Loader2, RotateCcw, Sparkles } from 'lucide-react'
 import { API_BASE_URL, getAiStatus, getInbox } from '@/lib/api'
 import { useDefaultCurrency } from '@/contexts/CurrencyContext'
 import { PageHeader } from '@/components/PageHeader'
@@ -27,15 +27,8 @@ const SUGGESTIONS = [
   'Who owes me money?',
 ]
 
+// Tool calls stay out of the UI; these labels only tell the model, in later turns, what it drafted.
 const TOOL_LABELS: Record<string, string> = {
-  finance_monthly_report: 'Read your month',
-  finance_spending: 'Checked categories',
-  finance_search: 'Searched transactions',
-  finance_recent: 'Read recent activity',
-  finance_balance: 'Checked balances',
-  finance_wallets: 'Checked wallets',
-  finance_net_worth: 'Checked net worth',
-  finance_people: 'Checked people',
   finance_add_transaction: 'Drafted a transaction',
   finance_transfer: 'Drafted a transfer',
   finance_reconcile: 'Drafted a balance fix',
@@ -271,22 +264,6 @@ export function AssistantPage() {
               </div>
             ) : (
               <div key={i} className="grid max-w-[94%] gap-2">
-                {turn.tools.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5">
-                    {turn.tools.map((tool) => (
-                      <span
-                        key={tool.id}
-                        title={tool.error}
-                        className={`inline-flex h-7 items-center gap-1.5 rounded-full px-2.5 text-[12px] font-semibold ${
-                          tool.state === 'error' ? 'bg-[#fbe4df] text-[var(--negative)]' : 'bg-[var(--tint)] text-[var(--text-secondary)]'
-                        }`}
-                      >
-                        {tool.state === 'running' ? <Loader2 className="size-3.5 animate-spin" /> : tool.state === 'error' ? <X className="size-3.5" /> : <Check className="size-3.5" />}
-                        {toolLabel(tool.name)}
-                      </span>
-                    ))}
-                  </div>
-                )}
                 {(turn.text || (busy && i === turns.length - 1 && !turn.error)) && (
                   <div className="rounded-2xl rounded-bl-md bg-white px-4 py-3 text-[15px] leading-relaxed text-[var(--text-primary)] ring-1 ring-[var(--border-subtle)]">
                     {turn.text ? <Markdownish text={turn.text} /> : <Loader2 className="size-4 animate-spin text-[var(--text-tertiary)]" />}
@@ -296,7 +273,7 @@ export function AssistantPage() {
                   const p = proposals.get(t.proposalId!)
                   return p ? <ProposalCard key={t.id} proposal={p} compact /> : null
                 })}
-                {!(busy && i === turns.length - 1) && !turn.text && !turn.error && turn.tools.length === 0 && (
+                {!(busy && i === turns.length - 1) && !turn.text && !turn.error && !turn.tools.some((t) => t.proposalId) && (
                   <p className="text-[13px] text-[var(--text-tertiary)]">No answer came back. Try asking again.</p>
                 )}
                 {turn.error && <p className="text-[13px] text-[var(--negative)]" role="alert">{turn.error}</p>}
