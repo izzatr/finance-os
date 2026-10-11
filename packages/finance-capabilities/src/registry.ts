@@ -91,6 +91,12 @@ type RecentTx = {
 type Category = { id: string; name: string; slug: string; type: string; parentId: string | null }
 type Friend = { personId: string; name: string; isGuest: boolean; balances: Array<{ currency: string; amount: string }> }
 type SharedGroup = { id: string; name: string; myBalances: Array<{ currency: string; amount: string }> }
+type SharedExpenseView = {
+  id: string; kind: 'expense' | 'payment'; groupId: string | null; description: string; cost: string; currency: string
+  date: string; category: string; notes: string | null; repeatInterval: string; version: number; deletedAt: string | null
+  paidInput: Record<string, unknown> | null; splitInput: Record<string, unknown> | null
+  shares: Array<{ personId: string; name: string; paid: string; owed: string }>; me: unknown
+}
 type NewTransactionInput = {
   transactionDate: string
   type: string
@@ -673,6 +679,163 @@ export const financeTools: FinanceTool[] = [
       }
       const { data } = await request<{ data: { id: string } }>(ctx, '/api/split/expenses', { method: 'POST', body })
       return { status: 'recorded', id: data.id, amount, currency, friend: friend.name, direction: args.direction }
+    },
+  },
+  {
+    name: 'finance_shared_groups',
+    description: 'Shared expense groups (trips, flats, couples): your balance in each. Name a group to get its members, who owes whom, and settings.',
+    kind: 'read',
+    schema: z.object({
+      groupName: z.string().optional().describe('One group in detail'),
+    }),
+    execute: async (ctx, args) => {
+      if (typeof args.groupName === 'string' && args.groupName) {
+        const group = await resolveGroup(ctx, args.groupName)
+        return (await request<{ data: unknown }>(ctx, `/api/split/groups/${group.id}`)).data
+      }
+      return (await request<{ data: unknown }>(ctx, '/api/split/groups')).data
+    },
+  },
+  {
+    name: 'finance_create_group',
+    description: 'Create a shared expense group with friends (they must already be friends; add them first). Requires a write-scoped credential.',
+    kind: 'write',
+    schema: z.object({
+      name: z.string().min(1).max(100),
+      type: z.enum(['home', 'trip', 'couple', 'other']).optional().describe('Default other'),
+      members: z.array(z.string()).optional().describe('Friend names to add (you are always in it)'),
+      simplifyDebts: z.boolean().optional().describe('Combine debts into fewer payments (default true)'),
+    }),
+    execute: async (ctx, args) => {
+      requireWrite(ctx, 'create groups')
+      const memberIds = await Promise.all(((args.members as string[] | undefined) ?? []).map(async (n) => (await resolveFriend(ctx, n)).personId))
+      const { data } = await request<{ data: { id: string } }>(ctx, '/api/split/groups', {
+        method: 'POST',
+        body: { name: args.name, groupType: args.type ?? 'other', memberIds, simplifyDebts: args.simplifyDebts ?? true },
+      })
+      return { status: 'created', groupId: data.id, name: args.name }
+    },
+  },
+  {
+    name: 'finance_add_group_member',
+    description: 'Add a friend to a shared expense group. Requires a write-scoped credential.',
+    kind: 'write',
+    schema: z.object({ groupName: z.string(), friendName: z.string() }),
+    execute: async (ctx, args) => {
+      requireWrite(ctx, 'change groups')
+      const group = await resolveGroup(ctx, args.groupName as string)
+      const friend = await resolveFriend(ctx, args.friendName as string)
+      await request(ctx, `/api/split/groups/${group.id}/members`, { method: 'POST', body: { personId: friend.personId } })
+      return { status: 'added', group: group.name, friend: friend.name }
+    },
+  },
+  {
+    name: 'finance_edit_shared_expense',
+    description: 'Change a shared expense or payment by id (from finance_shared_expenses): description, date, amount, category, notes, who paid, or exact shares. An equal/percent/shares split re-splits a new amount automatically. Requires a write-scoped credential.',
+    kind: 'write',
+    schema: z.object({
+      id: z.string().uuid(),
+      description: z.string().min(1).optional(),
+      date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+      amount: z.string().regex(/^\d+(\.\d+)?$/).optional(),
+      category: z.string().optional().describe('Shared category slug'),
+      notes: z.string().nullable().optional(),
+      paidBy: z.string().optional().describe('Friend name or "me" (expenses only)'),
+      shares: z.record(z.string(), z.string()).optional().describe('Exact amount owed per name ("me" for yourself); replaces the split'),
+    }),
+    execute: async (ctx, args) => {
+      requireWrite(ctx, 'edit shared expenses')
+      const { data: v } = await request<{ data: SharedExpenseView }>(ctx, `/api/split/expenses/${args.id}`)
+      if (v.deletedAt) throw new ToolError('That expense is deleted; restore it first')
+      const me = await myPersonId(ctx)
+      const idFor = async (name: string) => (name.toLowerCase() === 'me' ? me : (await resolveFriend(ctx, name)).personId)
+      const cost = (args.amount as string | undefined) ?? v.cost
+      const body: Record<string, unknown> = {
+        kind: v.kind, groupId: v.groupId, currency: v.currency, cost, version: v.version,
+        date: typeof args.date === 'string' ? `${args.date}T12:00:00.000Z` : v.date,
+        notes: args.notes !== undefined ? args.notes : v.notes,
+        repeatInterval: v.repeatInterval,
+      }
+      if (v.kind === 'payment') {
+        const from = v.shares.find((s) => Number(s.paid) > 0)
+        const to = v.shares.find((s) => Number(s.owed) > 0)
+        if (!from || !to) throw new ToolError('Could not read this payment')
+        body.payment = { fromPersonId: from.personId, toPersonId: to.personId }
+      } else {
+        body.description = (args.description as string | undefined) ?? v.description
+        body.category = (args.category as string | undefined) ?? v.category
+        body.paid = typeof args.paidBy === 'string' && args.paidBy ? { kind: 'single', personId: await idFor(args.paidBy) } : v.paidInput
+        if (args.shares && typeof args.shares === 'object') {
+          const amounts: Record<string, string> = {}
+          for (const [name, value] of Object.entries(args.shares as Record<string, string>)) amounts[await idFor(name)] = value
+          body.split = { method: 'exact', amounts }
+        } else {
+          body.split = v.splitInput
+          const fixed = (v.paidInput as { kind?: string } | null)?.kind === 'multiple' || ['exact', 'adjustment'].includes(String((v.splitInput as { method?: string } | null)?.method))
+          if (args.amount !== undefined && args.amount !== v.cost && fixed) {
+            throw new ToolError('This expense has exact amounts per person; pass shares (and paidBy) for the new amount')
+          }
+        }
+      }
+      await request(ctx, `/api/split/expenses/${args.id}`, { method: 'PATCH', body })
+      const { data: after } = await request<{ data: SharedExpenseView }>(ctx, `/api/split/expenses/${args.id}`)
+      return { status: 'updated', id: args.id, cost: after.cost, currency: after.currency, shares: after.shares, mine: after.me }
+    },
+  },
+  {
+    name: 'finance_delete_shared_expense',
+    description: 'Delete a shared expense or payment by id (everyone in it sees it removed; it can be restored). Requires a write-scoped credential.',
+    kind: 'write',
+    schema: z.object({ id: z.string().uuid() }),
+    execute: async (ctx, args) => {
+      requireWrite(ctx, 'delete shared expenses')
+      await request(ctx, `/api/split/expenses/${args.id}`, { method: 'DELETE' })
+      return { status: 'deleted', id: args.id }
+    },
+  },
+  {
+    name: 'finance_restore_shared_expense',
+    description: 'Restore a deleted shared expense or payment by id. Requires a write-scoped credential.',
+    kind: 'write',
+    schema: z.object({ id: z.string().uuid() }),
+    execute: async (ctx, args) => {
+      requireWrite(ctx, 'restore shared expenses')
+      await request(ctx, `/api/split/expenses/${args.id}/restore`, { method: 'POST' })
+      return { status: 'restored', id: args.id }
+    },
+  },
+  {
+    name: 'finance_shared_comments',
+    description: 'Comments on a shared expense, oldest first',
+    kind: 'read',
+    schema: z.object({ id: z.string().uuid().describe('Shared expense id') }),
+    execute: async (ctx, args) => {
+      const { data } = await request<{ data: Array<{ name: string; body: string; createdAt: string; isMine: boolean }> }>(ctx, `/api/split/expenses/${args.id}/comments`)
+      return data.map((c) => ({ by: c.isMine ? 'me' : c.name, at: c.createdAt, text: c.body }))
+    },
+  },
+  {
+    name: 'finance_comment_shared_expense',
+    description: 'Add a comment to a shared expense; everyone in it sees it. Requires a write-scoped credential.',
+    kind: 'write',
+    schema: z.object({ id: z.string().uuid(), text: z.string().min(1).max(1000) }),
+    execute: async (ctx, args) => {
+      requireWrite(ctx, 'comment')
+      const { data } = await request<{ data: { id: string } }>(ctx, `/api/split/expenses/${args.id}/comments`, { method: 'POST', body: { body: args.text } })
+      return { status: 'commented', commentId: data.id }
+    },
+  },
+  {
+    name: 'finance_invite_friend',
+    description: 'Create a single-use invite link for a guest friend you added, so they can sign up and take over their shared history (valid 14 days; replaces older links). Requires a write-scoped credential.',
+    kind: 'write',
+    schema: z.object({ friendName: z.string() }),
+    execute: async (ctx, args) => {
+      requireWrite(ctx, 'invite friends')
+      const friend = await resolveFriend(ctx, args.friendName as string)
+      if (!friend.isGuest) throw new ToolError(`${friend.name} already has an account`)
+      const { data } = await request<{ data: { url: string; expiresAt: string } }>(ctx, `/api/split/persons/${friend.personId}/invite`, { method: 'POST' })
+      return { status: 'created', friend: friend.name, url: data.url, expiresAt: data.expiresAt }
     },
   },
   {

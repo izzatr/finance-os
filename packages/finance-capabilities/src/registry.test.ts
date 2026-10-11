@@ -172,6 +172,13 @@ describe('tool registry', () => {
       finance_add_asset_price: { assetCode: 'XAU_G', price: '1', currency: 'EUR' },
       finance_approve_proposal: { id: '00000000-0000-0000-0000-000000000001' },
       finance_reject_proposal: { id: '00000000-0000-0000-0000-000000000001' },
+      finance_create_group: { name: 'Trip', members: ['Sam'] },
+      finance_add_group_member: { groupName: 'Flat', friendName: 'Sam' },
+      finance_edit_shared_expense: { id: '00000000-0000-0000-0000-000000000001', amount: '30' },
+      finance_delete_shared_expense: { id: '00000000-0000-0000-0000-000000000001' },
+      finance_restore_shared_expense: { id: '00000000-0000-0000-0000-000000000001' },
+      finance_comment_shared_expense: { id: '00000000-0000-0000-0000-000000000001', text: 'hi' },
+      finance_invite_friend: { friendName: 'Sam' },
     }
     for (const tool of writeTools) {
       expect(samples, `add a sample invocation for new write tool ${tool.name}`).toHaveProperty(tool.name)
@@ -194,5 +201,49 @@ describe('tool registry', () => {
   it('read tools work with read scope', async () => {
     const wallets = (await getTool('finance_wallets')!.execute(ctx('read'), {})) as unknown[]
     expect(wallets).toHaveLength(2)
+  })
+
+  describe('shared expense tools', () => {
+    const view = {
+      id: 'se-9', kind: 'expense', groupId: null, description: 'Dinner', cost: '20.00', currency: 'EUR', date: '2026-07-05T12:00:00.000Z',
+      category: 'dining', notes: null, repeatInterval: 'never', version: 3, deletedAt: null,
+      paidInput: { kind: 'single', personId: 'p-me' }, splitInput: { method: 'equal', personIds: ['p-me', 'p-1'] },
+      shares: [{ personId: 'p-me', name: 'Me', paid: '20.00', owed: '10.00' }, { personId: 'p-1', name: 'Sam', paid: '0.00', owed: '10.00' }], me: null,
+    }
+    const U = '00000000-0000-0000-0000-000000000009'
+
+    it('edit keeps the split and sends the version it read', async () => {
+      stubFetch({ [`/api/split/expenses/${U}`]: { data: view } })
+      await getTool('finance_edit_shared_expense')!.execute(ctx('write'), { id: U, amount: '30', notes: 'tip incl.' })
+      const patch = calls.find((c) => c.method === 'PATCH')!
+      expect(patch.url).toContain(`/api/split/expenses/${U}`)
+      expect(patch.body).toMatchObject({ cost: '30', version: 3, notes: 'tip incl.', description: 'Dinner', split: view.splitInput, paid: view.paidInput })
+    })
+
+    it('edit refuses a new amount on an exact split without new shares', async () => {
+      stubFetch({ [`/api/split/expenses/${U}`]: { data: { ...view, splitInput: { method: 'exact', amounts: { 'p-me': '5', 'p-1': '15' } } } } })
+      await expect(getTool('finance_edit_shared_expense')!.execute(ctx('write'), { id: U, amount: '30' })).rejects.toThrow(/pass shares/)
+      expect(calls.some((c) => c.method === 'PATCH')).toBe(false)
+    })
+
+    it('edit of a payment keeps who paid whom', async () => {
+      stubFetch({ [`/api/split/expenses/${U}`]: { data: { ...view, kind: 'payment', shares: [{ personId: 'p-1', name: 'Sam', paid: '20.00', owed: '0.00' }, { personId: 'p-me', name: 'Me', paid: '0.00', owed: '20.00' }] } } })
+      await getTool('finance_edit_shared_expense')!.execute(ctx('write'), { id: U, amount: '25' })
+      expect(calls.find((c) => c.method === 'PATCH')!.body).toMatchObject({ kind: 'payment', cost: '25', payment: { fromPersonId: 'p-1', toPersonId: 'p-me' } })
+    })
+
+    it('group creation resolves friend names', async () => {
+      await getTool('finance_create_group')!.execute(ctx('write'), { name: 'Trip', type: 'trip', members: ['sam'] })
+      expect(calls.find((c) => c.method === 'POST')!.body).toMatchObject({ name: 'Trip', groupType: 'trip', memberIds: ['p-1'] })
+    })
+
+    it('invite returns the link and comments post to the expense', async () => {
+      stubFetch({ '/api/split/persons/p-1/invite': { data: { url: 'https://app.test/invite/abc', expiresAt: '2026-08-01T00:00:00.000Z' } } })
+      const r = (await getTool('finance_invite_friend')!.execute(ctx('write'), { friendName: 'Sam' })) as { url: string }
+      expect(r.url).toBe('https://app.test/invite/abc')
+      await getTool('finance_comment_shared_expense')!.execute(ctx('write'), { id: U, text: 'paid!' })
+      expect(calls.at(-1)).toMatchObject({ method: 'POST', body: { body: 'paid!' } })
+      expect(calls.at(-1)!.url).toContain(`/api/split/expenses/${U}/comments`)
+    })
   })
 })

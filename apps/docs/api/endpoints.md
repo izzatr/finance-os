@@ -556,6 +556,7 @@ invite needs a signed-in session. See the [guide](/guides/shared-expenses).
 | `POST` | `/api/split/expenses/:id/restore` | Undo a delete |
 | `PUT` | `/api/split/expenses/:id/my-books` | Your private bookkeeping: `fundingWalletId`, `fundingAmount`, `categoryId`, `linkedTransactionId` |
 | `GET` / `POST` | `/api/split/expenses/:id/comments` | Comments |
+| `POST` | `/api/split/expenses/:id/comments/import` | Import a comment from another app with its author and time (only on expenses you imported; author is you or a guest you added; idempotent by `externalRef`) |
 | `DELETE` | `/api/split/comments/:id` | Delete your comment |
 | `GET` | `/api/split/activity` | Activity feed, newest first (`groupId`, cursor `beforeAt` + `beforeId`) |
 

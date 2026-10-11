@@ -195,6 +195,27 @@ Compare a wallet's computed balance with an expected balance. Optionally auto-ad
 | `expectedBalance`| string | yes      | Expected balance (e.g., `"2212.90"`)          |
 | `autoAdjust`    | boolean | no       | Create adjustment transaction if needed       |
 
+### Shared Expense Tools
+
+Splitwise-style shared expenses with friends and groups. Read tools work with any key; the rest need a write-scoped key.
+
+| Tool | What it does |
+| --- | --- |
+| `finance_shared_balances` | What friends owe you and what you owe, per friend, per group and in total |
+| `finance_shared_expenses` | Shared expenses and payments, newest first; filter by group, friend or text |
+| `finance_shared_groups` | Your groups and balances; name one for members and who owes whom |
+| `finance_shared_comments` | Comments on one shared expense |
+| `finance_add_friend` | Add a friend as a guest |
+| `finance_invite_friend` | Single-use invite link so a guest can sign up and take over their history |
+| `finance_create_group` | Create a group with friends |
+| `finance_add_group_member` | Add a friend to a group |
+| `finance_add_shared_expense` | Record a shared expense: equal split by default, or exact shares |
+| `finance_edit_shared_expense` | Change description, date, amount, category, notes, payer or shares |
+| `finance_delete_shared_expense` | Delete a shared expense or payment (restorable) |
+| `finance_restore_shared_expense` | Restore a deleted one |
+| `finance_comment_shared_expense` | Comment on a shared expense |
+| `finance_settle_up` | Record a payment between you and a friend |
+
 ## Example Conversation
 
 Here is how a natural language conversation maps to MCP tool calls:
