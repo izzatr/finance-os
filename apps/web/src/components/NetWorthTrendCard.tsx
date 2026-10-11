@@ -11,7 +11,7 @@ function compact(value: number, currency: string): string {
   }
 }
 
-export function NetWorthTrendCard({ walletIds = [] }: { walletIds?: string[] }) {
+export function NetWorthTrendCard({ walletIds = [], className = 'mb-6' }: { walletIds?: string[]; className?: string }) {
   const [currency] = useDefaultCurrency()
   const query = useQuery({
     queryKey: ['net-worth', currency, walletIds],
@@ -23,14 +23,14 @@ export function NetWorthTrendCard({ walletIds = [] }: { walletIds?: string[] }) 
   if (!data || data.series.length < 2) return null
 
   return (
-    <section aria-label="Net worth trend" className="mb-6 rounded-2xl border border-[var(--border-subtle)] bg-white px-4 py-4">
+    <section aria-label="Net worth trend" className={`flex flex-col rounded-[22px] border border-[var(--border-subtle)] bg-white px-4 py-4 ${className}`}>
       <div className="flex items-baseline justify-between pb-2">
         <p className="text-[15px] font-bold text-[var(--text-primary)]">Net worth · 12 months</p>
         <span className="tabular text-[15px] font-bold text-[var(--text-primary)]">
           {compact(data.total, data.currency)}
         </span>
       </div>
-      <div className="h-36">
+      <div className="h-36 min-h-36 flex-1">
         <ResponsiveContainer width="100%" height="100%" initialDimension={{ width: 320, height: 144 }}>
           <LineChart data={data.series} margin={{ top: 4, right: 4, bottom: 0, left: 4 }}>
             <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#6f695f' }} tickFormatter={(m) => new Date(`${m}-01T00:00:00Z`).toLocaleString('en-US', { month: 'short', timeZone: 'UTC' })} tickLine={false} axisLine={false} interval="preserveStartEnd" minTickGap={18} />

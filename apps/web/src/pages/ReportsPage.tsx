@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowDownRight, ArrowUpRight, ChevronLeft, ChevronRight, Sparkles } from 'lucide-react'
 import { Bar, BarChart, Cell, Line, LineChart, ReferenceLine, ResponsiveContainer, XAxis, YAxis } from 'recharts'
-import { getMonthReport, getWallets, type MonthReport } from '../lib/api'
+import { getMonthReport, getNetWorth, getWallets, type MonthReport } from '../lib/api'
 import { formatMoney } from '../lib/format'
 import { categoryIcon } from '../lib/categoryIcon'
 import { averageSaved, biggestChanges, heroHeadline, shownDiff, isInProgress, monthLabel, ordinal, paceSentence, shiftMonth, shortMonth } from '../lib/reportInsights'
@@ -40,6 +40,13 @@ export function ReportsPage() {
     placeholderData: (prev) => prev,
   })
   const report = query.data?.data
+  const hasChanges = report ? !report.usual || biggestChanges(report).length > 0 : false
+  const netWorthQuery = useQuery({
+    queryKey: ['net-worth', defaultCurrency, walletIds],
+    queryFn: () => getNetWorth({ currency: defaultCurrency, months: 12, walletIds }),
+    staleTime: 60_000,
+  })
+  const hasNetWorth = (netWorthQuery.data?.data.series.length ?? 0) >= 2
 
   return (
     <main className="mx-auto w-full max-w-[1100px] px-4 pb-8 pt-6 lg:px-12 lg:pt-10">
@@ -79,22 +86,18 @@ export function ReportsPage() {
       {query.isError && <p className="rounded-2xl bg-[var(--tint)] px-5 py-5 text-sm">Could not load this report. Pull to refresh or try again in a moment.</p>}
 
       {report && (
-        <div className={`grid gap-4 transition-opacity lg:grid-cols-2 lg:items-start ${query.isFetching && query.isPlaceholderData ? 'opacity-60' : ''}`}>
-          <div className="grid gap-4">
-            <Hero report={report} />
-            <Pace report={report} />
-            <Changes report={report} />
-            <CashFlow report={report} onSelect={(m) => m <= thisMonth && setMonth(m)} />
-          </div>
-          <div className="grid gap-4">
-            <Categories report={report} />
-            <Merchants report={report} />
-            <div className="[&>section]:mb-0">
-              <NetWorthTrendCard walletIds={walletIds} />
-            </div>
-          </div>
+        <div className={`grid gap-4 transition-opacity lg:grid-cols-2 [&>div>section]:h-full ${query.isFetching && query.isPlaceholderData ? 'opacity-60' : ''}`}>
+          {/* Desktop pairs cards row by row so side-by-side cards always share a height;
+              phones keep the reading order below (lg:order-* only applies on desktop). */}
+          <div className="lg:order-1"><Hero report={report} /></div>
+          <div className="lg:order-2"><Pace report={report} /></div>
+          {hasChanges && <div className="lg:order-3"><Changes report={report} /></div>}
+          <div className="lg:order-5 lg:col-span-2"><Categories report={report} /></div>
+          {report.merchants.length > 0 && <div className={`lg:order-4 ${hasChanges ? '' : 'lg:col-span-2'}`}><Merchants report={report} /></div>}
+          <div className={`lg:order-6 ${hasNetWorth ? '' : 'lg:col-span-2'}`}><CashFlow report={report} onSelect={(m) => m <= thisMonth && setMonth(m)} /></div>
+          {hasNetWorth && <div className="lg:order-7"><NetWorthTrendCard walletIds={walletIds} className="h-full" /></div>}
           {report.missing.length > 0 && (
-            <p className="text-[13px] text-[var(--text-tertiary)] lg:col-span-2">
+            <p className="text-[13px] text-[var(--text-tertiary)] lg:order-8 lg:col-span-2">
               Not included: amounts in {report.missing.join(', ')} (no exchange rate to {report.currency} yet).
             </p>
           )}
@@ -171,13 +174,13 @@ function Pace({ report: r }: { report: MonthReport }) {
   const heading = running ? 'Spending pace' : 'Through the month'
   const ticks = [1, 10, 20, r.daysInMonth]
   return (
-    <section className={`${card} px-4 pb-3 pt-4`}>
+    <section className={`${card} flex flex-col px-4 pb-3 pt-4`}>
       <p className="text-[14px] font-semibold text-[var(--text-secondary)]">{heading}</p>
       <p className={`mt-0.5 text-balance text-[20px] font-bold leading-snug ${tone === 'bad' ? 'text-[var(--negative)]' : tone === 'good' ? 'text-[var(--positive)]' : ''}`}>{title}</p>
       {running && projection !== null && (
         <p className="mt-0.5 text-pretty text-[13px] text-[var(--text-tertiary)]">If the rest of {monthLabel(r.month)} goes like a usual month ({formatMoney(r.usual?.spent ?? 0, r.currency)}).</p>
       )}
-      <div className="mt-3 h-40" aria-hidden>
+      <div className="mt-3 h-40 min-h-40 flex-1" aria-hidden>
         <ResponsiveContainer width="100%" height="100%" minWidth={0} initialDimension={{ width: 320, height: 160 }}>
           <LineChart data={r.pace} margin={{ top: 6, right: 0, bottom: 0, left: 4 }}>
             <XAxis dataKey="day" ticks={ticks} tickFormatter={(d) => ordinal(Number(d))} tick={{ fontSize: 11, fill: '#6f695f' }} tickLine={false} axisLine={false} interval={0} padding={{ left: 4, right: 14 }} />
@@ -212,9 +215,9 @@ function Changes({ report: r }: { report: MonthReport }) {
   }
   if (changes.length === 0) return null
   return (
-    <section className={`${card} px-4 py-4`}>
+    <section className={`${card} flex flex-col px-4 py-4`}>
       <p className="text-[15px] font-bold">What changed</p>
-      <ul className="mt-2">
+      <ul className="mt-2 flex flex-1 flex-col">
         {changes.map((c) => {
           const Icon = categoryIcon(c.name, 'expense')
           return (
@@ -231,6 +234,9 @@ function Changes({ report: r }: { report: MonthReport }) {
           )
         })}
       </ul>
+      <p className="mt-auto pt-2 text-[12px] text-[var(--text-tertiary)]">
+        Against a usual month: the average of your last {r.usual.months === 1 ? 'month' : `${r.usual.months} months`}.
+      </p>
     </section>
   )
 }
@@ -248,7 +254,7 @@ function Categories({ report: r }: { report: MonthReport }) {
         <p className="text-[15px] font-bold">Where it went</p>
         <p className="tabular text-[15px] font-bold">{formatMoney(r.spent, r.currency)}</p>
       </div>
-      <ul>
+      <ul className="lg:grid lg:grid-cols-2 lg:gap-x-10">
         {visible.map((c) => {
           const Icon = categoryIcon(c.name, 'expense')
           const share = r.spent > 0 ? Math.round((c.spent / r.spent) * 100) : 0
@@ -282,7 +288,7 @@ function Categories({ report: r }: { report: MonthReport }) {
         })}
       </ul>
       {rows.length > 6 && (
-        <button type="button" onClick={() => setShowAll((v) => !v)} className="mt-1 h-10 w-full rounded-xl bg-[var(--tint)] text-[14px] font-semibold">
+        <button type="button" onClick={() => setShowAll((v) => !v)} className="mt-1 h-10 w-full rounded-xl lg:w-auto lg:px-5 bg-[var(--tint)] text-[14px] font-semibold">
           {showAll ? 'Show less' : `Show all ${rows.length} categories`}
         </button>
       )}
@@ -323,7 +329,7 @@ function CashFlow({ report: r, onSelect }: { report: MonthReport; onSelect: (mon
   const data = r.history.slice(Math.min(firstActive, r.history.length - 3)).map((h) => ({ ...h, out: -h.spent }))
   const avg = averageSaved(r)
   return (
-    <section className={`${card} px-4 pb-3 pt-4`}>
+    <section className={`${card} flex flex-col px-4 pb-3 pt-4`}>
       <p className="text-[14px] font-semibold text-[var(--text-secondary)]">Cash flow</p>
       <p className="mt-0.5 text-[20px] font-bold leading-snug">
         {avg
@@ -335,7 +341,7 @@ function CashFlow({ report: r, onSelect }: { report: MonthReport; onSelect: (mon
       <p className="mt-0.5 text-pretty text-[13px] text-[var(--text-tertiary)]">
         {avg ? `Average of ${avg.months} complete months. ` : ''}Tap a month to open it.
       </p>
-      <div className="mt-3 h-44">
+      <div className="mt-3 h-44 min-h-44 flex-1">
         <ResponsiveContainer width="100%" height="100%" minWidth={0} initialDimension={{ width: 320, height: 160 }}>
           <BarChart data={data} stackOffset="sign" margin={{ top: 4, right: 0, bottom: 0, left: 0 }} barCategoryGap="22%">
             <XAxis dataKey="month" tickFormatter={(m) => shortMonth(String(m))} tick={{ fontSize: 11, fill: '#6f695f' }} tickLine={false} axisLine={false} interval={0} />
