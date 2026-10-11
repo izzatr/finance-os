@@ -32,9 +32,9 @@ export function WalletMultiSelect({ wallets, selectedWalletIds, onChange }: Prop
   }
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex w-full items-center gap-2">
       <Popover open={open} onOpenChange={setOpen}>
-        <PopoverTrigger className="inline-flex min-w-48 items-center justify-between rounded-lg border border-border bg-background px-2.5 py-1.5 text-sm font-normal hover:bg-muted">
+        <PopoverTrigger className="inline-flex h-11 w-full min-w-0 items-center justify-between rounded-2xl border border-[var(--border-medium)] bg-white px-3.5 text-[14px] font-semibold hover:bg-[var(--tint)]">
           <span className="truncate">{label}</span>
           <ChevronDown className="ml-2 size-4 shrink-0 opacity-60" />
         </PopoverTrigger>

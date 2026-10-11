@@ -188,6 +188,34 @@ export function getRecentTransactionsPage(params: { limit?: number; before?: str
   return request<{ data: RecentTransaction[] }>(`/api/analytics/recent?${searchParams}`)
 }
 
+export type MonthReport = {
+  month: string
+  currency: string
+  daysInMonth: number
+  daysElapsed: number
+  income: number
+  spent: number
+  fronted: number
+  net: number
+  savingsRate: number | null
+  usual: { months: number; income: number; spent: number; net: number; savingsRate: number | null } | null
+  pace: Array<{ day: number; current: number | null; usual: number | null }>
+  spentByNow: number
+  usualByNow: number | null
+  categories: Array<{ id: string | null; name: string; spent: number; usual: number | null; count: number }>
+  merchants: Array<{ name: string; spent: number; count: number }>
+  biggest: Array<{ transactionId: string; description: string; date: string; spent: number; categoryName: string | null }>
+  incomeSources: Array<{ name: string; amount: number }>
+  history: Array<{ month: string; income: number; spent: number; net: number }>
+  missing: string[]
+}
+
+export function getMonthReport(params: { month: string; currency: string; today: string; walletIds?: string[] }) {
+  const searchParams = new URLSearchParams({ month: params.month, currency: params.currency, today: params.today })
+  for (const walletId of params.walletIds ?? []) searchParams.append('walletId', walletId)
+  return request<{ data: MonthReport }>(`/api/analytics/month-report?${searchParams}`)
+}
+
 type ReportParams = { from?: string; to?: string; walletIds?: string[] }
 
 function reportSearchParams(params?: ReportParams) {

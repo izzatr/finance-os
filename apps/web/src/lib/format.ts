@@ -20,6 +20,14 @@ export function formatCurrency(amount: number | string, currency: string): strin
   return `${num < 0 ? '-' : ''}${currencySymbol(currency)}${formatAbs(Math.abs(num), currency)}`
 }
 
+/** Whole units for sentences and headlines (`$1,284`); keeps cents under 10 so `$3.80` stays honest. */
+export function formatMoney(amount: number | string, currency: string): string {
+  const num = toNumber(amount)
+  const abs = Math.abs(num)
+  if (abs < 10 || currency === 'IDR') return formatCurrency(num, currency)
+  return `${num < 0 ? '-' : ''}${currencySymbol(currency)}${Math.round(abs).toLocaleString('en-US')}`
+}
+
 /** For tight spots (wallet tiles): millions and up collapse to `Rp18.4M`, smaller values stay exact. */
 export function formatCurrencyShort(amount: number | string, currency: string): string {
   const num = toNumber(amount)

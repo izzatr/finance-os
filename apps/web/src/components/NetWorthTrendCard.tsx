@@ -31,9 +31,9 @@ export function NetWorthTrendCard({ walletIds = [] }: { walletIds?: string[] }) 
         </span>
       </div>
       <div className="h-36">
-        <ResponsiveContainer width="100%" height="100%">
+        <ResponsiveContainer width="100%" height="100%" initialDimension={{ width: 320, height: 144 }}>
           <LineChart data={data.series} margin={{ top: 4, right: 4, bottom: 0, left: 4 }}>
-            <XAxis dataKey="month" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
+            <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#6f695f' }} tickFormatter={(m) => new Date(`${m}-01T00:00:00Z`).toLocaleString('en-US', { month: 'short', timeZone: 'UTC' })} tickLine={false} axisLine={false} interval="preserveStartEnd" minTickGap={18} />
             <YAxis hide domain={['auto', 'auto']} />
             <Tooltip
               formatter={(value) => [compact(Number(value), data.currency), 'Net worth']}
