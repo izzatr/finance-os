@@ -18,7 +18,10 @@ function stubFetch(overrides: Record<string, unknown> = {}) {
         { id: 'w-idr', name: 'Cash', walletType: 'cash', institution: null, assetId: 'a-idr', isActive: true, balance: 5000, currency: 'IDR' },
       ] },
       '/api/categories': { data: [{ id: 'c-1', name: 'Groceries', slug: 'groceries', type: 'expense', parentId: null }] },
-      '/api/people': { data: [{ id: 'p-1', name: 'Sam' }] },
+      '/api/split/friends': { data: [{ personId: 'p-1', name: 'Sam', isGuest: true, balances: [{ currency: 'EUR', amount: '-12.50' }] }] },
+      '/api/split/groups': { data: [{ id: 'g-1', name: 'Flat', myBalances: [] }] },
+      '/api/split/me': { data: { personId: 'p-me', balances: { owedToMe: [], iOwe: [], net: [] } } },
+      '/api/split/expenses': { data: { id: 'se-1' } },
       '/api/proposals': { data: { id: 'prop-1' } },
       '/api/transactions': { data: { id: 'tx-1' } },
       '/api/recurring-rules': { data: { id: 'rule-1', nextRunAt: '2026-08-01T09:00:00.000Z' } },
@@ -83,14 +86,41 @@ describe('tool registry', () => {
     expect((post.body as { entries: Array<{ amount: string }> }).entries[0].amount).toBe('100')
   })
 
-  it('splits resolve people by name', async () => {
+  it('a split bill becomes a shared expense paid from the wallet', async () => {
     const tool = getTool('finance_add_transaction')!
-    await tool.execute(ctx('write'), {
+    const result = (await tool.execute(ctx('write'), {
       date: '2026-07-05', type: 'expense', description: 'Dinner', amount: '60', walletName: 'Main Bank',
-      splitWith: [{ personName: 'Sam', amount: '30' }],
+      splitWith: [{ personName: 'Sam', amount: '20' }],
+    })) as { status: string; sharedExpenseId: string }
+    expect(result.status).toBe('booked')
+    const post = calls.find((c) => c.method === 'POST')!
+    expect(post.url).toContain('/api/split/expenses')
+    expect(post.body).toMatchObject({
+      cost: '60', currency: 'EUR', paid: { kind: 'single', personId: 'p-me' },
+      split: { method: 'exact', amounts: { 'p-1': '20', 'p-me': '40' } },
+      myBooks: { fundingWalletId: 'w-eur' },
+    })
+    await expect(tool.execute(ctx('propose'), {
+      date: '2026-07-05', type: 'expense', description: 'Dinner', amount: '60', walletName: 'Main Bank',
+      splitWith: [{ personName: 'Sam', amount: '20' }],
+    })).rejects.toThrow(/write-scoped/)
+  })
+
+  it('settle up defaults to the open balance and the right direction', async () => {
+    const result = (await getTool('finance_settle_up')!.execute(ctx('write'), {
+      friendName: 'Sam', direction: 'i_paid', currency: 'EUR', walletName: 'Main Bank',
+    })) as { amount: string }
+    expect(result.amount).toBe('12.50')
+    const post = calls.find((c) => c.method === 'POST')!
+    expect(post.body).toMatchObject({ kind: 'payment', cost: '12.50', payment: { fromPersonId: 'p-me', toPersonId: 'p-1' }, myBooks: { fundingWalletId: 'w-eur' } })
+  })
+
+  it('a shared expense defaults to an equal split with me paying', async () => {
+    await getTool('finance_add_shared_expense')!.execute(ctx('write'), {
+      date: '2026-07-05', description: 'Pizza', amount: '30', currency: 'eur', withFriends: ['Sam'],
     })
     const post = calls.find((c) => c.method === 'POST')!
-    expect((post.body as { splits: Array<{ personId: string }> }).splits[0].personId).toBe('p-1')
+    expect(post.body).toMatchObject({ currency: 'EUR', paid: { personId: 'p-me' }, split: { method: 'equal', personIds: ['p-me', 'p-1'] } })
   })
 
   it('unknown wallet lists the available names', async () => {
@@ -130,7 +160,9 @@ describe('tool registry', () => {
       finance_add_transaction: { date: '2026-07-05', type: 'expense', description: 'x', amount: '1', walletName: 'Main Bank' },
       finance_transfer: { date: '2026-07-05', amount: '1', fromWallet: 'Main Bank', toWallet: 'Main Bank' },
       finance_add_recurring_rule: { name: 'R', type: 'expense', amount: '1', walletName: 'Main Bank', freq: 'monthly', startDate: '2026-08-01' },
-      finance_settle_person: { personName: 'Sam', walletName: 'Main Bank' },
+      finance_add_friend: { name: 'Sam' },
+      finance_add_shared_expense: { date: '2026-07-05', description: 'x', amount: '1', currency: 'EUR', withFriends: ['Sam'] },
+      finance_settle_up: { friendName: 'Sam', direction: 'i_paid', currency: 'EUR' },
       finance_edit_transaction: { id: '00000000-0000-0000-0000-000000000001', description: 'x' },
       finance_delete_transaction: { id: '00000000-0000-0000-0000-000000000001' },
       finance_restore_transaction: { id: '00000000-0000-0000-0000-000000000001' },
@@ -151,8 +183,8 @@ describe('tool registry', () => {
   })
 
   it('settle and approve demand write scope', async () => {
-    await expect(getTool('finance_settle_person')!.execute(ctx('propose'), {
-      personName: 'Sam', walletName: 'Main Bank',
+    await expect(getTool('finance_settle_up')!.execute(ctx('propose'), {
+      friendName: 'Sam', direction: 'i_paid', currency: 'EUR',
     })).rejects.toThrow(/write-scoped/)
     await expect(getTool('finance_approve_proposal')!.execute(ctx('propose'), {
       id: '00000000-0000-0000-0000-000000000001',

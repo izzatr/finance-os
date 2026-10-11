@@ -89,7 +89,8 @@ type RecentTx = {
   currency: string; walletName: string
 }
 type Category = { id: string; name: string; slug: string; type: string; parentId: string | null }
-type Person = { id: string; name: string }
+type Friend = { personId: string; name: string; isGuest: boolean; balances: Array<{ currency: string; amount: string }> }
+type SharedGroup = { id: string; name: string; myBalances: Array<{ currency: string; amount: string }> }
 type NewTransactionInput = {
   transactionDate: string
   type: string
@@ -98,7 +99,6 @@ type NewTransactionInput = {
   categoryId?: string
   externalRef?: string
   entries: Array<{ walletId: string; assetId: string; amount: string }>
-  splits?: Array<{ personId: string; assetId?: string; amount: string }>
 }
 
 // ── Name resolvers (agents speak names, the API speaks ids) ─────────────────
@@ -121,13 +121,24 @@ async function resolveCategory(ctx: FinanceToolContext, name: string): Promise<C
   return category
 }
 
-async function resolvePerson(ctx: FinanceToolContext, name: string): Promise<Person> {
-  const { data } = await request<{ data: Person[] }>(ctx, '/api/people')
-  const person = data.find((p) => p.name.toLowerCase() === name.toLowerCase())
-  if (!person) {
-    throw new ToolError(`Person "${name}" not found. Available: ${data.map((p) => p.name).join(', ')}`)
+async function resolveFriend(ctx: FinanceToolContext, name: string): Promise<Friend> {
+  const { data } = await request<{ data: Friend[] }>(ctx, '/api/split/friends')
+  const friend = data.find((p) => p.name.toLowerCase() === name.toLowerCase())
+  if (!friend) {
+    throw new ToolError(`Friend "${name}" not found. Friends: ${data.map((p) => p.name).join(', ') || 'none yet (add one with finance_add_friend)'}`)
   }
-  return person
+  return friend
+}
+
+async function resolveGroup(ctx: FinanceToolContext, name: string): Promise<SharedGroup> {
+  const { data } = await request<{ data: SharedGroup[] }>(ctx, '/api/split/groups')
+  const group = data.find((g) => g.name.toLowerCase() === name.toLowerCase())
+  if (!group) throw new ToolError(`Group "${name}" not found. Groups: ${data.map((g) => g.name).join(', ') || 'none'}`)
+  return group
+}
+
+async function myPersonId(ctx: FinanceToolContext): Promise<string> {
+  return (await request<{ data: { personId: string } }>(ctx, '/api/split/me')).data.personId
 }
 
 // ── Write governance ─────────────────────────────────────────────────────────
@@ -342,17 +353,40 @@ export const financeTools: FinanceTool[] = [
     },
   },
   {
-    name: 'finance_people',
-    description: 'List people you split expenses with, including their unsettled balances per currency',
+    name: 'finance_shared_balances',
+    description: 'Shared expenses overview (Splitwise-style): what friends owe you and what you owe, per friend, per group and in total. Positive amounts mean they owe you.',
     kind: 'read',
     schema: z.object({}),
     execute: async (ctx) => {
-      const { data: people } = await request<{ data: Person[] }>(ctx, '/api/people')
-      const { data: balances } = await request<{ data: Array<{ personId: string; balances: unknown[] }> }>(
-        ctx, '/api/analytics/shared-balances',
-      )
-      const byId = new Map(balances.map((b) => [b.personId, b.balances]))
-      return people.map((p) => ({ ...p, unsettled: byId.get(p.id) ?? [] }))
+      const [{ data: me }, { data: friends }, { data: groups }] = await Promise.all([
+        request<{ data: { balances: unknown } }>(ctx, '/api/split/me'),
+        request<{ data: Friend[] }>(ctx, '/api/split/friends'),
+        request<{ data: SharedGroup[] }>(ctx, '/api/split/groups'),
+      ])
+      return { totals: me.balances, friends, groups }
+    },
+  },
+  {
+    name: 'finance_shared_expenses',
+    description: 'List shared expenses and payments, newest first, optionally for one group or friend or matching a search term',
+    kind: 'read',
+    schema: z.object({
+      groupName: z.string().optional().describe('Only this group'),
+      friendName: z.string().optional().describe('Only expenses shared with this friend'),
+      search: z.string().optional().describe('Text to look for in description or notes'),
+      limit: z.number().int().min(1).max(100).optional().describe('How many (default 30)'),
+    }),
+    execute: async (ctx, args) => {
+      const params = new URLSearchParams()
+      if (typeof args.groupName === 'string' && args.groupName) params.set('groupId', (await resolveGroup(ctx, args.groupName)).id)
+      if (typeof args.friendName === 'string' && args.friendName) params.set('friendId', (await resolveFriend(ctx, args.friendName)).personId)
+      if (typeof args.search === 'string' && args.search) params.set('q', args.search)
+      params.set('limit', String(typeof args.limit === 'number' ? args.limit : 30))
+      const { data } = await request<{ data: Array<Record<string, unknown>> }>(ctx, `/api/split/expenses?${params}`)
+      return data.map((e) => ({
+        id: e.id, date: String(e.date).slice(0, 10), kind: e.kind, description: e.description, cost: e.cost, currency: e.currency,
+        group: e.groupName, category: e.category, shares: e.shares, mine: e.me,
+      }))
     },
   },
   {
@@ -406,9 +440,9 @@ export const financeTools: FinanceTool[] = [
       categoryName: z.string().optional().describe('Category name (must already exist)'),
       notes: z.string().optional().describe('Additional notes'),
       splitWith: z.array(z.object({
-        personName: z.string().describe('Person who owes part of this'),
+        personName: z.string().describe('Friend who owes part of this'),
         amount: z.string().regex(/^\d+(\.\d+)?$/).describe('Their share'),
-      })).optional().describe('Split parts owed by people'),
+      })).optional().describe('Friends who owe part of this (creates a shared expense paid from the wallet; needs write scope)'),
     }),
     execute: async (ctx, args) => {
       const wallet = await resolveWallet(ctx, args.walletName as string)
@@ -426,11 +460,31 @@ export const financeTools: FinanceTool[] = [
         transaction.categoryId = (await resolveCategory(ctx, args.categoryName)).id
       }
       if (Array.isArray(args.splitWith) && args.splitWith.length > 0) {
-        transaction.splits = []
-        for (const part of args.splitWith as Array<{ personName: string; amount: string }>) {
-          const person = await resolvePerson(ctx, part.personName)
-          transaction.splits.push({ personId: person.id, amount: part.amount })
+        // A split bill is a shared expense paid from this wallet; it books your share automatically.
+        requireWrite(ctx, 'record shared expenses')
+        if (type !== 'expense') throw new ToolError('Only expenses can be split')
+        const me = await myPersonId(ctx)
+        const parts = args.splitWith as Array<{ personName: string; amount: string }>
+        const amounts: Record<string, string> = {}
+        let others = 0
+        for (const part of parts) {
+          const friend = await resolveFriend(ctx, part.personName)
+          amounts[friend.personId] = part.amount
+          others += parseFloat(part.amount)
         }
+        const mine = Math.round((parseFloat(amount) - others) * 1e8) / 1e8
+        if (mine < 0) throw new ToolError('The split parts add up to more than the amount')
+        if (mine > 0) amounts[me] = String(mine)
+        const { data } = await request<{ data: { id: string } }>(ctx, '/api/split/expenses', {
+          method: 'POST',
+          body: {
+            kind: 'expense', description: args.description, cost: amount, currency: wallet.currency,
+            date: `${args.date}T12:00:00.000Z`, category: 'general', notes: args.notes ?? null,
+            paid: { kind: 'single', personId: me }, split: { method: 'exact', amounts },
+            myBooks: { fundingWalletId: wallet.id, ...(transaction.categoryId ? { categoryId: transaction.categoryId } : {}) },
+          },
+        })
+        return { status: 'booked', sharedExpenseId: data.id, transaction: { date: args.date, description: args.description, amount: signed, wallet: wallet.name, currency: wallet.currency, yourShare: String(mine) } }
       }
       return bookOrPropose(ctx, transaction, {
         transaction: { date: args.date, type, description: args.description, amount: signed, wallet: wallet.name, currency: wallet.currency },
@@ -518,22 +572,107 @@ export const financeTools: FinanceTool[] = [
     },
   },
   {
-    name: 'finance_settle_person',
-    description: 'Settle all unsettled splits with a person for one currency — books a transfer into the given wallet. Requires a write-scoped credential.',
+    name: 'finance_add_friend',
+    description: 'Add a friend to share expenses with (a guest without an account; they can join later through an invite link). Requires a write-scoped credential.',
     kind: 'write',
     schema: z.object({
-      personName: z.string().describe('Person to settle with'),
-      walletName: z.string().describe('Wallet receiving the settlement (must match the splits\' currency)'),
+      name: z.string().min(1).describe('Friend\'s name'),
+      email: z.string().optional().describe('Optional email, only visible to you'),
     }),
     execute: async (ctx, args) => {
-      requireWrite(ctx, 'settle balances')
-      const person = await resolvePerson(ctx, args.personName as string)
-      const wallet = await resolveWallet(ctx, args.walletName as string)
-      const { data } = await request<{ data: unknown }>(ctx, `/api/people/${person.id}/settle`, {
-        method: 'POST',
-        body: { walletId: wallet.id, assetId: wallet.assetId },
-      })
-      return { status: 'settled', person: person.name, wallet: wallet.name, ...(data as Record<string, unknown>) }
+      requireWrite(ctx, 'add friends')
+      const { data } = await request<{ data: { id: string } }>(ctx, '/api/split/friends', { method: 'POST', body: { name: args.name, email: args.email ?? null } })
+      return { status: 'added', personId: data.id, name: args.name }
+    },
+  },
+  {
+    name: 'finance_add_shared_expense',
+    description: 'Record a shared expense (Splitwise-style) with friends or in a group. Defaults: you paid, split equally among you and the named people. Requires a write-scoped credential.',
+    kind: 'write',
+    schema: z.object({
+      date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).describe('Date YYYY-MM-DD'),
+      description: z.string().min(1),
+      amount: z.string().regex(/^\d+(\.\d+)?$/).describe('Total cost, e.g. "80.00"'),
+      currency: z.string().regex(/^[A-Za-z]{3}$/).describe('Currency code, e.g. EUR'),
+      groupName: z.string().optional().describe('Group to put it in (everyone named must be a member)'),
+      withFriends: z.array(z.string()).optional().describe('Friend names sharing it (default: all group members when a group is given)'),
+      paidBy: z.string().optional().describe('Friend name who paid, or "me" (default me)'),
+      shares: z.record(z.string(), z.string()).optional().describe('Exact amount owed per name ("me" for yourself); omit for an equal split'),
+      category: z.string().optional().describe('Shared category slug, e.g. groceries, dining, rent, hotel, transport (default general)'),
+      notes: z.string().optional(),
+      paidFromWallet: z.string().optional().describe('When you paid: the wallet name it came from, so your books show the payment'),
+    }),
+    execute: async (ctx, args) => {
+      requireWrite(ctx, 'record shared expenses')
+      const me = await myPersonId(ctx)
+      const group = typeof args.groupName === 'string' && args.groupName ? await resolveGroup(ctx, args.groupName) : null
+      const idFor = async (name: string) => (name.toLowerCase() === 'me' ? me : (await resolveFriend(ctx, name)).personId)
+      let people: string[]
+      if (Array.isArray(args.withFriends) && args.withFriends.length) {
+        people = [me, ...(await Promise.all((args.withFriends as string[]).map(idFor)))]
+      } else if (group) {
+        const { data } = await request<{ data: { members: Array<{ personId: string; isCurrent: boolean }> } }>(ctx, `/api/split/groups/${group.id}`)
+        people = data.members.filter((m) => m.isCurrent).map((m) => m.personId)
+      } else {
+        throw new ToolError('Name the friends sharing it (withFriends) or a group')
+      }
+      people = [...new Set(people)]
+      const payer = typeof args.paidBy === 'string' && args.paidBy ? await idFor(args.paidBy) : me
+      let split: Record<string, unknown> = { method: 'equal', personIds: people }
+      if (args.shares && typeof args.shares === 'object') {
+        const amounts: Record<string, string> = {}
+        for (const [name, value] of Object.entries(args.shares as Record<string, string>)) amounts[await idFor(name)] = value
+        split = { method: 'exact', amounts }
+      }
+      const body: Record<string, unknown> = {
+        kind: 'expense', description: args.description, cost: args.amount, currency: String(args.currency).toUpperCase(),
+        date: `${args.date}T12:00:00.000Z`, category: args.category ?? 'general', notes: args.notes ?? null,
+        groupId: group?.id ?? null, paid: { kind: 'single', personId: payer }, split,
+      }
+      if (typeof args.paidFromWallet === 'string' && args.paidFromWallet && payer === me) {
+        body.myBooks = { fundingWalletId: (await resolveWallet(ctx, args.paidFromWallet)).id }
+      }
+      const { data } = await request<{ data: { id: string } }>(ctx, '/api/split/expenses', { method: 'POST', body })
+      const { data: view } = await request<{ data: { me: unknown; shares: unknown } }>(ctx, `/api/split/expenses/${data.id}`)
+      return { status: 'recorded', id: data.id, shares: view.shares, mine: view.me }
+    },
+  },
+  {
+    name: 'finance_settle_up',
+    description: 'Record a payment between you and a friend (settling up), in full or in part. Requires a write-scoped credential.',
+    kind: 'write',
+    schema: z.object({
+      friendName: z.string(),
+      direction: z.enum(['i_paid', 'they_paid']).describe('i_paid: you paid them; they_paid: they paid you'),
+      amount: z.string().regex(/^\d+(\.\d+)?$/).optional().describe('Defaults to the full open balance in that currency'),
+      currency: z.string().regex(/^[A-Za-z]{3}$/).describe('Currency code'),
+      date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe('Default today'),
+      groupName: z.string().optional().describe('Record it inside this group'),
+      walletName: z.string().optional().describe('Wallet the money left or arrived in, for your books'),
+    }),
+    execute: async (ctx, args) => {
+      requireWrite(ctx, 'record payments')
+      const me = await myPersonId(ctx)
+      const friend = await resolveFriend(ctx, args.friendName as string)
+      const currency = String(args.currency).toUpperCase()
+      let amount = args.amount as string | undefined
+      if (!amount) {
+        const open = friend.balances.find((b) => b.currency === currency)
+        if (!open) throw new ToolError(`You and ${friend.name} are settled up in ${currency}`)
+        amount = open.amount.replace(/^-/, '')
+      }
+      const iPaid = args.direction === 'i_paid'
+      const group = typeof args.groupName === 'string' && args.groupName ? await resolveGroup(ctx, args.groupName) : null
+      const body: Record<string, unknown> = {
+        kind: 'payment', cost: amount, currency, date: `${(args.date as string | undefined) ?? todayOf(ctx)}T12:00:00.000Z`,
+        groupId: group?.id ?? null,
+        payment: iPaid ? { fromPersonId: me, toPersonId: friend.personId } : { fromPersonId: friend.personId, toPersonId: me },
+      }
+      if (typeof args.walletName === 'string' && args.walletName) {
+        body.myBooks = { fundingWalletId: (await resolveWallet(ctx, args.walletName)).id }
+      }
+      const { data } = await request<{ data: { id: string } }>(ctx, '/api/split/expenses', { method: 'POST', body })
+      return { status: 'recorded', id: data.id, amount, currency, friend: friend.name, direction: args.direction }
     },
   },
   {
