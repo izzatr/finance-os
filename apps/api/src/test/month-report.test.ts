@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildMonthReport, daysIn, shiftMonth, type ReportRow } from '../analytics/month-report'
+import { displayName, buildMonthReport, daysIn, shiftMonth, type ReportRow } from '../analytics/month-report'
 
 // 1 EUR = 1.10 USD; IDR has no rate, so it must be reported as missing and excluded.
 const convert = (amount: number, from: string) => (from === 'USD' ? amount : from === 'EUR' ? amount * 1.1 : null)
@@ -109,5 +109,15 @@ describe('buildMonthReport', () => {
     expect(past.usual).toBeNull()
     expect(past.usualByNow).toBeNull()
     expect(past.pace[30]).toEqual({ day: 31, current: 1200, usual: null })
+  })
+})
+
+describe('displayName', () => {
+  it('drops reference ids and FX notes so names stay short and group together', () => {
+    expect(displayName('Claude.ai Subscription (USD 100.00) (USD 1 = IDR 17,643.74)')).toBe('Claude.ai Subscription')
+    expect(displayName('Saveback cash reward 1872fdd5-f60e-42b5-bb8e-3e875cadcf71 for reservation: 1edb3591-b665-4ca5-b51a-aa011a44c09d')).toBe('Saveback cash reward')
+    expect(displayName('Interest payment for payout collection 019de1a9-1f8f-7ada-8a71-9cf289f46ba1')).toBe('Interest payment for payout collection')
+    expect(displayName('EDEKA 5494')).toBe('EDEKA 5494')
+    expect(displayName('Rent')).toBe('Rent')
   })
 })

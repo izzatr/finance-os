@@ -78,6 +78,21 @@ type Tx = {
   description: string
 }
 
+// A reference UUID plus any "for reservation:"-style lead-in words that only introduce it.
+const UUID = /\s*(?:\b(?:for|reservation|ref|reference|id)\b\s*:?\s*)*\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi
+
+/** A readable merchant/source name: bank exports append reference UUIDs and FX notes
+ *  ("(USD 100.00) (USD 1 = IDR 17,643.74)") that make names long and stop grouping. */
+export function displayName(description: string): string {
+  const cleaned = description
+    .replace(UUID, '')
+    .replace(/\(\s*[A-Z]{3}\s+[\d.,]+\s*(=\s*[A-Z]{3}\s+[\d.,]+\s*)?\)/g, '')
+    .replace(/[\s:,-]+$/g, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim()
+  return cleaned || description.trim()
+}
+
 export function buildMonthReport(input: {
   month: string
   currency: string
@@ -222,8 +237,9 @@ export function buildMonthReport(input: {
   const merchantMap = new Map<string, { name: string; spent: number; count: number }>()
   for (const tx of monthTx) {
     if (!tx.description) continue
-    const k = tx.description.toLowerCase()
-    const m = merchantMap.get(k) ?? { name: tx.description, spent: 0, count: 0 }
+    const name = displayName(tx.description)
+    const k = name.toLowerCase()
+    const m = merchantMap.get(k) ?? { name, spent: 0, count: 0 }
     m.spent += tx.value
     m.count += 1
     merchantMap.set(k, m)
@@ -238,7 +254,7 @@ export function buildMonthReport(input: {
   const sources = new Map<string, number>()
   for (const tx of byMonth.get(month) ?? []) {
     if (tx.type !== 'income') continue
-    const k = tx.categoryName ?? (tx.description || 'Other income')
+    const k = tx.categoryName ?? (tx.description ? displayName(tx.description) : 'Other income')
     sources.set(k, (sources.get(k) ?? 0) + tx.value)
   }
   const incomeSources = [...sources.entries()].map(([name, amount]) => ({ name, amount: round(amount) })).sort((a, b) => b.amount - a.amount)

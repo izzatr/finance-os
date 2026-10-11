@@ -85,8 +85,10 @@ export function ReportsPage() {
       {query.isLoading && <div className="h-[420px] animate-pulse rounded-[24px] bg-[var(--tint)]" />}
       {query.isError && <p className="rounded-2xl bg-[var(--tint)] px-5 py-5 text-sm">Could not load this report. Pull to refresh or try again in a moment.</p>}
 
+      {/* minmax(0,1fr): grid tracks otherwise grow to their widest child's min-content
+          (a long unbroken description, a chart's initial width) and push past the phone edge. */}
       {report && (
-        <div className={`grid gap-4 transition-opacity lg:grid-cols-2 [&>div>section]:h-full ${query.isFetching && query.isPlaceholderData ? 'opacity-60' : ''}`}>
+        <div className={`grid grid-cols-[minmax(0,1fr)] gap-4 transition-opacity lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] [&>div]:min-w-0 [&>div>section]:h-full ${query.isFetching && query.isPlaceholderData ? 'opacity-60' : ''}`}>
           {/* Desktop pairs cards row by row so side-by-side cards always share a height;
               phones keep the reading order below (lg:order-* only applies on desktop). */}
           <div className="lg:order-1"><Hero report={report} /></div>
@@ -312,7 +314,7 @@ function Merchants({ report: r }: { report: MonthReport }) {
                   {m.name}
                   {m.count > 1 && <span className="ml-1.5 text-[13px] font-medium text-[var(--text-tertiary)]">{m.count}×</span>}
                 </span>
-                <span className="tabular w-[84px] text-right text-[15px] font-semibold">{formatMoney(m.spent, r.currency)}</span>
+                <span className="tabular shrink-0 whitespace-nowrap text-right text-[15px] font-semibold">{formatMoney(m.spent, r.currency)}</span>
               </li>
             ))}
           </ol>
@@ -328,18 +330,31 @@ function CashFlow({ report: r, onSelect }: { report: MonthReport; onSelect: (mon
   // Trim empty months before the first activity so a new account isn't a row of blanks.
   const data = r.history.slice(Math.min(firstActive, r.history.length - 3)).map((h) => ({ ...h, out: -h.spent }))
   const avg = averageSaved(r)
+  const running = isInProgress(r)
+  const net = r.income - r.spent
+  const name = monthLabel(r.month)
+  const [sources, setSources] = useState(false)
+  const shownSources = sources ? r.incomeSources : r.incomeSources.slice(0, 5)
   return (
     <section className={`${card} flex flex-col px-4 pb-3 pt-4`}>
-      <p className="text-[14px] font-semibold text-[var(--text-secondary)]">Cash flow</p>
-      <p className="mt-0.5 text-[20px] font-bold leading-snug">
+      <p className="text-[14px] font-semibold text-[var(--text-secondary)]">Cash flow · {name}</p>
+      <p className={`tabular mt-0.5 text-[28px] font-bold leading-tight ${net >= 0 ? 'text-[var(--positive)]' : 'text-[var(--negative)]'}`}>
+        {net >= 0 ? '+' : '−'}{formatMoney(Math.abs(net), r.currency)}
+      </p>
+      <p className="text-[15px] font-semibold">
+        {net >= 0
+          ? running ? `Saved so far in ${name}` : `Saved in ${name}`
+          : running ? `Spent more than you earned so far in ${name}` : `Spent more than you earned in ${name}`}
+      </p>
+      <p className="tabular mt-0.5 text-[13px] text-[var(--text-tertiary)]">
+        {formatMoney(r.income, r.currency)} in · {formatMoney(r.spent, r.currency)} out
+      </p>
+      <p className="mt-2 text-pretty text-[13px] text-[var(--text-secondary)]">
         {avg
           ? avg.amount >= 0
-            ? `You keep ${formatMoney(avg.amount, r.currency)} a month`
-            : `You overspend ${formatMoney(Math.abs(avg.amount), r.currency)} a month`
-          : 'Income and spending by month'}
-      </p>
-      <p className="mt-0.5 text-pretty text-[13px] text-[var(--text-tertiary)]">
-        {avg ? `Average of ${avg.months} complete months. ` : ''}Tap a month to open it.
+            ? `On average you save ${formatMoney(avg.amount, r.currency)} a month (${avg.months} complete months).`
+            : `On average you overspend ${formatMoney(Math.abs(avg.amount), r.currency)} a month (${avg.months} complete months).`
+          : ''}{' '}Tap a month to open it.
       </p>
       <div className="mt-3 h-44 min-h-44 flex-1">
         <ResponsiveContainer width="100%" height="100%" minWidth={0} initialDimension={{ width: 320, height: 160 }}>
@@ -363,14 +378,22 @@ function CashFlow({ report: r, onSelect }: { report: MonthReport; onSelect: (mon
         </span>
       </div>
       {r.incomeSources.length > 1 && (
-        <ul className="mt-3 border-t border-[var(--border-subtle)] pt-2">
-          {r.incomeSources.map((s) => (
-            <li key={s.name} className="flex justify-between py-1.5 text-[14px]">
-              <span className="text-[var(--text-secondary)]">{s.name}</span>
-              <span className="tabular font-semibold text-[var(--positive)]">+{formatMoney(s.amount, r.currency)}</span>
-            </li>
-          ))}
-        </ul>
+        <div className="mt-3 border-t border-[var(--border-subtle)] pt-2">
+          <p className="py-1 text-[13px] font-semibold text-[var(--text-tertiary)]">Income in {name}</p>
+          <ul>
+            {shownSources.map((s) => (
+              <li key={s.name} className="flex items-center gap-3 py-1.5 text-[14px]">
+                <span className="min-w-0 flex-1 truncate text-[var(--text-secondary)]">{s.name}</span>
+                <span className="tabular shrink-0 whitespace-nowrap font-semibold text-[var(--positive)]">+{formatMoney(s.amount, r.currency)}</span>
+              </li>
+            ))}
+          </ul>
+          {r.incomeSources.length > 5 && (
+            <button type="button" onClick={() => setSources((v) => !v)} className="mt-1 h-9 text-[13px] font-semibold text-[var(--text-secondary)]">
+              {sources ? 'Show fewer' : `Show all ${r.incomeSources.length}`}
+            </button>
+          )}
+        </div>
       )}
     </section>
   )
