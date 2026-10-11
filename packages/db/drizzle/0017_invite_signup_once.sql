@@ -1,0 +1,1 @@
+ALTER TABLE "split_invites" ADD COLUMN "signup_used_at" timestamp with time zone;

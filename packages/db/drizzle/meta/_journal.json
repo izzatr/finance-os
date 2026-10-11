@@ -113,6 +113,20 @@
       "when": 1785576600000,
       "tag": "0015_agent_api_key_rate_limits",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1791729567308,
+      "tag": "0016_shared_expenses",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1791734497679,
+      "tag": "0017_invite_signup_once",
+      "breakpoints": true
     }
   ]
 }

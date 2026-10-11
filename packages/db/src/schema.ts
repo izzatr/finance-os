@@ -44,11 +44,16 @@ export const wallets = pgTable('wallets', {
   institution: varchar('institution', { length: 120 }),
   assetId: uuid('asset_id').notNull().references(() => assets.id),
   isActive: boolean('is_active').notNull().default(true),
+  // 'split' = the system wallet holding what friends owe you (or you owe them) in this currency.
+  systemRole: varchar('system_role', { length: 20 }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   deletedAt: timestamp('deleted_at', { withTimezone: true }),
 }, (table) => ({
   walletAssetIdx: index('wallet_asset_idx').on(table.assetId),
   walletUserIdx: index('wallet_user_idx').on(table.userId),
+  walletSplitUnique: uniqueIndex('wallet_split_unique')
+    .on(table.userId, table.assetId)
+    .where(sql`system_role = 'split' AND deleted_at IS NULL`),
 }))
 
 export const categories = pgTable('categories', {
@@ -75,9 +80,14 @@ export const transactions = pgTable('transactions', {
   notes: text('notes'),
   externalRef: varchar('external_ref', { length: 255 }),
   categoryId: uuid('category_id').references(() => categories.id),
+  // 'split' = written by shared expenses; read-only through the normal transaction API.
+  managedBy: varchar('managed_by', { length: 20 }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   deletedAt: timestamp('deleted_at', { withTimezone: true }),
 }, (table) => ({
+  transactionManagedRefUnique: uniqueIndex('transaction_managed_ref_unique')
+    .on(table.userId, table.externalRef)
+    .where(sql`managed_by IS NOT NULL`),
   transactionDateIdx: index('transaction_date_idx').on(table.transactionDate),
   transactionUserIdx: index('transaction_user_idx').on(table.userId),
   // Recurring materialization dedupe: a (rule, occurrence-date) ref may exist at most once
