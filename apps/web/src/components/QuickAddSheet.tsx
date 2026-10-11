@@ -225,9 +225,12 @@ export function QuickAddSheet() {
       <SheetContent
         side="bottom"
         showCloseButton={false}
-        className="max-h-[94dvh] gap-0 overflow-y-auto rounded-t-[28px] border-0 bg-white px-5 pb-[max(env(safe-area-inset-bottom),1.25rem)] pt-2.5 lg:bottom-auto lg:top-16 lg:mx-auto lg:max-w-md lg:rounded-[28px]"
+        className="flex max-h-[calc(100dvh-8px)] flex-col gap-0 overflow-hidden rounded-t-[28px] border-0 bg-white p-0 lg:bottom-auto lg:top-16 lg:mx-auto lg:max-h-[calc(100dvh-5rem)] lg:max-w-md lg:rounded-[28px]"
       >
-        <div aria-hidden className="mx-auto mb-3.5 h-[5px] w-10 shrink-0 rounded-full bg-[var(--tint-strong)] lg:hidden" />
+        {/* Everything above the keypad scrolls; keypad and Save stay pinned, so short
+            viewports (in-app browsers, Safari with toolbars) never hide the Save button. */}
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pt-2.5">
+        <div aria-hidden className="mx-auto mb-3.5 h-[5px] w-10 rounded-full bg-[var(--tint-strong)] [@media(max-height:760px)]:mb-2.5 lg:hidden" />
         <SheetHeader className="p-0">
           <SheetTitle className="sr-only">Add transaction</SheetTitle>
           <div className="flex rounded-xl bg-[var(--tint)] p-[3px]" role="tablist" aria-label="Transaction type">
@@ -272,10 +275,10 @@ export function QuickAddSheet() {
         )}
 
         {/* Amount — the hero */}
-        <div className="flex items-baseline justify-center gap-1.5 pb-2 pt-5">
-          <span className={`text-[30px] font-semibold ${amount ? 'text-[var(--text-tertiary)]' : 'text-[var(--border-medium)]'}`}>{symbol}</span>
+        <div className="flex items-baseline justify-center gap-1.5 pb-2 pt-5 [@media(max-height:760px)]:pb-1 [@media(max-height:760px)]:pt-3">
+          <span className={`text-[30px] font-semibold [@media(max-height:760px)]:text-[24px] ${amount ? 'text-[var(--text-tertiary)]' : 'text-[#bdb3a2]'}`}>{symbol}</span>
           {useKeypad ? (
-            <output aria-label="Amount" aria-live="polite" className={`tabular text-[56px] font-bold leading-none tracking-[-0.03em] ${amount ? amountTone : 'text-[var(--border-medium)]'}`}>
+            <output aria-label="Amount" aria-live="polite" className={`tabular text-[56px] font-bold leading-none tracking-[-0.03em] [@media(max-height:760px)]:text-[44px] ${amount ? amountTone : 'text-[#bdb3a2]'}`}>
               {groupAmountDisplay(amount, wallet?.currency)}
             </output>
           ) : (
@@ -346,7 +349,7 @@ export function QuickAddSheet() {
 
         {/* Category grid */}
         {chips.length > 0 && (
-          <div className="mt-5 grid grid-cols-4 gap-y-3" role="group" aria-label="Category">
+          <div className="mt-5 grid grid-cols-4 gap-y-3 [@media(max-height:760px)]:mt-3.5 [@media(max-height:760px)]:gap-y-2" role="group" aria-label="Category">
             {chips.map((c) => {
               const Icon = categoryIcon(c.name, kind)
               const selected = categoryId === c.id
@@ -359,7 +362,7 @@ export function QuickAddSheet() {
                   className="flex min-w-0 flex-col items-center gap-1.5 px-0.5"
                 >
                   <span
-                    className={`flex size-[50px] items-center justify-center rounded-full transition-colors ${
+                    className={`flex size-[50px] items-center justify-center rounded-full transition-colors [@media(max-height:760px)]:size-11 ${
                       selected
                         ? 'bg-[var(--ink)] text-[var(--cream)] shadow-[0_0_0_2.5px_#fff,0_0_0_4.5px_var(--ink)]'
                         : 'bg-[var(--tint)] text-[var(--ink)]'
@@ -378,7 +381,7 @@ export function QuickAddSheet() {
 
         {/* Recent merchants */}
         {merchants.length > 0 && (
-          <div className="-mx-5 mt-4 flex items-center gap-2 overflow-x-auto px-5 pb-0.5 [mask-image:linear-gradient(to_right,#000_85%,transparent)] [scrollbar-width:none]">
+          <div className="-mx-5 mt-4 flex items-center gap-2 overflow-x-auto px-5 pb-0.5 [@media(max-height:760px)]:mt-3 [mask-image:linear-gradient(to_right,#000_85%,transparent)] [scrollbar-width:none]">
             <span className="shrink-0 text-[13px] font-semibold text-[var(--text-tertiary)]">Recent</span>
             {merchants.map((tx) => (
               <button
@@ -398,7 +401,7 @@ export function QuickAddSheet() {
           type="button"
           onClick={() => setSplitOpen((v) => !v)}
           aria-expanded={splitOpen}
-          className="mt-4 flex items-center gap-2 self-start text-[13px] font-semibold text-[var(--text-secondary)] transition-colors hover:text-[var(--text-primary)]"
+          className="mt-4 inline-flex h-8 items-center gap-2 text-[13px] font-semibold text-[var(--text-secondary)] [@media(max-height:760px)]:mt-2 transition-colors hover:text-[var(--text-primary)]"
         >
           <Users className="size-4" /> {splitOpen ? 'Remove split' : 'Split with someone'}
         </button>
@@ -426,16 +429,20 @@ export function QuickAddSheet() {
           </div>
         )}
 
+        <div className="h-3" />
+        </div>
+
+        <div className="shrink-0 border-t border-[var(--border-subtle)] px-5 pb-[max(env(safe-area-inset-bottom),1rem)] pt-3">
         {/* Keypad (phones) */}
         {useKeypad && (
-          <div className="mt-4 grid grid-cols-3 gap-2" role="group" aria-label="Keypad">
+          <div className="grid grid-cols-3 gap-2 [@media(max-height:760px)]:gap-1.5" role="group" aria-label="Keypad">
             {(decimals === 0 ? KEYS_WHOLE : KEYS_DECIMAL).map((key) => (
               <button
                 key={key}
                 type="button"
                 onClick={() => press(key)}
                 aria-label={key === 'back' ? 'Delete digit' : key === '.' ? 'Decimal point' : key}
-                className="tabular flex h-[52px] items-center justify-center rounded-full bg-[var(--tint)] text-[24px] font-semibold text-[var(--text-primary)] transition-colors active:bg-[var(--tint-strong)]"
+                className="tabular flex h-[52px] items-center justify-center rounded-full bg-[var(--tint)] text-[24px] [@media(max-height:760px)]:h-11 [@media(max-height:760px)]:text-[22px] font-semibold text-[var(--text-primary)] transition-colors active:bg-[var(--tint-strong)]"
               >
                 {key === 'back' ? (
                   <Delete className="size-6" strokeWidth={1.8} />
@@ -455,10 +462,11 @@ export function QuickAddSheet() {
           type="button"
           onClick={submit}
           disabled={mutation.isPending || !wallet || amount === ''}
-          className="mt-3 h-14 shrink-0 rounded-2xl bg-[var(--ink)] text-base font-bold text-[var(--cream)] transition-colors active:opacity-90 disabled:bg-[var(--tint-strong)] disabled:text-[var(--text-tertiary)]"
+          className="mt-3 h-14 w-full rounded-2xl bg-[var(--ink)] [@media(max-height:760px)]:mt-2 [@media(max-height:760px)]:h-12 text-base font-bold text-[var(--cream)] transition-colors active:opacity-90 disabled:bg-[var(--tint-strong)] disabled:text-[var(--text-tertiary)]"
         >
           {mutation.isPending ? 'Saving…' : kind === 'expense' ? 'Save expense' : 'Save income'}
         </button>
+        </div>
       </SheetContent>
     </Sheet>
   )
