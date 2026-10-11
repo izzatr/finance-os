@@ -1,4 +1,4 @@
-import { db, splitActivity, splitComments, splitPersons, splitUserSettings, splitGroups, splitExpenses } from '@finance-os/db'
+import { db, splitActivity, splitComments, splitExpenseShares, splitGroupMembers, splitPersons, splitUserSettings, splitGroups, splitExpenses } from '@finance-os/db'
 import { and, desc, eq, isNull, lt, or, sql } from 'drizzle-orm'
 import { notFound, SplitError, type Me } from './core'
 import { assertCanModifyExpense, assertExpenseAccess, audienceFor, recordActivity } from './expenses'
@@ -37,6 +37,47 @@ export async function addComment(me: Me, expenseId: string, body: string) {
     })
     return row.id
   })
+}
+
+/**
+ * Brings in a comment from another app (Splitwise) with its original author and time.
+ *
+ * Guard rails, because this is the one place a caller writes words under someone else's name:
+ *  - only on expenses the caller imported themselves (created by them, with an external ref)
+ *  - the author is the caller, or a guest the caller added (never another registered user)
+ *  - the author took part in the expense or its group
+ *  - the time is in the past; nothing shows up as new activity
+ * Re-running with the same `externalRef` is a no-op.
+ */
+export async function importComment(me: Me, expenseId: string, input: { authorPersonId: string; body: string; createdAt: string; externalRef: string }) {
+  const text = input.body.trim()
+  if (!text) throw new SplitError(422, 'EMPTY_COMMENT', 'Write something first')
+  const at = new Date(input.createdAt)
+  if (Number.isNaN(at.getTime()) || at.getTime() > Date.now() + 60_000 || at.getUTCFullYear() < 2000) {
+    throw new SplitError(422, 'INVALID_DATE', 'An imported comment needs a past date')
+  }
+  const expense = await assertCanModifyExpense(me, expenseId)
+  const [e] = await db.select({ createdBy: splitExpenses.createdByPersonId, externalRef: splitExpenses.externalRef })
+    .from(splitExpenses).where(eq(splitExpenses.id, expenseId))
+  if (e.createdBy !== me.personId || !e.externalRef) {
+    throw new SplitError(403, 'NOT_IMPORTED_BY_YOU', 'Comments can only be imported onto expenses you imported')
+  }
+  if (input.authorPersonId !== me.personId) {
+    const [author] = await db.select().from(splitPersons).where(eq(splitPersons.id, input.authorPersonId))
+    if (!author || author.mergedIntoId || author.userId || author.createdByUserId !== me.userId) {
+      throw new SplitError(403, 'AUTHOR_NOT_ALLOWED', 'Imported comments can be by you or a guest you added')
+    }
+    const [share] = await db.select({ one: sql`1` }).from(splitExpenseShares)
+      .where(and(eq(splitExpenseShares.expenseId, expenseId), eq(splitExpenseShares.personId, author.id)))
+    const [member] = expense.groupId ? await db.select({ one: sql`1` }).from(splitGroupMembers)
+      .where(and(eq(splitGroupMembers.groupId, expense.groupId), eq(splitGroupMembers.personId, author.id))) : []
+    if (!share && !member) throw new SplitError(422, 'AUTHOR_NOT_INVOLVED', `${author.displayName} is not part of this expense`)
+  }
+  const [row] = await db.insert(splitComments)
+    .values({ expenseId, personId: input.authorPersonId, body: text, createdAt: at, externalRef: input.externalRef })
+    .onConflictDoNothing()
+    .returning({ id: splitComments.id })
+  return { id: row?.id ?? null, created: Boolean(row) }
 }
 
 export async function deleteComment(me: Me, commentId: string) {

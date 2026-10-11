@@ -178,8 +178,11 @@ export const splitComments = pgTable('split_comments', {
   body: text('body').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   deletedAt: timestamp('deleted_at', { withTimezone: true }),
+  // Set only for comments brought in from another app (e.g. `splitwise:comment:123`); makes re-runs idempotent.
+  externalRef: varchar('external_ref', { length: 255 }),
 }, (table) => ({
   splitCommentExpenseIdx: index('split_comment_expense_idx').on(table.expenseId, table.createdAt),
+  splitCommentExternalUnique: uniqueIndex('split_comment_external_unique').on(table.expenseId, table.externalRef).where(sql`external_ref IS NOT NULL`),
 }))
 
 export const splitActivity = pgTable('split_activity', {

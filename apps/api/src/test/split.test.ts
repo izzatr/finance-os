@@ -696,3 +696,84 @@ describe('shared expenses: security review regressions', () => {
     expect((await api(app, a).get(`/api/split/expenses/${e.body.data.id}`)).body.data.repeatInterval).toBe('monthly')
   })
 })
+
+describe('shared expenses: importing comments', () => {
+  beforeEach(async () => await truncateAll())
+  afterEach(async () => await assertInvariants())
+
+  async function imported(a: Awaited<ReturnType<typeof createTestUser>>, meId: string, guest: string, ref = 'splitwise:expense:1') {
+    const r = await expense(a, { description: 'Dinner', cost: '20', externalRef: ref, paid: { kind: 'single', personId: meId }, split: { method: 'equal', personIds: [meId, guest] } })
+    return r.body.data.id as string
+  }
+
+  it('keeps the author and time, is idempotent and stays out of activity', async () => {
+    const a = await createTestUser(app)
+    const meA = await me(app, a)
+    const g = await addGuest(app, a, 'Sam')
+    const id = await imported(a, meA.personId, g)
+    const before = (await api(app, a).get('/api/split/activity')).body.data.length
+    const body = { authorPersonId: g, body: 'I paid the tip', createdAt: '2024-03-03T19:00:00.000Z', externalRef: 'splitwise:comment:9' }
+    const first = await api(app, a).post(`/api/split/expenses/${id}/comments/import`, body)
+    expect(first.status).toBe(200)
+    expect(first.body.data.created).toBe(true)
+    const again = await api(app, a).post(`/api/split/expenses/${id}/comments/import`, body)
+    expect(again.body.data.created).toBe(false)
+    const comments = (await api(app, a).get(`/api/split/expenses/${id}/comments`)).body.data
+    expect(comments).toHaveLength(1)
+    expect(comments[0]).toMatchObject({ personId: g, name: 'Sam', body: 'I paid the tip', createdAt: '2024-03-03T19:00:00.000Z', isMine: false })
+    expect((await api(app, a).get('/api/split/activity')).body.data.length).toBe(before)
+  })
+
+  it('the comment follows the guest when they claim their invite', async () => {
+    const a = await createTestUser(app)
+    const b = await createTestUser(app)
+    const meA = await me(app, a)
+    const g = await addGuest(app, a, 'Sam')
+    const id = await imported(a, meA.personId, g)
+    await api(app, a).post(`/api/split/expenses/${id}/comments/import`, { authorPersonId: g, body: 'hi', createdAt: '2024-01-01T10:00:00.000Z', externalRef: 'c:1' })
+    const tok = (await api(app, a).post(`/api/split/persons/${g}/invite`)).body.data.token
+    expect((await api(app, b).post(`/api/split/invites/${tok}/claim`)).status).toBe(200)
+    const meB = await me(app, b)
+    const comments = (await api(app, b).get(`/api/split/expenses/${id}/comments`)).body.data
+    expect(comments[0]).toMatchObject({ personId: meB.personId, isMine: true })
+  })
+
+  it('cannot put words in a registered user\u2019s mouth, or on expenses you did not import', async () => {
+    const a = await createTestUser(app)
+    const b = await createTestUser(app)
+    const meA = await me(app, a)
+    const g = await addGuest(app, a, 'B as guest')
+    const tok = (await api(app, a).post(`/api/split/persons/${g}/invite`)).body.data.token
+    await api(app, b).post(`/api/split/invites/${tok}/claim`)
+    const meB = await me(app, b)
+    const id = await imported(a, meA.personId, meB.personId)
+    const asB = await api(app, a).post(`/api/split/expenses/${id}/comments/import`, { authorPersonId: meB.personId, body: 'x', createdAt: '2024-01-01T10:00:00.000Z', externalRef: 'c:2' })
+    expect(asB.status).toBe(403)
+    expect(asB.body.error.code).toBe('AUTHOR_NOT_ALLOWED')
+    // B can see the expense but did not import it.
+    const byB = await api(app, b).post(`/api/split/expenses/${id}/comments/import`, { authorPersonId: meB.personId, body: 'x', createdAt: '2024-01-01T10:00:00.000Z', externalRef: 'c:3' })
+    expect(byB.status).toBe(403)
+    expect(byB.body.error.code).toBe('NOT_IMPORTED_BY_YOU')
+    // A normal (non-imported) expense is off limits too.
+    const g2 = await addGuest(app, a, 'G2')
+    const plain = (await expense(a, { description: 'x', cost: '4', paid: { kind: 'single', personId: meA.personId }, split: { method: 'equal', personIds: [meA.personId, g2] } })).body.data.id
+    const onPlain = await api(app, a).post(`/api/split/expenses/${plain}/comments/import`, { authorPersonId: g2, body: 'x', createdAt: '2024-01-01T10:00:00.000Z', externalRef: 'c:4' })
+    expect(onPlain.status).toBe(403)
+  })
+
+  it('rejects guests not on the expense, other people\u2019s guests and future dates', async () => {
+    const a = await createTestUser(app)
+    const c = await createTestUser(app)
+    const meA = await me(app, a)
+    const g = await addGuest(app, a, 'Sam')
+    const outsider = await addGuest(app, a, 'Outsider')
+    const cGuest = await addGuest(app, c, 'C guest')
+    const id = await imported(a, meA.personId, g)
+    const post = (author: string, createdAt = '2024-01-01T10:00:00.000Z', ref = `c:${Math.random()}`) =>
+      api(app, a).post(`/api/split/expenses/${id}/comments/import`, { authorPersonId: author, body: 'x', createdAt, externalRef: ref })
+    expect((await post(outsider)).body.error.code).toBe('AUTHOR_NOT_INVOLVED')
+    expect((await post(cGuest)).status).toBe(403)
+    expect((await post(g, new Date(Date.now() + 86_400_000).toISOString())).body.error.code).toBe('INVALID_DATE')
+    expect((await post(meA.personId)).status).toBe(200)
+  })
+})

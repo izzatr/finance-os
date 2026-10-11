@@ -34,7 +34,7 @@ import {
   updateGroup,
   updateGuest,
 } from '../split/social'
-import { addComment, deleteComment, listActivity, listComments, markActivitySeen, unreadActivityCount } from '../split/feed'
+import { addComment, importComment, deleteComment, listActivity, listComments, markActivitySeen, unreadActivityCount } from '../split/feed'
 import { claimInvite, createInvite, previewInvite } from '../split/invites'
 import { adoptWallet, migrateLegacySplits, resyncUserBooks } from '../split/legacy'
 import { rateLimit } from '../middleware/rate-limit'
@@ -273,7 +273,9 @@ export function registerSplitRoutes(app: OpenAPIHono) {
     responses: ok('Single-use invite link token for a guest (valid 14 days; replaces older links)'),
   }), async (c) => {
     try {
-      return c.json({ data: await createInvite(await me(c), c.req.valid('param').id) }, 200)
+      const invite = await createInvite(await me(c), c.req.valid('param').id)
+      const origin = (process.env.WEB_ORIGIN ?? 'http://localhost:27031').replace(/\/$/, '')
+      return c.json({ data: { ...invite, url: `${origin}/invite/${invite.token}` } }, 200)
     } catch (err) {
       return fail(c, err)
     }
@@ -575,6 +577,26 @@ export function registerSplitRoutes(app: OpenAPIHono) {
     try {
       const id = await addComment(await me(c), c.req.valid('param').id, c.req.valid('json').body)
       return c.json({ data: { id } }, 201)
+    } catch (err) {
+      return fail(c, err)
+    }
+  })
+
+  app.openapi(createRoute({
+    method: 'post', path: '/api/split/expenses/{id}/comments/import', tags: ['shared'],
+    request: {
+      params: z.object({ id: uuid }),
+      ...jsonBody(z.object({
+        authorPersonId: uuid,
+        body: z.string().min(1).max(4000),
+        createdAt: z.string().datetime({ offset: true }),
+        externalRef: z.string().min(1).max(255),
+      })),
+    },
+    responses: ok('Imported comment (from another app), keeping its author and time; idempotent by externalRef'),
+  }), async (c) => {
+    try {
+      return c.json({ data: await importComment(await me(c), c.req.valid('param').id, c.req.valid('json')) }, 200)
     } catch (err) {
       return fail(c, err)
     }
