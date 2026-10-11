@@ -38,6 +38,7 @@ export default defineConfig({
           { text: 'Transactions', link: '/guides/transactions' },
           { text: 'Importing Data', link: '/guides/importing-data' },
           { text: 'Categories', link: '/guides/categories' },
+          { text: 'Shared expenses', link: '/guides/shared-expenses' },
         ],
       },
       {

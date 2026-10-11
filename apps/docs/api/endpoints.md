@@ -526,6 +526,70 @@ Background reconciliation and user-triggered refreshes acquire the same 15-minut
 
 ---
 
+## Shared expenses
+
+Splitwise-style sharing. People, groups and expenses are shared between users, so access follows
+participation: you can see an expense you are part of, or any expense in a group you currently belong
+to. Anything else returns `404`. Amounts are decimal strings in the expense currency; balances are
+positive when the other person owes you. Writes need a session or a write-scoped key; accepting an
+invite needs a signed-in session. See the [guide](/guides/shared-expenses).
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `GET` | `/api/split/me` | Your person id, totals owed to you / by you, unread activity, shared categories |
+| `PATCH` | `/api/split/me` | `defaultCurrency`, `activitySeen`, `booksStart` (earlier shared history becomes one opening balance) |
+| `GET` | `/api/split/balances` | Totals per currency |
+| `GET` / `POST` | `/api/split/friends` | Friends with balances / add a guest friend `{ name, email? }` |
+| `GET` / `PATCH` / `DELETE` | `/api/split/friends/:personId` | Breakdown by group / rename a guest you added / remove (only when settled) |
+| `POST` | `/api/split/persons/:personId/invite` | Single-use invite link token for a guest (14 days; replaces older links) |
+| `GET` | `/api/public/split-invites/:token` | Public preview: status, guest and inviter names |
+| `POST` | `/api/split/invites/:token/claim` | Become that guest: their history, groups and balances move to you |
+| `GET` / `POST` | `/api/split/groups` | Your groups (`?deleted=true` for deleted ones) / create `{ name, groupType, simplifyDebts, memberIds }` |
+| `GET` / `PATCH` / `DELETE` | `/api/split/groups/:id` | Members, balances, suggested settle-ups / rename, type, simplify / delete with its expenses |
+| `POST` | `/api/split/groups/:id/restore` | Restore a deleted group and the expenses deleted with it |
+| `POST` | `/api/split/groups/:id/members` | Add a friend `{ personId }` or a new guest `{ name, email? }` |
+| `DELETE` | `/api/split/groups/:id/members/:personId` | Remove a member or leave (only when their group balance is zero) |
+| `GET` | `/api/split/groups/:id/export.csv` | CSV with one column per member |
+| `GET` | `/api/split/expenses` | `groupId`, `friendId`, `q`, `limit`, cursor `beforeDate` + `beforeId`, `includeDeleted` |
+| `POST` | `/api/split/expenses` | Create an expense or payment (below) |
+| `GET` / `PATCH` / `DELETE` | `/api/split/expenses/:id` | Read / update (send `version`; `409 VERSION_CONFLICT` if someone else saved first) / delete |
+| `POST` | `/api/split/expenses/:id/restore` | Undo a delete |
+| `PUT` | `/api/split/expenses/:id/my-books` | Your private bookkeeping: `fundingWalletId`, `fundingAmount`, `categoryId`, `linkedTransactionId` |
+| `GET` / `POST` | `/api/split/expenses/:id/comments` | Comments |
+| `DELETE` | `/api/split/comments/:id` | Delete your comment |
+| `GET` | `/api/split/activity` | Activity feed, newest first (`groupId`, cursor `beforeAt` + `beforeId`) |
+
+**Expense body**
+
+```json
+{
+  "kind": "expense",
+  "groupId": null,
+  "description": "Dinner",
+  "cost": "80.00",
+  "currency": "EUR",
+  "date": "2026-10-04T12:00:00.000Z",
+  "category": "dining",
+  "paid": { "kind": "single", "personId": "<you>" },
+  "split": { "method": "equal", "personIds": ["<you>", "<friend>"] },
+  "repeatInterval": "never",
+  "myBooks": { "fundingWalletId": "<wallet>" }
+}
+```
+
+`paid` may also be `{ "kind": "multiple", "amounts": { "<person>": "50", "<person>": "30" } }`. `split` methods:
+`equal` (`personIds`), `exact` (`amounts`), `percent` (`percents`, must total 100), `shares` (`shares`) and
+`adjustment` (`personIds` + `adjustments` added on top of an equal split). A payment is
+`{ "kind": "payment", "cost": "40", "currency": "EUR", "date": "...", "payment": { "fromPersonId": "...", "toPersonId": "..." } }`.
+
+Each registered member gets a managed transaction per expense in their own books plus a system wallet per
+currency (`systemRole: "split"`). Both are read-only through `/api/transactions`, which answers
+`409 MANAGED_BY_SHARED` or `422 SYSTEM_WALLET`. Transaction lists include `sharedExpenseId` so clients can
+link to the shared expense. `splits` on `POST /api/transactions` was replaced by shared expenses and now
+returns `422 SPLITS_MOVED`.
+
+---
+
 ## Other
 
 ### List Assets

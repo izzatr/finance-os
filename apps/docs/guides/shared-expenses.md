@@ -1,0 +1,67 @@
+# Shared expenses
+
+Split bills with friends the way you would in Splitwise: a running balance with each friend, groups for
+trips and households, and settling up. Everything you share also lands in your own books at your share,
+so reports and net worth stay right.
+
+## Friends and guests
+
+Add a friend with just a name. They don't need an account: they start as a **guest** that you and anyone
+in your groups can use in expenses. When they want their own login, send them an invite link from the
+friend's page. The link works once and expires after 14 days. When they sign up through it, every
+expense, group and balance they were part of becomes theirs, and they can keep tracking their own money
+in Finance OS.
+
+Guests are never matched to accounts by email. Only the invite link connects them.
+
+## Groups
+
+Groups (home, trip, couple, other) hold expenses everyone in them can see and edit. Each group shows
+what every member gets back or owes and suggests who should pay whom.
+
+**Simplify debts** (on by default) keeps the number of payments down: if Bea owes you and Cem owes Bea,
+Cem pays you directly. Turn it off to settle exactly along who paid for what.
+
+You can only leave a group, or remove someone, once their balance in it is zero. Deleting a group also
+deletes its expenses; both come back if you restore the group.
+
+## Adding an expense
+
+- **Paid by**: one person, or several people with the amount each paid.
+- **Split**: equally (choose who is in), exact amounts, percentages, shares, or adjustments
+  (extra amounts on top of an equal split). Amounts must add up to the total; leftover cents go to
+  one person at a time so nothing is lost to rounding.
+- **Currency**: any ISO currency. Balances are kept per currency.
+- **Repeat**: weekly, every two weeks, monthly or yearly. A new copy appears on each date.
+- Comments and a full activity history are shared with everyone involved.
+
+If two people edit the same expense at once, the second save is refused with a message instead of
+silently overwriting the first.
+
+## Settling up
+
+Record a payment from the friend or group page, in full or in part. Pick the wallet the money left or
+arrived in and your books show the transfer too.
+
+## How it shows up in your books
+
+Each currency you share in gets a **Friends** wallet, for example `Friends · EUR`. Its balance is what
+friends owe you (positive) or what you owe them (negative), so it counts in net worth like any other
+money that is yours.
+
+When you add an expense you can say which wallet you paid from. Finance OS then books one transaction:
+the full amount out of that wallet and the part others owe you into Friends. Reports count only your
+share. If the payment is already in your books (for example from a bank import), link that transaction
+instead and nothing is counted twice. When someone else paid, your share is booked as spending against
+Friends.
+
+These transactions follow the shared expense automatically and can't be edited from the transactions
+list; edit the shared expense instead. Your wallet, category and links are private to you.
+
+Joining with history (through an invite) brings in older balances as one opening balance, not as past
+spending.
+
+## API
+
+All endpoints live under `/api/split` and accept a session or a write-scoped API key. See
+[API endpoints](/api/endpoints#shared-expenses).
