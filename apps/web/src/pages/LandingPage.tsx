@@ -69,7 +69,7 @@ function Hero() {
 
 function QuickAdd() {
   const points = [
-    ['A keypad, not a keyboard', 'Amount, category, save. The phone keyboard never covers the form, and rupiah gets a 000 key.'],
+    ['A keypad, not a keyboard', 'Amount, category, save. The phone keyboard never covers the form, so it works one-handed in a checkout line.'],
     ['It remembers', 'Your last wallet and recent merchants are one tap away, so repeat purchases take a second.'],
     ['Split as you go', 'Paid for dinner? Mark who owes you their share and it shows up under People.'],
   ]
@@ -112,10 +112,10 @@ function InboxCard() {
       </p>
       <div className="mt-3 flex items-center gap-3 rounded-2xl bg-[var(--tint)] px-3.5 py-3">
         <div className="min-w-0 flex-1">
-          <p className="text-[15px] font-semibold">Kopi Kenangan</p>
-          <p className="text-[13px] text-[var(--text-tertiary)]">Coffee · Jago · today</p>
+          <p className="text-[15px] font-semibold">Blue Bottle Coffee</p>
+          <p className="text-[13px] text-[var(--text-tertiary)]">Coffee · Chase · today</p>
         </div>
-        <p className="tabular text-[15px] font-semibold">−Rp35.000</p>
+        <p className="tabular text-[15px] font-semibold">−$6.50</p>
       </div>
       <div className="mt-3 grid grid-cols-2 gap-2">
         <span className="flex h-10 items-center justify-center gap-1.5 rounded-xl bg-white text-[14px] font-semibold ring-1 ring-[var(--border-medium)]"><X className="size-4" /> Reject</span>
@@ -151,14 +151,14 @@ function Agents() {
             <span className={c.dim}>{'}'}</span>
           </Code>
           <Code title="you → agent">
-            <span className={c.dim}>{'> '}</span>kopi 35k from jago, and what did I spend on food this month?{'\n\n'}
+            <span className={c.dim}>{'> '}</span>blue bottle 6.50 on chase. what did I spend on food this month?{'\n\n'}
             <span className={c.key}>finance_add_transaction</span>
             <span className={c.dim}>{'  → draft sent to your inbox'}</span>{'\n'}
             <span className={c.key}>finance_spending</span>
             <span className={c.dim}>{'(month: "october")'}</span>{'\n\n'}
-            {'  Groceries     €412.00'}{'\n'}
-            {'  Eating out    €268.00'}{'\n'}
-            <span className={c.ok}>{'  ✓ €680.00 on food'}</span>
+            {'  Groceries     $412.00'}{'\n'}
+            {'  Eating out    $268.00'}{'\n'}
+            <span className={c.ok}>{'  ✓ $680.00 on food'}</span>
           </Code>
         </div>
       </div>
@@ -168,7 +168,7 @@ function Agents() {
 
 const FEATURES: Array<[typeof Wallet, string, string]> = [
   [Wallet, 'A wallet for everything', 'Banks, e-wallets, cash and credit cards each keep their own balance.'],
-  [Coins, 'Every currency', 'EUR, IDR, USD and more side by side, rolled into one net worth.'],
+  [Coins, 'Every currency', 'USD, EUR, GBP and more side by side, rolled into one net worth.'],
   [TrendingUp, 'Investments too', 'Stocks and ETFs valued at end of day, in their own currency and yours.'],
   [FileBarChart, 'Reports that add up', 'Monthly income and spend, category trends, net worth over time.'],
 ]

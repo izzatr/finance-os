@@ -34,9 +34,9 @@ function StatusBar({ light }: { light?: boolean }) {
 }
 
 const ROWS = [
-  { name: 'REWE', meta: 'Groceries · Sparkasse', amount: '−€42.18', Icon: ShoppingCart },
-  { name: 'BVG Ticket', meta: 'Transport · Sparkasse', amount: '−€3.80', Icon: Bus },
-  { name: 'Spotify', meta: 'Subscriptions · Sparkasse', amount: '−€12.42', Icon: CalendarClock },
+  { name: 'Whole Foods', meta: 'Groceries · Chase', amount: '−$42.18', Icon: ShoppingCart },
+  { name: 'Starbucks', meta: 'Coffee · Chase', amount: '−$3.80', Icon: Coffee },
+  { name: 'Netflix', meta: 'Subscriptions · Amex', amount: '−$12.42', Icon: CalendarClock },
 ]
 
 function TabBar() {
@@ -67,9 +67,9 @@ export function HomePreview() {
         <div className="px-5 pb-9 pt-3">
           <p className="text-[12px] font-medium text-white/75">Net worth</p>
           <p className="tabular mt-0.5 text-[34px] font-bold leading-none tracking-[-0.03em]">
-            €39,421<span className="text-[19px] text-white/60">.80</span>
+            $39,421<span className="text-[19px] text-white/60">.80</span>
           </p>
-          <p className="mt-2.5 inline-flex rounded-md bg-[var(--cream)] px-2 py-0.5 text-[11px] font-bold text-[var(--ink)]">+€1,284.00 this month</p>
+          <p className="mt-2.5 inline-flex rounded-md bg-[var(--cream)] px-2 py-0.5 text-[11px] font-bold text-[var(--ink)]">+$1,284.00 this month</p>
           <div className="mt-4 flex gap-2">
             {[[ArrowLeftRight, 'Transfer'], [Users, 'People'], [BarChart3, 'Reports']].map(([Icon, label]) => {
               const I = Icon as typeof Home
@@ -88,7 +88,7 @@ export function HomePreview() {
           <span className="text-[11px] font-semibold text-[var(--ink)]">Manage</span>
         </div>
         <div className="mt-2 grid grid-cols-2 gap-2">
-          {[['Bank', 'Sparkasse', '€6,412.20'], ['Invest', 'Trade Republic', '€31,880.04'], ['Bank', 'Jago', 'Rp18.4M'], ['Wallet', 'Cash', '€86.50']].map(([t, n, v]) => (
+          {[['Checking', 'Chase', '$6,412.20'], ['Invest', 'Fidelity', '$31,880.04'], ['Savings', 'Ally', '$1,043.06'], ['Wallet', 'Cash', '$86.50']].map(([t, n, v]) => (
             <div key={n} className="rounded-xl bg-[var(--tint)] px-2.5 py-2">
               <p className="text-[9.5px] font-semibold text-[var(--text-tertiary)]">{t}</p>
               <p className="truncate text-[11px] font-semibold">{n}</p>
@@ -102,7 +102,7 @@ export function HomePreview() {
         </div>
         <div className="-mx-4 mt-2 flex justify-between bg-[var(--tint)] px-4 py-1 text-[10.5px] font-semibold text-[var(--text-tertiary)]">
           <span>Today</span>
-          <span className="tabular">−€58.40</span>
+          <span className="tabular">−$58.40</span>
         </div>
         {ROWS.map(({ name, meta, amount, Icon }) => (
           <div key={name} className="flex items-center gap-2.5 py-2">
@@ -116,8 +116,8 @@ export function HomePreview() {
         ))}
         <div className="flex items-center gap-2.5 py-2">
           <span className="flex size-8 items-center justify-center rounded-full bg-[rgba(18,137,90,0.1)] text-[var(--positive)]"><ArrowDownLeft className="size-4" /></span>
-          <span className="min-w-0 flex-1 text-[12px] font-semibold">Salary October</span>
-          <span className="tabular text-[12px] font-semibold text-[var(--positive)]">+€3,450.00</span>
+          <span className="min-w-0 flex-1 text-[12px] font-semibold">Paycheck</span>
+          <span className="tabular text-[12px] font-semibold text-[var(--positive)]">+$3,450.00</span>
         </div>
       </div>
       <TabBar />
@@ -141,12 +141,12 @@ export function QuickAddPreview() {
           <span className="flex-1 py-1.5 text-center text-[var(--text-tertiary)]">Income</span>
         </div>
         <p className="tabular pb-1 pt-4 text-center text-[42px] font-bold leading-none tracking-[-0.03em]">
-          <span className="mr-1 align-[12px] text-[22px] text-[var(--text-tertiary)]">€</span>42.18
+          <span className="mr-1 align-[12px] text-[22px] text-[var(--text-tertiary)]">$</span>42.18
         </p>
         <div className="mt-2 flex justify-center gap-1.5 text-[10.5px] font-semibold">
-          <span className="inline-flex items-center gap-1 rounded-full bg-[var(--tint)] px-2.5 py-1"><WalletIcon className="size-3 text-[var(--text-tertiary)]" />Sparkasse</span>
+          <span className="inline-flex items-center gap-1 rounded-full bg-[var(--tint)] px-2.5 py-1"><WalletIcon className="size-3 text-[var(--text-tertiary)]" />Chase</span>
           <span className="rounded-full bg-[var(--tint)] px-2.5 py-1">Today</span>
-          <span className="rounded-full bg-[var(--tint)] px-2.5 py-1">REWE</span>
+          <span className="rounded-full bg-[var(--tint)] px-2.5 py-1">Whole Foods</span>
         </div>
         <div className="mt-4 grid grid-cols-4 gap-y-2.5">
           {CATS.map(([label, Icon], i) => (
