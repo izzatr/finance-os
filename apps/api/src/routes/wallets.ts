@@ -94,6 +94,7 @@ export function registerWalletRoutes(app: OpenAPIHono) {
                   balance: z.number(),
                   currency: z.string(),
                   unit: z.string().nullable(),
+                  systemRole: z.string().nullable(),
                   valuation: valuationShape,
                   portfolioValue: portfolioValueShape,
                 }),
@@ -330,6 +331,7 @@ export function registerWalletRoutes(app: OpenAPIHono) {
         institution: wallets.institution,
         assetId: wallets.assetId,
         isActive: wallets.isActive,
+        systemRole: wallets.systemRole,
         balance: sql<number>`coalesce(sum(${transactionEntries.amount}), 0)`,
         currency: assets.code,
         unit: assets.unit,
@@ -398,6 +400,8 @@ export function registerWalletRoutes(app: OpenAPIHono) {
         amount: transactionEntries.amount,
         currency: assets.code,
         createdAt: transactions.createdAt,
+        managedBy: transactions.managedBy,
+        externalRef: transactions.externalRef,
       })
       .from(transactions)
       .innerJoin(transactionEntries, and(
@@ -419,6 +423,7 @@ export function registerWalletRoutes(app: OpenAPIHono) {
       amount: Number(r.amount),
       currency: r.currency,
       createdAt: r.createdAt.toISOString(),
+      sharedExpenseId: r.managedBy === 'split' && r.externalRef?.startsWith('split:expense:') ? r.externalRef.slice('split:expense:'.length) : null,
     }))
 
     const detailPrices = await latestPricesFor(wallet.unit ? [wallet.assetId] : [])
@@ -481,6 +486,9 @@ export function registerWalletRoutes(app: OpenAPIHono) {
     const [holding] = await db.select({ id: holdings.id }).from(holdings).innerJoin(wallets, eq(wallets.id, holdings.walletId))
       .where(and(eq(wallets.id, id), eq(wallets.userId, user.id))).limit(1)
     if (holding) return c.json({ error: { code: 'HOLDINGS_EXIST', message: 'Remove investment holdings before deleting this wallet' } }, 409)
+    const [system] = await db.select({ id: wallets.id }).from(wallets)
+      .where(and(eq(wallets.id, id), eq(wallets.userId, user.id), isNotNull(wallets.systemRole))).limit(1)
+    if (system) return c.json({ error: { code: 'SYSTEM_WALLET', message: 'This wallet tracks balances with friends and is managed by Shared' } }, 409)
     const [row] = await db.update(wallets).set({ deletedAt: now }).where(and(eq(wallets.id, id), eq(wallets.userId, user.id), isNull(wallets.deletedAt))).returning()
     if (!row) {
       return c.json({ error: { code: 'NOT_FOUND', message: 'Wallet not found' } }, 404)

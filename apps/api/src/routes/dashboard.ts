@@ -128,6 +128,9 @@ export function registerDashboardRoutes(app: OpenAPIHono) {
         amount: transactionEntries.amount,
         currency: assets.code,
         walletName: wallets.name,
+        walletSystemRole: wallets.systemRole,
+        managedBy: transactions.managedBy,
+        externalRef: transactions.externalRef,
       })
       .from(transactions)
       .innerJoin(transactionEntries, eq(transactionEntries.transactionId, transactions.id))
@@ -161,6 +164,8 @@ export function registerDashboardRoutes(app: OpenAPIHono) {
       amount: Number(r.amount),
       currency: r.currency,
       walletName: r.walletName,
+      friendsWallet: r.walletSystemRole !== null,
+      sharedExpenseId: r.managedBy === 'split' && r.externalRef?.startsWith('split:expense:') ? r.externalRef.slice('split:expense:'.length) : null,
     }))
 
     return c.json({ data }, 200)

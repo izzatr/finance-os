@@ -58,28 +58,6 @@ describe('milestone 2 hardening', () => {
     expect(data).toEqual([])
   })
 
-  it('rejects settling into a wallet of a different asset', async () => {
-    const { cookie } = await createTestUser(app)
-    const assets = await getAssets(cookie)
-    const idrWallet = await createWallet(cookie, 'IDR Cash', assets.IDR)
-
-    const personRes = await app.request('/api/people', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', cookie },
-      body: JSON.stringify({ name: 'Nadia' }),
-    })
-    const { data: person } = (await personRes.json()) as { data: { id: string } }
-
-    const res = await app.request(`/api/people/${person.id}/settle`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', cookie },
-      body: JSON.stringify({ walletId: idrWallet, assetId: assets.EUR }),
-    })
-    expect(res.status).toBe(400)
-    const body = (await res.json()) as { error: { code: string } }
-    expect(body.error.code).toBe('ASSET_MISMATCH')
-  })
-
   it('enforces the recurring dedupe ref uniqueness at the database level', async () => {
     const { cookie, userId } = await createTestUser(app)
     const assets = await getAssets(cookie)

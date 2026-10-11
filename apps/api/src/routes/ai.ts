@@ -35,7 +35,7 @@ function loopbackBase(): string {
  *  try them and then tell the owner to go create a write-scoped API key. */
 const chatTools = financeTools.filter((tool) => tool.kind === 'read' || tool.proposable)
 
-type Grounding = { wallets: Array<{ name: string; currency: string; isActive?: boolean }>; categories: Array<{ name: string; type: string }> }
+type Grounding = { wallets: Array<{ name: string; currency: string; isActive?: boolean; systemRole?: string | null }>; categories: Array<{ name: string; type: string }> }
 
 function systemPrompt(today: string, currency: string, grounding: Grounding | null): string {
   const lines = [
@@ -45,10 +45,11 @@ function systemPrompt(today: string, currency: string, grounding: Grounding | nu
     'For "how much did I spend / save / earn" questions about a month, call finance_monthly_report: it matches the Reports page (spending is the owner\'s share of split bills, compared with their usual month). Use finance_spending for a category breakdown and finance_search to find specific transactions.',
     'Anything you record (expenses, income, transfers) becomes a proposal in the approval Inbox and books nothing until the owner approves. Say so in one short line. You cannot edit, delete or approve existing transactions; tell the owner to do that in the app (tap the transaction, or approve in Inbox).',
     'When recording: use today unless a date is given, pick the wallet and category from the lists below by meaning (e.g. "starbucks" is Coffee), and ask one short question only when the wallet is genuinely ambiguous.',
+    'For money shared with friends (who owes whom, groups, settling up) use finance_shared_balances and finance_shared_expenses. Shared expenses and payments cannot be recorded from this chat; tell the owner to add them under Shared. Never record anything into a "Friends" wallet: those follow shared expenses automatically.',
     'Answer in a sentence or two, then at most a short bullet list. Name the currency. No tables, no headings.',
   ]
   if (grounding) {
-    const wallets = grounding.wallets.filter((w) => w.isActive !== false).map((w) => `${w.name} (${w.currency})`).join(', ')
+    const wallets = grounding.wallets.filter((w) => w.isActive !== false && !w.systemRole).map((w) => `${w.name} (${w.currency})`).join(', ')
     const expense = grounding.categories.filter((c) => c.type === 'expense').map((c) => c.name).join(', ')
     const income = grounding.categories.filter((c) => c.type === 'income').map((c) => c.name).join(', ')
     lines.push(`Wallets: ${wallets || 'none yet'}.`, `Expense categories: ${expense || 'none'}.`, `Income categories: ${income || 'none'}.`)

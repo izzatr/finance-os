@@ -1,6 +1,6 @@
 import { createRoute, z } from '@hono/zod-openapi'
 import type { OpenAPIHono } from '@hono/zod-openapi'
-import { db, categories, people, recurringRules } from '@finance-os/db'
+import { db, categories, recurringRules } from '@finance-os/db'
 import { nextOccurrences } from '@finance-os/domain'
 import type { RecurringSchedule } from '@finance-os/domain'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
@@ -31,7 +31,8 @@ const templateSchema = z.object({
   externalRef: z.string().max(255).optional().nullable(),
   categoryId: z.string().uuid().optional().nullable(),
   entries: z.array(templateEntrySchema).min(1),
-  splits: z.array(templateSplitSchema).optional(),
+  // Repeating shared bills are shared expenses with a repeat interval (POST /api/split/expenses).
+  splits: z.array(templateSplitSchema).max(0, 'Use a repeating shared expense instead').optional(),
 })
 
 type TemplateInput = z.infer<typeof templateSchema>
@@ -88,14 +89,6 @@ async function validateTemplateOwnership(
     }
   }
 
-  if (template.splits && template.splits.length > 0) {
-    const uniqueIds = [...new Set(template.splits.map((s) => s.personId))]
-    const owned = await db.select({ id: people.id }).from(people)
-      .where(and(inArray(people.id, uniqueIds), eq(people.userId, userId), isNull(people.deletedAt)))
-    if (owned.length !== uniqueIds.length) {
-      return { status: 404, code: 'NOT_FOUND', message: 'Person not found' }
-    }
-  }
 
   return null
 }

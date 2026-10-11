@@ -1,6 +1,6 @@
 import { createRoute, z } from '@hono/zod-openapi'
 import type { OpenAPIHono } from '@hono/zod-openapi'
-import { db, assetPrices, assets, categories, exchangeRates, transactionEntries, transactionSplits, transactions, wallets } from '@finance-os/db'
+import { db, assetPrices, assets, categories, exchangeRates, splitExpenseBooks, transactionEntries, transactionSplits, transactions, wallets } from '@finance-os/db'
 import { and, desc, eq, gte, inArray, isNull, lt, lte, sql } from 'drizzle-orm'
 import { convertAmount, getLatestRates } from '../lib/fx'
 import { latestPortfolioValuesForWallets } from '../portfolio/valuation'
@@ -220,9 +220,13 @@ export function registerAnalyticsRoutes(app: OpenAPIHono) {
         categoryId: transactions.categoryId,
         categoryName: categories.name,
         description: transactions.description,
+        friendsWallet: sql<boolean>`${wallets.systemRole} IS NOT NULL`,
+        managedRef: transactions.externalRef,
+        managedBy: transactions.managedBy,
       })
       .from(transactions)
       .innerJoin(transactionEntries, eq(transactionEntries.transactionId, transactions.id))
+      .innerJoin(wallets, eq(wallets.id, transactionEntries.walletId))
       .innerJoin(assets, eq(assets.id, transactionEntries.assetId))
       .leftJoin(categories, eq(categories.id, transactions.categoryId))
       .where(and(
@@ -241,8 +245,20 @@ export function registerAnalyticsRoutes(app: OpenAPIHono) {
       .innerJoin(assets, eq(assets.id, transactionSplits.assetId))
       .where(inArray(transactionSplits.transactionId, txIds))
 
+    const expenseIdByTx = new Map<string, string>()
+    for (const r of rows) {
+      if (r.managedBy === 'split' && r.managedRef?.startsWith('split:expense:')) expenseIdByTx.set(r.transactionId, r.managedRef.slice('split:expense:'.length))
+    }
+    const links = expenseIdByTx.size === 0 ? [] : await db
+      .select({ expenseId: splitExpenseBooks.expenseId, linkedTo: splitExpenseBooks.linkedTransactionId })
+      .from(splitExpenseBooks)
+      .where(and(eq(splitExpenseBooks.userId, user.id), inArray(splitExpenseBooks.expenseId, [...new Set(expenseIdByTx.values())])))
+    const linkedByExpense = new Map(links.map((l) => [l.expenseId, l.linkedTo]))
+    const shared = [...expenseIdByTx].map(([transactionId, expenseId]) => ({ transactionId, linkedTo: linkedByExpense.get(expenseId) ?? null }))
+
     const rates = await getLatestRates()
     const report = buildMonthReport({
+      shared,
       month,
       currency,
       today,
@@ -255,6 +271,7 @@ export function registerAnalyticsRoutes(app: OpenAPIHono) {
         categoryId: r.categoryId,
         categoryName: r.categoryName,
         description: r.description ?? '',
+        friendsWallet: r.friendsWallet,
       })),
       splits: splitRows.map((s) => ({ transactionId: s.transactionId, amount: Number(s.amount), currency: s.currency })),
       convert: (amount, fromCode) => (fromCode === currency || (rates.has(fromCode) && rates.has(currency)) ? convertAmount(amount, fromCode, currency, rates) : null),

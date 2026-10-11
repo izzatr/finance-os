@@ -46,6 +46,8 @@ export async function truncateAll(): Promise<void> {
   const pool = new Pool({ connectionString: TEST_DATABASE_URL })
   await pool.query(`
     TRUNCATE TABLE
+      split_activity, split_comments, split_invites, split_expense_books, split_expense_debts, split_expense_shares,
+      split_expenses, split_group_members, split_groups, split_friendships, split_user_settings, split_persons,
       transaction_entries, transaction_splits, holdings, listing_prices, provider_symbols, listings, instruments, exchanges,
       people, transactions, wallets, categories, statement_imports,
       proposals, recurring_rules, exchange_rates, asset_prices,

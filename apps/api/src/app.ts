@@ -4,12 +4,13 @@ import { cors } from 'hono/cors'
 import { auth } from '@finance-os/db'
 import { checkAuth } from './middleware/auth'
 import { rateLimit } from './middleware/rate-limit'
+
+const authLimiter = rateLimit({ windowMs: 60_000, max: 60, keyPrefix: 'auth' })
 import { registerWebhookRoutes } from './routes/webhooks'
 import { registerSystemRoutes } from './routes/system'
 import { registerWalletRoutes } from './routes/wallets'
 import { registerTransactionRoutes } from './routes/transactions'
 import { registerCategoryRoutes } from './routes/categories'
-import { registerPeopleRoutes } from './routes/people'
 import { registerAnalyticsRoutes } from './routes/analytics'
 import { registerDashboardRoutes } from './routes/dashboard'
 import { registerImportRoutes } from './routes/imports'
@@ -21,6 +22,7 @@ import { registerAiRoutes } from './routes/ai'
 import { registerExchangeRateRoutes } from './routes/exchange-rates'
 import { registerAssetPriceRoutes } from './routes/asset-prices'
 import { registerPortfolioRoutes } from './routes/portfolio'
+import { registerSplitPublicRoutes, registerSplitRoutes } from './routes/split'
 
 const app = new OpenAPIHono()
 
@@ -40,13 +42,16 @@ registerWebhookRoutes(app)
 
 // Remote MCP: does its own Bearer API-key auth + rate limiting
 registerMcpRoutes(app)
+registerSplitPublicRoutes(app)
 
 // ── Auth API routes (OAuth, sessions, API keys) ──────────────────────────
 // Better Auth handles sign-in, sign-up, OAuth, session management, API keys at /auth/*
 // Strict limit on credential endpoints, loose on the rest of /auth
 app.use('/auth/sign-in/*', rateLimit({ windowMs: 60_000, max: 10, keyPrefix: 'auth-cred' }))
 app.use('/auth/sign-up/*', rateLimit({ windowMs: 60_000, max: 10, keyPrefix: 'auth-cred' }))
-app.use('/auth/*', rateLimit({ windowMs: 60_000, max: 60, keyPrefix: 'auth' }))
+// get-session runs on every page load; a 429 there looks like being signed out.
+app.use('/auth/get-session', rateLimit({ windowMs: 60_000, max: 600, keyPrefix: 'auth-session' }))
+app.use('/auth/*', async (c, next) => (c.req.path === '/auth/get-session' ? next() : authLimiter(c, next)))
 app.all('/auth/*', async (c) => auth.handler(c.req.raw))
 
 // ── Protected API routes (session or API key auth) ─────────────────────
@@ -58,7 +63,6 @@ registerSystemRoutes(app)
 registerWalletRoutes(app)
 registerTransactionRoutes(app)
 registerCategoryRoutes(app)
-registerPeopleRoutes(app)
 registerAnalyticsRoutes(app)
 registerDashboardRoutes(app)
 registerImportRoutes(app)
@@ -68,6 +72,7 @@ registerProposalRoutes(app)
 registerExchangeRateRoutes(app)
 registerAssetPriceRoutes(app)
 registerPortfolioRoutes(app)
+registerSplitRoutes(app)
 registerAiRoutes(app)
 
 app.doc('/openapi.json', {

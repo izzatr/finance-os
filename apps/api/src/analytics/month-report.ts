@@ -15,6 +15,8 @@
  */
 
 export type ReportRow = {
+  /** Entry sits in a Friends (shared balances) wallet. */
+  friendsWallet?: boolean
   transactionId: string
   date: string // YYYY-MM-DD (transactions are calendar dates stored at 12:00 UTC)
   type: 'income' | 'expense'
@@ -24,6 +26,13 @@ export type ReportRow = {
   categoryName: string | null
   description: string
 }
+
+/**
+ * A shared-expense projection: `friendsShare` is the part of the bill other people owe you
+ * (a positive entry in your Friends wallet). When the payment itself is a separate (linked,
+ * imported) transaction, `linkedTo` names it so both are reported as one purchase.
+ */
+export type SharedMeta = { transactionId: string; linkedTo: string | null }
 
 export type SplitShare = { transactionId: string; currency: string; amount: number } // positive = owed to you
 
@@ -99,6 +108,7 @@ export function buildMonthReport(input: {
   today: string // YYYY-MM-DD
   rows: ReportRow[]
   splits: SplitShare[]
+  shared?: SharedMeta[]
   convert: Converter
 }): MonthReport {
   const { month, currency, today, convert } = input
@@ -146,6 +156,29 @@ export function buildMonthReport(input: {
     const share = Math.min(Math.max(owed.get(tx.id) ?? 0, 0), Math.max(tx.value, 0))
     tx.fronted = share
     tx.value -= share
+  }
+
+  // Shared expenses: what friends owe you back already reduces the value (it is a positive entry in
+  // the Friends wallet); report it as fronted. A projection linked to an imported payment is folded
+  // into that payment so the purchase appears once, at your share.
+  const friendsPart = new Map<string, number>()
+  for (const r of input.rows) {
+    if (!r.friendsWallet || r.type !== 'expense' || r.amount <= 0) continue
+    const v = conv(r.amount, r.currency)
+    if (v !== null) friendsPart.set(r.transactionId, (friendsPart.get(r.transactionId) ?? 0) + v)
+  }
+  for (const [id, v] of friendsPart) {
+    const tx = txs.get(id)
+    if (tx) tx.fronted += v
+  }
+  for (const m of input.shared ?? []) {
+    if (!m.linkedTo) continue
+    const proj = txs.get(m.transactionId)
+    const target = txs.get(m.linkedTo)
+    if (!proj || !target || proj.type !== 'expense' || target.type !== 'expense') continue
+    target.value += proj.value
+    target.fronted += proj.fronted
+    txs.delete(m.transactionId)
   }
 
   const byMonth = new Map<string, Tx[]>()

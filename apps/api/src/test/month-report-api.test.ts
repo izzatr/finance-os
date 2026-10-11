@@ -22,7 +22,8 @@ describe('GET /api/analytics/month-report', () => {
     })).then((b) => b.data.id)
     const walletId = await wallet(cookie)
     const otherWallet = await wallet(other.cookie)
-    const person = await json<{ data: { id: string } }>(await app.request('/api/people', {
+    const meRes = await json<{ data: { personId: string } }>(await app.request('/api/split/me', { headers: { cookie } }))
+    const sam = await json<{ data: { id: string } }>(await app.request('/api/split/friends', {
       method: 'POST',
       headers: { 'content-type': 'application/json', cookie },
       body: JSON.stringify({ name: 'Sam' }),
@@ -39,7 +40,18 @@ describe('GET /api/analytics/month-report', () => {
     await post(cookie, walletId, '2026-09-01', 'income', '2000.00')
     await post(cookie, walletId, '2026-09-03', 'expense', '-500.00')
     await post(cookie, walletId, '2026-10-01', 'income', '2000.00')
-    await post(cookie, walletId, '2026-10-04', 'expense', '-80.00', { splits: [{ personId: person, amount: '40.00' }] })
+    // A shared bill paid from Checking: 80 total, Sam owes 40 back.
+    const shared = await app.request('/api/split/expenses', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie },
+      body: JSON.stringify({
+        kind: 'expense', description: 'expense -80.00', cost: '80', currency: 'USD', date: '2026-10-04T12:00:00.000Z', category: 'dining',
+        paid: { kind: 'single', personId: meRes.data.personId },
+        split: { method: 'equal', personIds: [meRes.data.personId, sam] },
+        myBooks: { fundingWalletId: walletId },
+      }),
+    })
+    expect(shared.status).toBe(201)
     await post(cookie, walletId, '2026-10-06', 'expense', '-100.00')
     await post(other.cookie, otherWallet, '2026-10-05', 'expense', '-999.00')
 

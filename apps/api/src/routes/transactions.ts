@@ -21,6 +21,23 @@ const splitOutputShape = z.object({
   settlementTransactionId: z.string().uuid().nullable(),
 })
 
+/** Shared-expense bookkeeping (managed rows, or anything touching a Friends wallet) is read-only here. */
+async function isLockedForEdits(userId: string, id: string): Promise<boolean> {
+  const rows = await db.execute(sql`
+    SELECT 1 FROM transactions t
+    WHERE t.id = ${id} AND t.user_id = ${userId}
+      AND (t.managed_by IS NOT NULL OR EXISTS (
+        SELECT 1 FROM transaction_entries e JOIN wallets w ON w.id = e.wallet_id
+        WHERE e.transaction_id = t.id AND w.system_role IS NOT NULL)
+        OR EXISTS (SELECT 1 FROM split_expense_books b WHERE b.user_id = t.user_id AND b.linked_transaction_id = t.id))
+    LIMIT 1`)
+  return rows.rows.length > 0
+}
+
+const LOCKED_ERROR = { error: { code: 'MANAGED_BY_SHARED', message: 'This transaction belongs to a shared expense (or is linked to one). Change it, or unlink it, from Shared.' } }
+
+const sharedExpenseIdOf = (managedBy: string | null, ref: string | null) => (managedBy === 'split' && ref?.startsWith('split:expense:') ? ref.slice('split:expense:'.length) : null)
+
 export function registerTransactionRoutes(app: OpenAPIHono) {
   const listTransactionsRoute = createRoute({
     method: 'get',
@@ -285,6 +302,7 @@ export function registerTransactionRoutes(app: OpenAPIHono) {
     if (!existing) {
       return c.json({ error: { code: 'NOT_FOUND', message: 'Transaction not found' } }, 404)
     }
+    if (await isLockedForEdits(user.id, id)) return c.json(LOCKED_ERROR, 409) as never
 
     // Update transaction header fields
     const txUpdates: Record<string, unknown> = {}
@@ -435,6 +453,7 @@ export function registerTransactionRoutes(app: OpenAPIHono) {
   app.openapi(deleteTransactionRoute, async (c) => {
     const user = c.get('user')
     const { id } = c.req.valid('param')
+    if (await isLockedForEdits(user.id, id)) return c.json(LOCKED_ERROR, 409) as never
     const now = new Date()
     const [row] = await db.update(transactions).set({ deletedAt: now }).where(and(eq(transactions.id, id), eq(transactions.userId, user.id), isNull(transactions.deletedAt))).returning()
     if (!row) {
@@ -455,6 +474,7 @@ export function registerTransactionRoutes(app: OpenAPIHono) {
   app.openapi(restoreTransactionRoute, async (c) => {
     const user = c.get('user')
     const { id } = c.req.valid('param')
+    if (await isLockedForEdits(user.id, id)) return c.json(LOCKED_ERROR, 409) as never
     const [row] = await db.update(transactions).set({ deletedAt: null }).where(and(eq(transactions.id, id), eq(transactions.userId, user.id), isNotNull(transactions.deletedAt))).returning()
     if (!row) {
       return c.json({ error: { code: 'NOT_FOUND', message: 'Transaction not found' } }, 404)
@@ -508,6 +528,9 @@ export function registerTransactionRoutes(app: OpenAPIHono) {
         amount: transactionEntries.amount,
         currency: assets.code,
         walletName: wallets.name,
+        walletSystemRole: wallets.systemRole,
+        managedBy: transactions.managedBy,
+        externalRef: transactions.externalRef,
       })
       .from(transactions)
       .innerJoin(transactionEntries, eq(transactionEntries.transactionId, transactions.id))
@@ -528,6 +551,8 @@ export function registerTransactionRoutes(app: OpenAPIHono) {
       amount: Number(r.amount),
       currency: r.currency,
       walletName: r.walletName,
+      friendsWallet: r.walletSystemRole !== null,
+      sharedExpenseId: sharedExpenseIdOf(r.managedBy, r.externalRef),
     }))
 
     return c.json({ data }, 200)

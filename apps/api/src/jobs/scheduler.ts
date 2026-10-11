@@ -1,5 +1,6 @@
 import cron from 'node-cron'
 import { materializeDueRules } from './materialize-recurring'
+import { materializeDueSplitExpenses } from '../split/recurring'
 import { fetchDailyRates } from './fetch-rates'
 import { generateWeeklyDigests } from './weekly-digest'
 import { bootstrapRatesIfEmpty } from './fetch-rates'
@@ -30,6 +31,15 @@ export function startScheduler(): void {
     }
   })
   console.log('[scheduler] recurring materialization scheduled (hourly at :07)')
+
+  cron.schedule('27 * * * *', async () => {
+    try {
+      const { created, skipped, errors } = await materializeDueSplitExpenses(new Date())
+      if (created || skipped || errors) console.log(`[scheduler] repeated shared expenses: created=${created} skipped=${skipped} errors=${errors}`)
+    } catch (err) {
+      console.error('[scheduler] shared expense repeat tick failed:', err)
+    }
+  })
 
   cron.schedule('23 5 * * *', async () => {
     try {
