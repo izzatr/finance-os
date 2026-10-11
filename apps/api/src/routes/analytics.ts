@@ -1,9 +1,10 @@
 import { createRoute, z } from '@hono/zod-openapi'
 import type { OpenAPIHono } from '@hono/zod-openapi'
-import { db, assetPrices, assets, categories, exchangeRates, transactionEntries, transactions, wallets } from '@finance-os/db'
-import { and, desc, eq, gte, inArray, isNull, lte, sql } from 'drizzle-orm'
+import { db, assetPrices, assets, categories, exchangeRates, transactionEntries, transactionSplits, transactions, wallets } from '@finance-os/db'
+import { and, desc, eq, gte, inArray, isNull, lt, lte, sql } from 'drizzle-orm'
 import { convertAmount, getLatestRates } from '../lib/fx'
 import { latestPortfolioValuesForWallets } from '../portfolio/valuation'
+import { buildMonthReport, shiftMonth, type ReportRow } from '../analytics/month-report'
 
 export function registerAnalyticsRoutes(app: OpenAPIHono) {
   const monthlyTrendRoute = createRoute({
@@ -147,6 +148,119 @@ export function registerAnalyticsRoutes(app: OpenAPIHono) {
         },
       },
     },
+  })
+
+  const monthReportRoute = createRoute({
+    method: 'get',
+    path: '/api/analytics/month-report',
+    tags: ['analytics'],
+    description: 'One month of income and spending in a single display currency: totals against the usual (average of up to 3 earlier active months), spending pace by day, categories, top merchants, biggest purchases and 12 months of cash flow. Spending is your share: split amounts other people owe you are excluded and reported as `fronted`.',
+    request: {
+      query: z.object({
+        month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/).optional(),
+        currency: z.string().length(3).optional(),
+        today: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+        walletId: z.preprocess((value) => value === undefined ? [] : Array.isArray(value) ? value : [value], z.array(z.string().uuid())).optional(),
+      }),
+    },
+    responses: {
+      200: {
+        description: 'Month report',
+        content: {
+          'application/json': {
+            schema: z.object({
+              data: z.object({
+                month: z.string(),
+                currency: z.string(),
+                daysInMonth: z.number(),
+                daysElapsed: z.number(),
+                income: z.number(),
+                spent: z.number(),
+                fronted: z.number(),
+                net: z.number(),
+                savingsRate: z.number().nullable(),
+                usual: z.object({ months: z.number(), income: z.number(), spent: z.number(), net: z.number(), savingsRate: z.number().nullable() }).nullable(),
+                pace: z.array(z.object({ day: z.number(), current: z.number().nullable(), usual: z.number().nullable() })),
+                spentByNow: z.number(),
+                usualByNow: z.number().nullable(),
+                categories: z.array(z.object({ id: z.string().nullable(), name: z.string(), spent: z.number(), usual: z.number().nullable(), count: z.number() })),
+                merchants: z.array(z.object({ name: z.string(), spent: z.number(), count: z.number() })),
+                biggest: z.array(z.object({ transactionId: z.string(), description: z.string(), date: z.string(), spent: z.number(), categoryName: z.string().nullable() })),
+                incomeSources: z.array(z.object({ name: z.string(), amount: z.number() })),
+                history: z.array(z.object({ month: z.string(), income: z.number(), spent: z.number(), net: z.number() })),
+                missing: z.array(z.string()),
+              }),
+            }),
+          },
+        },
+      },
+    },
+  })
+
+  app.openapi(monthReportRoute, async (c) => {
+    const user = c.get('user')
+    const query = c.req.valid('query')
+    const today = query.today ?? new Date().toISOString().slice(0, 10)
+    const month = query.month ?? today.slice(0, 7)
+    const currency = (query.currency ?? 'EUR').toUpperCase()
+    const walletId = query.walletId ?? []
+
+    // 12 months of history ending at `month`; the 3-month baseline falls inside it.
+    const first = shiftMonth(month, -11)
+    const from = new Date(`${first}-01T00:00:00.000Z`)
+    const to = new Date(`${shiftMonth(month, 1)}-01T00:00:00.000Z`)
+
+    const rows = await db
+      .select({
+        transactionId: transactions.id,
+        transactionDate: transactions.transactionDate,
+        type: transactions.type,
+        amount: transactionEntries.amount,
+        currency: assets.code,
+        categoryId: transactions.categoryId,
+        categoryName: categories.name,
+        description: transactions.description,
+      })
+      .from(transactions)
+      .innerJoin(transactionEntries, eq(transactionEntries.transactionId, transactions.id))
+      .innerJoin(assets, eq(assets.id, transactionEntries.assetId))
+      .leftJoin(categories, eq(categories.id, transactions.categoryId))
+      .where(and(
+        eq(transactions.userId, user.id),
+        isNull(transactions.deletedAt),
+        inArray(transactions.type, ['income', 'expense']),
+        gte(transactions.transactionDate, from),
+        lt(transactions.transactionDate, to),
+        ...(walletId.length ? [inArray(transactionEntries.walletId, walletId)] : []),
+      ))
+
+    const txIds = [...new Set(rows.map((r) => r.transactionId))]
+    const splitRows = txIds.length === 0 ? [] : await db
+      .select({ transactionId: transactionSplits.transactionId, amount: transactionSplits.amount, currency: assets.code })
+      .from(transactionSplits)
+      .innerJoin(assets, eq(assets.id, transactionSplits.assetId))
+      .where(inArray(transactionSplits.transactionId, txIds))
+
+    const rates = await getLatestRates()
+    const report = buildMonthReport({
+      month,
+      currency,
+      today,
+      rows: rows.map((r): ReportRow => ({
+        transactionId: r.transactionId,
+        date: r.transactionDate.toISOString().slice(0, 10),
+        type: r.type as 'income' | 'expense',
+        amount: Number(r.amount),
+        currency: r.currency,
+        categoryId: r.categoryId,
+        categoryName: r.categoryName,
+        description: r.description ?? '',
+      })),
+      splits: splitRows.map((s) => ({ transactionId: s.transactionId, amount: Number(s.amount), currency: s.currency })),
+      convert: (amount, fromCode) => (fromCode === currency || (rates.has(fromCode) && rates.has(currency)) ? convertAmount(amount, fromCode, currency, rates) : null),
+    })
+
+    return c.json({ data: report }, 200)
   })
 
   app.openapi(monthlyTrendRoute, async (c) => {
