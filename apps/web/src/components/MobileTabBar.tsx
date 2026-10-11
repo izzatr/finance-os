@@ -1,24 +1,10 @@
 import { useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import {
-  BarChart3,
-  CreditCard,
-  Globe,
-  CalendarClock,
-  Inbox as InboxIcon,
-  LayoutGrid,
-  ListOrdered,
-  Menu,
-  Plus,
-  Settings,
-  Sparkles,
-  Tags,
-  Users,
-} from 'lucide-react'
-import { useQuery } from '@tanstack/react-query'
-import { getInbox } from '@/lib/api'
+import { BarChart3, LayoutGrid, ListOrdered, Menu, Plus } from 'lucide-react'
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 import { useQuickAdd } from '@/contexts/QuickAddContext'
+import { usePendingInbox } from '@/hooks/use-pending-inbox'
+import { NAV_GROUPS, TAB_PATHS, isActive } from '@/lib/nav'
 
 const TABS = [
   { label: 'Home', icon: LayoutGrid, path: '/dashboard' },
@@ -26,16 +12,10 @@ const TABS = [
   { label: 'Reports', icon: BarChart3, path: '/reports' },
 ] as const
 
-const MORE_LINKS = [
-  { label: 'Wallets', icon: CreditCard, path: '/wallets' },
-  { label: 'People', icon: Users, path: '/people' },
-  { label: 'Assistant', icon: Sparkles, path: '/assistant' },
-  { label: 'Inbox', icon: InboxIcon, path: '/inbox' },
-  { label: 'Recurring', icon: CalendarClock, path: '/recurring' },
-  { label: 'Categories', icon: Tags, path: '/categories' },
-  { label: 'Currencies', icon: Globe, path: '/currencies' },
-  { label: 'Settings', icon: Settings, path: '/settings/account' },
-] as const
+const MORE_GROUPS = NAV_GROUPS
+  .map((g) => ({ ...g, items: g.items.filter((i) => !TAB_PATHS.includes(i.path)) }))
+  .filter((g) => g.items.length > 0)
+const MORE_ITEMS = MORE_GROUPS.flatMap((g) => g.items)
 
 function TabLink({ label, icon: Icon, path }: { label: string; icon: typeof LayoutGrid; path: string }) {
   const location = useLocation()
@@ -58,8 +38,7 @@ export function MobileTabBar() {
   const { openQuickAdd } = useQuickAdd()
   const [moreOpen, setMoreOpen] = useState(false)
   const location = useLocation()
-  const inboxQuery = useQuery({ queryKey: ['inbox'], queryFn: getInbox, staleTime: 60_000 })
-  const pendingCount = (inboxQuery.data?.data ?? []).filter((p) => p.status === 'pending').length
+  const pendingCount = usePendingInbox()
 
   return (
     <nav
@@ -86,7 +65,7 @@ export function MobileTabBar() {
         <Sheet open={moreOpen} onOpenChange={setMoreOpen}>
           <SheetTrigger
             className={`flex flex-col items-center justify-center gap-1 text-[11px] font-semibold transition-colors ${
-              MORE_LINKS.some((l) => location.pathname.startsWith(l.path))
+              MORE_ITEMS.some((item) => isActive(item, location.pathname))
                 ? 'text-[var(--ink)]'
                 : 'text-[var(--text-tertiary)]'
             }`}
@@ -104,21 +83,38 @@ export function MobileTabBar() {
             </span>
             More
           </SheetTrigger>
-          <SheetContent side="bottom" className="rounded-t-[28px] pb-[max(env(safe-area-inset-bottom),1rem)]">
-            <SheetHeader>
+          <SheetContent side="bottom" className="max-h-[calc(100dvh-24px)] rounded-t-[28px] pb-[calc(env(safe-area-inset-bottom)+1rem)]">
+            <SheetHeader className="px-5">
               <SheetTitle className="text-[18px] font-bold text-[var(--text-primary)]">More</SheetTitle>
             </SheetHeader>
-            <div className="grid gap-1 px-2">
-              {MORE_LINKS.map(({ label, icon: Icon, path }) => (
-                <Link
-                  key={path}
-                  to={path}
-                  onClick={() => setMoreOpen(false)}
-                  className="flex min-h-12 items-center gap-3 rounded-2xl px-3 py-3 text-[15px] font-semibold text-[var(--text-primary)] hover:bg-[var(--tint)] transition-colors"
-                >
-                  <span className="flex size-9 items-center justify-center rounded-full bg-[var(--tint)] text-[var(--ink)]"><Icon className="size-[18px]" strokeWidth={1.8} /></span>
-                  {label}
-                </Link>
+            <div className="grid gap-3 overflow-y-auto px-2 pb-2">
+              {MORE_GROUPS.map((group) => (
+                <div key={group.label ?? 'main'}>
+                  {group.label && <p className="px-3 pb-1 text-[13px] font-semibold text-[var(--text-tertiary)]">{group.label}</p>}
+                  <div className="grid gap-1">
+                  {group.items.map((item) => {
+                    const active = isActive(item, location.pathname)
+                    const count = item.badge === 'inbox' ? pendingCount : 0
+                    return (
+                      <Link
+                        key={item.path}
+                        to={item.path}
+                        onClick={() => setMoreOpen(false)}
+                        aria-current={active ? 'page' : undefined}
+                        className={`flex min-h-12 items-center gap-3 rounded-2xl px-3 py-1.5 text-[15px] font-semibold text-[var(--text-primary)] transition-colors hover:bg-[var(--tint)] ${active ? 'bg-[var(--tint)]' : ''}`}
+                      >
+                        <span className={`flex size-9 items-center justify-center rounded-full ${active ? 'bg-[var(--ink)] text-[var(--cream)]' : 'bg-[var(--tint)] text-[var(--ink)]'}`}>
+                          <item.icon className="size-[18px]" strokeWidth={1.8} />
+                        </span>
+                        <span className="flex-1">{item.label}</span>
+                        {count > 0 && (
+                          <span className="tabular flex h-6 min-w-6 items-center justify-center rounded-full bg-[var(--negative)] px-2 text-[12px] font-bold text-white" aria-label={`${count} waiting for approval`}>{count}</span>
+                        )}
+                      </Link>
+                    )
+                  })}
+                  </div>
+                </div>
               ))}
             </div>
           </SheetContent>
