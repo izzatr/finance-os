@@ -97,7 +97,7 @@ export function ProposalCard({ proposal, duplicate, compact = false }: { proposa
     )
   }
 
-  const Icon = categoryIcon(category?.name, tx?.type)
+  const Icon = categoryIcon(category?.name, tx?.type, category?.icon)
   const amount = entry ? Number(entry.amount) : null
   const date = tx?.transactionDate?.slice(0, 10)
   const meta = [wallet?.name, category?.name ?? (tx?.type === 'transfer' ? 'Transfer' : 'No category'), date ? dayLabel(date) : null].filter(Boolean).join(' · ')

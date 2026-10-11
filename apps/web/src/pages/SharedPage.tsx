@@ -1,3 +1,4 @@
+import { GroupIcon } from '@/lib/icons'
 import { useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -107,7 +108,7 @@ function GroupsTab({ onCreate }: { onCreate: () => void }) {
           {groups.map((g) => (
             <li key={g.id}>
               <Link to={`/shared/groups/${g.id}`} className="flex min-h-16 items-center gap-3 rounded-lg py-2 text-[var(--text-primary)] no-underline active:bg-[var(--tint)]">
-                <span aria-hidden className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-[var(--ink)] text-[15px] font-bold text-[var(--cream)]">{g.name.slice(0, 1).toUpperCase()}</span>
+                <span aria-hidden className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-[var(--ink)] text-[15px] font-bold text-[var(--cream)]"><GroupIcon group={g} /></span>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-[15px] font-semibold">{g.name}</span>
                   <span className="block text-[12.5px] text-[var(--text-tertiary)]">{GROUP_TYPES.find((t) => t.value === g.groupType)?.label} · {g.memberCount} {g.memberCount === 1 ? 'person' : 'people'}</span>

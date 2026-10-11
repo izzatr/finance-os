@@ -67,7 +67,7 @@ export async function loadMe(dbx: Dbx, userId: string): Promise<Me | null> {
 /** Live group where `personId` is a current member, or null. */
 export async function memberGroup(dbx: Dbx, groupId: string, personId: string) {
   const [row] = await dbx
-    .select({ id: splitGroups.id, name: splitGroups.name, simplifyDebts: splitGroups.simplifyDebts, groupType: splitGroups.groupType })
+    .select({ id: splitGroups.id, name: splitGroups.name, simplifyDebts: splitGroups.simplifyDebts, groupType: splitGroups.groupType, icon: splitGroups.icon })
     .from(splitGroups)
     .innerJoin(splitGroupMembers, and(eq(splitGroupMembers.groupId, splitGroups.id), eq(splitGroupMembers.personId, personId), isNull(splitGroupMembers.removedAt)))
     .where(and(eq(splitGroups.id, groupId), isNull(splitGroups.deletedAt)))

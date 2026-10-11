@@ -1,4 +1,6 @@
 import { z } from 'zod'
+export { ICON_IDS, iconIdSchema } from './icons'
+export type { IconId } from './icons'
 
 export { EDITION, isCloud, isCommunity, features } from './edition'
 export type { Edition, FeatureFlags } from './edition'

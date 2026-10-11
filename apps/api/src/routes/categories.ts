@@ -2,6 +2,7 @@ import { createRoute, z } from '@hono/zod-openapi'
 import type { OpenAPIHono } from '@hono/zod-openapi'
 import { db, categories } from '@finance-os/db'
 import { and, eq } from 'drizzle-orm'
+import { iconIdSchema } from '@finance-os/domain'
 import { recordAudit } from '../lib/audit'
 
 const categoryTypeValues = ['income', 'expense', 'transfer'] as const
@@ -13,6 +14,7 @@ const categoryShape = z.object({
   type: z.enum(categoryTypeValues),
   parentId: z.string().uuid().nullable(),
   needsReview: z.boolean(),
+  icon: iconIdSchema.nullable(),
 })
 
 const errorShape = z.object({ error: z.object({ code: z.string(), message: z.string() }) })
@@ -25,6 +27,7 @@ function toResponseShape(row: typeof categories.$inferSelect) {
     type: row.type,
     parentId: row.parentId,
     needsReview: row.needsReview,
+    icon: row.icon as import('@finance-os/domain').IconId | null,
   }
 }
 
@@ -68,6 +71,7 @@ export function registerCategoryRoutes(app: OpenAPIHono) {
           'application/json': {
             schema: z.object({
               name: z.string().min(1).max(120),
+              icon: iconIdSchema.nullable().optional(),
               type: z.enum(categoryTypeValues).default('expense'),
               parentId: z.string().uuid().optional(),
             }),
@@ -114,6 +118,7 @@ export function registerCategoryRoutes(app: OpenAPIHono) {
           'application/json': {
             schema: z.object({
               name: z.string().min(1).max(120).optional(),
+              icon: iconIdSchema.nullable().optional(),
               type: z.enum(categoryTypeValues).optional(),
               parentId: z.string().uuid().nullable().optional(),
             }),
@@ -157,7 +162,7 @@ export function registerCategoryRoutes(app: OpenAPIHono) {
 
   app.openapi(createCategoryRoute, async (c) => {
     const user = c.get('user')
-    const { name, type, parentId } = c.req.valid('json')
+    const { name, type, parentId, icon } = c.req.valid('json')
     const slug = name.toLowerCase().replace(/[&]/g, 'and').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
 
     if (parentId) {
@@ -168,7 +173,7 @@ export function registerCategoryRoutes(app: OpenAPIHono) {
     }
 
     const [row] = await db.insert(categories)
-      .values({ userId: user.id, name, slug, type, parentId: parentId ?? null })
+      .values({ userId: user.id, name, slug, type, icon: icon ?? null, parentId: parentId ?? null })
       .onConflictDoNothing()
       .returning()
 
@@ -193,7 +198,7 @@ export function registerCategoryRoutes(app: OpenAPIHono) {
     const { id } = c.req.valid('param')
     const payload = c.req.valid('json')
 
-    if (payload.name === undefined && payload.type === undefined && payload.parentId === undefined) {
+    if (payload.name === undefined && payload.type === undefined && payload.parentId === undefined && payload.icon === undefined) {
       return c.json({ error: { code: 'NO_CHANGES', message: 'No fields to update' } }, 404)
     }
 
@@ -215,13 +220,15 @@ export function registerCategoryRoutes(app: OpenAPIHono) {
       }
     }
 
-    const updateSet: Partial<typeof categories.$inferInsert> = { needsReview: false }
+    const updateSet: Partial<typeof categories.$inferInsert> = {}
+    if (payload.type !== undefined || payload.name !== undefined || payload.parentId !== undefined) updateSet.needsReview = false
     if (payload.name !== undefined) {
       updateSet.name = payload.name
       updateSet.slug = payload.name.toLowerCase().replace(/[&]/g, 'and').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
     }
     if (payload.type !== undefined) updateSet.type = payload.type
     if (payload.parentId !== undefined) updateSet.parentId = payload.parentId
+    if (payload.icon !== undefined) updateSet.icon = payload.icon
 
     const row = await db.transaction(async (tx) => {
       const [updated] = await tx.update(categories).set(updateSet)

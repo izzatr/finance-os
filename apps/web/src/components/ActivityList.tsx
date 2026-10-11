@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { categoryIcon } from '@/lib/categoryIcon'
+import { usePersonalIcons } from '@/hooks/use-category-icons'
 import { formatSigned, groupByDay } from '@/lib/format'
 
 export type ActivityItem = {
@@ -31,7 +31,8 @@ function amountClass(tx: ActivityItem) {
 }
 
 export function ActivityRow<T extends ActivityItem>({ tx, renderActions, onSelect, selectable }: { tx: T } & Pick<ActivityListProps<T>, 'renderActions' | 'onSelect' | 'selectable'>) {
-  const Icon = categoryIcon(tx.categoryName, tx.type)
+  const personalIcon = usePersonalIcons()
+  const Icon = personalIcon(tx.categoryName, tx.type)
   const isIncome = tx.type === 'income' || (tx.type !== 'transfer' && tx.amount > 0)
   const meta = [tx.type === 'transfer' ? 'Transfer' : tx.categoryName, tx.walletName].filter(Boolean).join(' · ')
   const body = (

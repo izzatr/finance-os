@@ -1,3 +1,5 @@
+import { IconPicker } from '@/components/IconPicker'
+import { categoryIcon } from '@/lib/categoryIcon'
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Dropdown } from '@/components/ui/dropdown'
@@ -18,6 +20,9 @@ function useInvalidateCategories() {
   return () => {
     qc.invalidateQueries({ queryKey: ['category-list'] })
     qc.invalidateQueries({ queryKey: ['categories'] }) // breakdown analytics
+    for (const key of ['recent', 'recent-page', 'transactions', 'wallet-transactions', 'dashboard', 'month-report', 'summary', 'summary-monthly']) {
+      qc.invalidateQueries({ queryKey: [key] })
+    }
   }
 }
 
@@ -48,17 +53,18 @@ function ReviewRow({ category }: { category: Category }) {
   )
 }
 
-function AddCategoryDialog({ categories, onClose }: { categories: Category[]; onClose: () => void }) {
+function AddCategoryDialog({ categories, category, onClose }: { categories: Category[]; category?: Category; onClose: () => void }) {
   const invalidate = useInvalidateCategories()
-  const [name, setName] = useState('')
-  const [type, setType] = useState<CategoryType>('expense')
-  const [parentId, setParentId] = useState('')
+  const [name, setName] = useState(category?.name ?? '')
+  const [icon, setIcon] = useState<string | null>(category?.icon ?? null)
+  const [type, setType] = useState<CategoryType>(category?.type ?? 'expense')
+  const [parentId, setParentId] = useState(category?.parentId ?? '')
   const [error, setError] = useState<string | null>(null)
 
-  const parents = categories.filter((c) => c.type === type && !c.parentId)
+  const parents = categories.filter((c) => c.type === type && !c.parentId && c.id !== category?.id)
 
   const mutation = useMutation({
-    mutationFn: () => createCategory({ name: name.trim(), type, parentId: parentId || undefined }),
+    mutationFn: () => category ? patchCategory(category.id, { name: name.trim(), type, icon, parentId: parentId || null }) : createCategory({ name: name.trim(), type, icon, parentId: parentId || undefined }),
     onSuccess: () => { invalidate(); onClose() },
     onError: (err: Error) => setError(err.message),
   })
@@ -67,7 +73,7 @@ function AddCategoryDialog({ categories, onClose }: { categories: Category[]; on
     <Dialog open onOpenChange={(open) => { if (!open) onClose() }}>
       <DialogContent className="max-w-sm">
         <DialogHeader>
-          <DialogTitle>New category</DialogTitle>
+          <DialogTitle>{category ? 'Edit category' : 'New category'}</DialogTitle>
         </DialogHeader>
         <div className="grid gap-2.5">
           <Input autoFocus placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} aria-label="Name" />
@@ -86,9 +92,10 @@ function AddCategoryDialog({ categories, onClose }: { categories: Category[]; on
               options={[{ value: '', label: 'Top level' }, ...parents.map((p) => ({ value: p.id, label: `Under ${p.name}` }))]}
             />
           </div>
+          <IconPicker value={icon} onChange={setIcon} automaticIcon={categoryIcon(name, type)} label="Category icon" />
           {error && <p className="text-xs text-[var(--negative)]" role="alert">{error}</p>}
           <Button onClick={() => mutation.mutate()} disabled={!name.trim() || mutation.isPending}>
-            {mutation.isPending ? 'Creating…' : 'Create category'}
+            {mutation.isPending ? 'Saving…' : category ? 'Save category' : 'Create category'}
           </Button>
         </div>
       </DialogContent>
@@ -96,9 +103,17 @@ function AddCategoryDialog({ categories, onClose }: { categories: Category[]; on
   )
 }
 
+function CategoryButton({ category, onEdit }: { category: Category; onEdit: () => void }) {
+  const Icon = categoryIcon(category.name, category.type, category.icon)
+  return <button type="button" onClick={onEdit} aria-label={`Edit ${category.name}`} className="flex min-h-11 w-full items-center gap-3 text-left text-sm font-medium">
+    <Icon aria-hidden className="size-5 shrink-0 text-[var(--ink)]" /><span className="min-w-0 flex-1 truncate">{category.name}</span><span className="text-xs text-[var(--text-tertiary)]">Edit</span>
+  </button>
+}
+
 export function CategoriesPage() {
   const categoriesQuery = useQuery({ queryKey: ['category-list'], queryFn: getCategories })
   const [adding, setAdding] = useState(false)
+  const [editing, setEditing] = useState<Category | null>(null)
 
   const categories = useMemo(() => categoriesQuery.data?.data ?? [], [categoriesQuery.data])
   const needsReview = categories.filter((c) => c.needsReview)
@@ -161,12 +176,12 @@ export function CategoriesPage() {
               {group.parents.map((parent) => (
                 <div key={parent.id}>
                   <div className="flex min-h-12 items-center rounded-xl border border-[var(--border-subtle)] bg-white px-3.5 py-2.5">
-                    <p className="text-sm font-medium text-[var(--text-primary)]">{parent.name}</p>
+                    <CategoryButton category={parent} onEdit={() => setEditing(parent)} />
                   </div>
                   {(group.children.get(parent.id) ?? []).map((child) => (
                     <div key={child.id} className="ml-5 mt-1 flex items-center gap-2 rounded-xl border border-[var(--border-subtle)] bg-white px-3 py-2">
                       <CornerDownRight className="size-3.5 text-[var(--text-tertiary)]" />
-                      <p className="text-sm text-[var(--text-secondary)]">{child.name}</p>
+                      <CategoryButton category={child} onEdit={() => setEditing(child)} />
                     </div>
                   ))}
                 </div>
@@ -176,6 +191,7 @@ export function CategoriesPage() {
         )
       })}
 
+      {editing && <AddCategoryDialog key={editing.id} categories={categories} category={editing} onClose={() => setEditing(null)} />}
       {adding && <AddCategoryDialog categories={categories} onClose={() => setAdding(false)} />}
     </div>
   )

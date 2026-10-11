@@ -1,11 +1,12 @@
 import { createRoute, z } from '@hono/zod-openapi'
 import type { OpenAPIHono } from '@hono/zod-openapi'
 import type { Context } from 'hono'
-import { db, splitUserSettings } from '@finance-os/db'
-import { eq } from 'drizzle-orm'
+import { iconIdSchema } from '@finance-os/domain'
+import { db, splitUserSettings, splitCategoryIcons } from '@finance-os/db'
+import { and, eq } from 'drizzle-orm'
 import { getMe, SplitError } from '../split/core'
 import { isSupportedCurrency } from '../split/currencies'
-import { SHARED_CATEGORIES } from '../split/categories'
+import { SHARED_CATEGORIES, isSharedCategory } from '../split/categories'
 import {
   createExpense,
   deleteExpense,
@@ -132,12 +133,34 @@ export function registerSplitRoutes(app: OpenAPIHono) {
   app.use('/api/split/invites/*', rateLimit({ windowMs: 60_000, max: 20, keyPrefix: 'split-claim' }))
   app.use('/api/split/persons/*', rateLimit({ windowMs: 60_000, max: 20, keyPrefix: 'split-invite-create' }))
 
+  app.openapi(createRoute({
+    method: 'patch', path: '/api/split/category-icons/{slug}', tags: ['shared'],
+    request: { params: z.object({ slug: z.string().max(40) }), ...jsonBody(z.object({ icon: iconIdSchema.nullable() })) },
+    responses: ok('Updated my shared-category icon'),
+  }), async (c) => {
+    try {
+      const m = await me(c)
+      const { slug } = c.req.valid('param')
+      if (!isSharedCategory(slug)) throw new SplitError(404, 'NOT_FOUND', 'Category not found')
+      const { icon } = c.req.valid('json')
+      if (icon === null) {
+        await db.delete(splitCategoryIcons).where(and(eq(splitCategoryIcons.userId, m.userId), eq(splitCategoryIcons.slug, slug)))
+      } else {
+        await db.insert(splitCategoryIcons).values({ userId: m.userId, slug, icon })
+          .onConflictDoUpdate({ target: [splitCategoryIcons.userId, splitCategoryIcons.slug], set: { icon } })
+      }
+      return c.json({ data: { slug, icon } }, 200)
+    } catch (err) { return fail(c, err) }
+  })
+
   // ---- me
   app.openapi(createRoute({ method: 'get', path: '/api/split/me', tags: ['shared'], responses: ok('My shared-expenses profile, balances summary and unread activity') }), async (c) => {
     try {
       const m = await me(c)
       // The one-time conversion writes data, so a read-only credential never triggers it.
       if (c.get('keyScope') === 'write') await migrateLegacySplits(m)
+      const overrides = await db.select().from(splitCategoryIcons).where(eq(splitCategoryIcons.userId, m.userId))
+      const icons = new Map(overrides.map((r) => [r.slug, r.icon]))
       return c.json({
         data: {
           personId: m.personId,
@@ -146,7 +169,7 @@ export function registerSplitRoutes(app: OpenAPIHono) {
           defaultCurrency: m.defaultCurrency,
           unreadActivity: await unreadActivityCount(m),
           balances: await getBalancesSummary(m),
-          categories: SHARED_CATEGORIES.map(({ slug, label, group }) => ({ slug, label, group })),
+          categories: SHARED_CATEGORIES.map(({ slug, label, group }) => ({ slug, label, group, icon: icons.get(slug) ?? null })),
         },
       }, 200)
     } catch (err) {
@@ -311,6 +334,7 @@ export function registerSplitRoutes(app: OpenAPIHono) {
     request: jsonBody(z.object({
       name: z.string().min(1).max(120),
       groupType: z.enum(GROUP_TYPES).optional(),
+      icon: iconIdSchema.nullable().optional(),
       simplifyDebts: z.boolean().optional(),
       memberIds: z.array(uuid).max(100).optional(),
       externalRef: z.string().max(255).nullable().optional(),
@@ -339,7 +363,7 @@ export function registerSplitRoutes(app: OpenAPIHono) {
 
   app.openapi(createRoute({
     method: 'patch', path: '/api/split/groups/{id}', tags: ['shared'],
-    request: { params: z.object({ id: uuid }), ...jsonBody(z.object({ name: z.string().max(120).optional(), groupType: z.enum(GROUP_TYPES).optional(), simplifyDebts: z.boolean().optional() })) },
+    request: { params: z.object({ id: uuid }), ...jsonBody(z.object({ name: z.string().max(120).optional(), icon: iconIdSchema.nullable().optional(), groupType: z.enum(GROUP_TYPES).optional(), simplifyDebts: z.boolean().optional() })) },
     responses: ok('Group updated'),
   }), async (c) => {
     try {

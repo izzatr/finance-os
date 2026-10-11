@@ -61,6 +61,7 @@ export const categories = pgTable('categories', {
   userId: varchar('user_id', { length: 255 }).notNull().references(() => users.id),
   name: varchar('name', { length: 120 }).notNull(),
   slug: varchar('slug', { length: 120 }).notNull(),
+  icon: varchar('icon', { length: 40 }),
   type: categoryTypeEnum('type').notNull().default('expense'),
   // parent_id FK added in 0006 migration (self-reference)
   parentId: uuid('parent_id'),

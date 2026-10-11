@@ -109,9 +109,9 @@ export function DatePicker({ value, onChange, className, trigger, disabled, ...r
       <>
         <button type="button" {...triggerProps} aria-expanded={open} onClick={() => setOpen(true)}>{content}</button>
         <Sheet open={open} onOpenChange={setOpen}>
-          <SheetContent side="bottom" showCloseButton={false} className="gap-3 rounded-t-lg border-0 bg-white px-3 pb-[max(env(safe-area-inset-bottom),1.25rem)] pt-2.5 shadow-[0_-8px_28px_rgba(14,23,41,0.14)]">
+          <SheetContent side="bottom" className="gap-3 rounded-t-lg border-0 bg-white px-3 pb-[max(env(safe-area-inset-bottom),1.25rem)] pt-2.5 shadow-[0_-8px_28px_rgba(14,23,41,0.14)]">
             <div aria-hidden className="mx-auto h-[5px] w-10 rounded-full bg-[var(--tint-strong)]" />
-            <SheetTitle className="px-1 text-[16px] font-bold">{label}</SheetTitle>
+            <SheetTitle className="pl-1 pr-11 text-[16px] font-bold">{label}</SheetTitle>
             <Panel value={value} onPick={pick} />
           </SheetContent>
         </Sheet>
@@ -123,7 +123,7 @@ export function DatePicker({ value, onChange, className, trigger, disabled, ...r
       <PopoverPrimitive.Trigger {...triggerProps}>{content}</PopoverPrimitive.Trigger>
       <PopoverPrimitive.Portal>
         <PopoverPrimitive.Positioner side="bottom" align="start" sideOffset={4} collisionPadding={8} className="z-[60]">
-          <PopoverPrimitive.Popup aria-label={label} className="rounded-lg bg-white p-3 shadow-[0_8px_28px_rgba(14,23,41,0.16)] ring-1 ring-[var(--border-subtle)] outline-none">
+          <PopoverPrimitive.Popup aria-label={label} className="max-h-[var(--available-height)] max-w-[calc(100vw-1rem)] overflow-y-auto overscroll-contain rounded-lg bg-white p-3 shadow-[0_8px_28px_rgba(14,23,41,0.16)] ring-1 ring-[var(--border-subtle)] outline-none">
             <Panel value={value} onPick={pick} />
           </PopoverPrimitive.Popup>
         </PopoverPrimitive.Positioner>

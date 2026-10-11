@@ -250,13 +250,15 @@ export function QuickAddSheet() {
     <Sheet open={isOpen} onOpenChange={(open) => { if (!open) { reset(); closeQuickAdd() } }}>
       <SheetContent
         side="bottom"
-        showCloseButton={false}
-        className="flex max-h-[calc(100dvh-8px)] flex-col gap-0 overflow-hidden rounded-t-[28px] border-0 bg-white p-0 lg:bottom-auto lg:top-16 lg:mx-auto lg:max-h-[calc(100dvh-5rem)] lg:max-w-md lg:rounded-[28px]"
+        scrollable={false}
+        className="flex max-h-[calc(100dvh-max(env(safe-area-inset-top),8px))] flex-col gap-0 overflow-hidden rounded-t-[28px] border-0 bg-white p-0 lg:data-[side=bottom]:bottom-auto lg:data-[side=bottom]:top-16 lg:mx-auto lg:max-h-[calc(100dvh-5rem)] lg:max-w-md lg:rounded-[28px]"
       >
+        <div aria-hidden className="h-[calc(max(env(safe-area-inset-top),0.75rem)+2.75rem)] shrink-0">
+          <div className="mx-auto mt-2.5 h-[5px] w-10 rounded-full bg-[var(--tint-strong)] lg:hidden" />
+        </div>
         {/* Everything above the keypad scrolls; keypad and Save stay pinned, so short
             viewports (in-app browsers, Safari with toolbars) never hide the Save button. */}
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pt-2.5">
-        <div aria-hidden className="mx-auto mb-3.5 h-[5px] w-10 rounded-full bg-[var(--tint-strong)] [@media(max-height:760px)]:mb-2.5 lg:hidden" />
+        <div data-slot="sheet-body" className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5">
         <SheetHeader className="p-0">
           <SheetTitle className="sr-only">Add transaction</SheetTitle>
           <div className="flex rounded-xl bg-[var(--tint)] p-[3px]" role="tablist" aria-label="Transaction type">
@@ -377,7 +379,7 @@ export function QuickAddSheet() {
         {chips.length > 0 && (
           <div className="mt-5 grid grid-cols-4 gap-y-3 [@media(max-height:760px)]:mt-3.5 [@media(max-height:760px)]:gap-y-2" role="group" aria-label="Category">
             {chips.map((c) => {
-              const Icon = categoryIcon(c.name, kind)
+              const Icon = categoryIcon(c.name, kind, c.icon)
               const selected = categoryId === c.id
               return (
                 <button

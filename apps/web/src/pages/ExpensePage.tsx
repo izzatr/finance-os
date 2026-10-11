@@ -13,7 +13,7 @@ import {
   restoreSharedExpense,
 } from '@/lib/api'
 import { invalidateShared, splitKeys, useSplitMe } from '@/hooks/use-split'
-import { categoryIcon } from '@/lib/categoryIcon'
+import { useSharedCategoryIcon } from '@/hooks/use-category-icons'
 import { formatAmount, isZeroAmount } from '@/lib/split'
 import { relativeTime } from '@/lib/splitActivity'
 import { ExpenseSheet, REPEAT_OPTIONS } from '@/components/shared/ExpenseSheet'
@@ -50,7 +50,8 @@ export function ExpensePage() {
 
   const e = query.data?.data
   const isPayment = e?.kind === 'payment'
-  const Icon = isPayment ? HandCoins : categoryIcon(e?.category ?? '', 'expense')
+  const CategoryIcon = useSharedCategoryIcon(e?.category)
+  const Icon = isPayment ? HandCoins : CategoryIcon
   const category = me?.categories.find((c) => c.slug === e?.category)
   const wallet = walletsQuery.data?.data.find((w) => w.id === e?.myBooks?.fundingWalletId)
   const myCategory = categoriesQuery.data?.data.find((c) => c.id === e?.myBooks?.categoryId)

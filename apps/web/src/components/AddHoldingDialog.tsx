@@ -97,7 +97,7 @@ export function AddHoldingDialog({ open, onClose, onSearch, onSubmit }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={(next) => { if (!next) resetAndClose() }}>
-      <DialogContent className="max-h-[min(90vh,760px)] overflow-y-auto sm:max-w-xl">
+      <DialogContent className="sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>Add holding</DialogTitle>
           <DialogDescription>Search Yahoo and choose the exact exchange listing you own.</DialogDescription>

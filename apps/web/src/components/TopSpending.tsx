@@ -1,5 +1,5 @@
 import type { CategoryBreakdown } from '../lib/api'
-import { categoryIcon } from '@/lib/categoryIcon'
+import { usePersonalIcons } from '@/hooks/use-category-icons'
 
 interface TopSpendingProps {
   categories: CategoryBreakdown[]
@@ -8,6 +8,7 @@ interface TopSpendingProps {
 }
 
 export function TopSpending({ categories, currency, formatCurrency }: TopSpendingProps) {
+  const categoryIcon = usePersonalIcons()
   const maxTotal = categories.length > 0 ? Math.max(...categories.map((c) => c.total)) : 1
 
   return (

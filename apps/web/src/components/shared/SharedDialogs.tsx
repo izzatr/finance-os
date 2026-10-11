@@ -1,3 +1,6 @@
+import { SharedCategoryIcons } from './SharedCategoryIcons'
+import { IconPicker } from '@/components/IconPicker'
+import { groupIcon } from '@/lib/icons'
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Plus, X } from 'lucide-react'
@@ -72,18 +75,19 @@ export function CreateGroupSheet({ open, onClose, onCreated }: { open: boolean; 
   const friendsQuery = useQuery({ queryKey: splitKeys.friends, queryFn: getSplitFriends, enabled: open })
   const [name, setName] = useState('')
   const [groupType, setGroupType] = useState<GroupType>('home')
+  const [icon, setIcon] = useState<string | null>(null)
   const [simplify, setSimplify] = useState(true)
   const [memberIds, setMemberIds] = useState<string[]>([])
   const [guests, setGuests] = useState<string[]>([])
   const [guestName, setGuestName] = useState('')
 
   function reset() {
-    setName(''); setGroupType('home'); setSimplify(true); setMemberIds([]); setGuests([]); setGuestName('')
+    setName(''); setIcon(null); setGroupType('home'); setSimplify(true); setMemberIds([]); setGuests([]); setGuestName('')
   }
 
   const mutation = useMutation({
     mutationFn: async () => {
-      const { data } = await createSplitGroup({ name: name.trim(), groupType, simplifyDebts: simplify, memberIds })
+      const { data } = await createSplitGroup({ name: name.trim(), groupType, icon, simplifyDebts: simplify, memberIds })
       for (const g of guests) await addSplitGroupMember(data.id, { name: g })
       return data.id
     },
@@ -124,6 +128,7 @@ export function CreateGroupSheet({ open, onClose, onCreated }: { open: boolean; 
           <span className="text-[13px] font-semibold text-[var(--text-secondary)]">Type</span>
           <Segmented label="Group type" value={groupType} onChange={setGroupType} options={GROUP_TYPES} />
         </div>
+        <IconPicker label="Group icon" value={icon} onChange={setIcon} automaticIcon={groupIcon(groupType)} />
         <Switch checked={simplify} onChange={setSimplify} label="Simplify group debts" description="Fewer payments to settle up. Nobody ends up owing more in total." />
         <section aria-label="Members" className="grid gap-2">
           <h3 className="text-[13px] font-semibold text-[var(--text-secondary)]">Members</h3>
@@ -214,6 +219,7 @@ export function SharedSettingsSheet({ open, onClose, me }: { open: boolean; onCl
             <DateField label="Books start" value={booksStart || keyFromDate(new Date())} onChange={setBooksStart} />
           )}
         </div>
+        <SharedCategoryIcons categories={me.categories} />
         <section aria-label="Use an existing wallet" className="grid gap-2">
           <h3 className="text-[15px] font-bold">Use an existing wallet</h3>
           <p className="text-[13.5px] text-[var(--text-secondary)]">Kept a wallet like "Splitwise €" by hand? Turn it into your Friends wallet for its currency. Its history stays.</p>

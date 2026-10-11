@@ -2,6 +2,22 @@
 
 Categories organize transactions by type of spending or income. Finance OS supports creating categories via the API and using them consistently across analytics, search, and reporting.
 
+## Custom icons
+
+In **Categories**, add a category or select **Edit** beside an existing category, then choose **Category icon**. Search the curated Lucide icons or choose **Automatic (reset)**. Save the category to persist your choice. Icons are private to your account and apply to category lists, quick add, activity, proposals, and reports. Existing categories retain automatic keyword-based icons until customized.
+
+Category create and patch requests accept an optional `icon` identifier, for example `"coffee"`, `"plane"`, or `"shopping-cart"`. `null` restores automatic rendering; omitting the field preserves the existing icon. Unknown identifiers, URLs, HTML, and SVG markup are rejected. Supported identifiers are defined by `ICON_IDS` in `packages/domain/src/icons.ts`.
+
+```json
+{ "name": "Groceries", "type": "expense", "icon": "shopping-cart" }
+```
+
+**Shared groups:** choose **Group icon** during group creation or in **Group settings**. A group's icon is shared with all current members; any current member can change it under the same permissions as other group settings. `POST /api/split/groups` and `PATCH /api/split/groups/{id}` accept `icon`; `null` restores the group-type default. Group lists, detail headers, and group selection display the saved icon.
+
+**Shared expense categories:** in **Shared settings → Customize shared category icons**, search for a category and change its icon. These changes save immediately and only change what *you* see in shared expense lists, details, and the expense category preview. They never rename shared category slugs, change accounting mappings, or modify another member's defaults. `PATCH /api/split/category-icons/{slug}` accepts `{ "icon": "gift" }` or `{ "icon": null }` to reset; `GET /api/split/me` returns each shared category's user-scoped icon. Personal and shared-category icons are independent.
+
+Storage is additive: nullable `categories.icon` and `split_groups.icon`, plus a `split_category_icons` table keyed by user and shared-category slug. Migration `0019_dark_felicia_hardy.sql` requires no personal-data cutover or ledger rewrite.
+
 ## Common Categories
 
 A typical setup includes categories like these:

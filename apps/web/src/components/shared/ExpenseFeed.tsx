@@ -3,7 +3,7 @@ import { useInfiniteQuery } from '@tanstack/react-query'
 import { HandCoins, Repeat } from 'lucide-react'
 import { getSharedExpenses, type ExpenseCursor, type SharedExpense } from '@/lib/api'
 import { splitKeys } from '@/hooks/use-split'
-import { categoryIcon } from '@/lib/categoryIcon'
+import { useSharedCategoryIcon } from '@/hooks/use-category-icons'
 import { formatAmount } from '@/lib/split'
 
 const PAGE = 30
@@ -37,7 +37,8 @@ export function myPosition(e: SharedExpense): { label: string; amount: string | 
 }
 
 export function ExpenseRow({ e, mePersonId }: { e: SharedExpense; mePersonId?: string }) {
-  const Icon = e.kind === 'payment' ? HandCoins : categoryIcon(e.category, 'expense')
+  const CategoryIcon = useSharedCategoryIcon(e.category)
+  const Icon = e.kind === 'payment' ? HandCoins : CategoryIcon
   const pos = myPosition(e)
   const d = new Date(`${e.date.slice(0, 10)}T12:00:00Z`)
   return (

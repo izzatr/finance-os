@@ -1,3 +1,5 @@
+import { GroupIcon } from '@/lib/icons'
+import { categoryIcon } from '@/lib/categoryIcon'
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Check, ChevronRight, Users } from 'lucide-react'
@@ -45,6 +47,11 @@ export function groupCategories(categories: SharedCategory[]) {
   const groups = new Map<string, SharedCategory[]>()
   for (const c of categories) groups.set(c.group, [...(groups.get(c.group) ?? []), c])
   return [...groups.entries()]
+}
+
+function SelectedCategoryIcon({ categories, slug }: { categories: SharedCategory[]; slug: string }) {
+  const Icon = categoryIcon(slug, 'expense', categories.find((c) => c.slug === slug)?.icon)
+  return <span aria-hidden className="mt-5 flex size-11 shrink-0 items-center justify-center rounded-lg bg-[var(--tint)] text-[var(--ink)]"><Icon className="size-5" /></span>
 }
 
 function currencyOptions(extra: string[]): string[] {
@@ -250,7 +257,7 @@ function ExpenseForm({ me, mode, initialGroup, conflict, onConflict, onClose, on
                   <li key={g.id}>
                     <button type="button" role="radio" aria-checked={draft.groupId === g.id} onClick={() => void chooseGroup(g.id)} disabled={pickingGroup !== null}
                       className="flex min-h-12 w-full items-center gap-3 rounded-lg px-1 text-left active:bg-[var(--tint)]">
-                      <Avatar name={g.name} size={34} tone={draft.groupId === g.id ? 'ink' : 'tint'} />
+                      <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-[var(--tint)]"><GroupIcon group={g} /></span>
                       <span className="min-w-0 flex-1 truncate text-[15px] font-semibold">{g.name}</span>
                       {pickingGroup === g.id ? <span className="text-[13px] text-[var(--text-tertiary)]">Loading…</span> : draft.groupId === g.id && <Check className="size-5" />}
                     </button>
@@ -323,13 +330,16 @@ function ExpenseForm({ me, mode, initialGroup, conflict, onConflict, onClose, on
             <DropdownField label="Repeat" value={draft.repeat} onChange={(v) => update({ repeat: v as RepeatInterval })} options={REPEAT_OPTIONS} />
           </div>
 
-          <DropdownField
+          <div className="flex items-center gap-3">
+            <SelectedCategoryIcon categories={me.categories} slug={draft.category} />
+            <div className="min-w-0 flex-1"><DropdownField
             label="Category"
             searchable
             value={draft.category}
             onChange={(category) => update({ category })}
             options={groupCategories(me.categories).flatMap(([group, cats]) => cats.map((c) => ({ value: c.slug, label: c.label, group })))}
-          />
+          /></div>
+          </div>
 
           <Field label="Notes">
             <textarea className={`${fieldClass} h-20 resize-none py-2`} value={draft.notes} onChange={(e) => update({ notes: e.target.value })} maxLength={2000} />

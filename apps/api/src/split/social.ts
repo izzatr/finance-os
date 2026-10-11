@@ -87,7 +87,7 @@ async function groupTransfers(dbx: Dbx, groups: Array<{ id: string; simplifyDebt
 }
 
 async function myGroups(dbx: Dbx, personId: string) {
-  return dbx.select({ id: splitGroups.id, name: splitGroups.name, simplifyDebts: splitGroups.simplifyDebts, groupType: splitGroups.groupType })
+  return dbx.select({ id: splitGroups.id, name: splitGroups.name, simplifyDebts: splitGroups.simplifyDebts, groupType: splitGroups.groupType, icon: splitGroups.icon })
     .from(splitGroups)
     .innerJoin(splitGroupMembers, and(eq(splitGroupMembers.groupId, splitGroups.id), eq(splitGroupMembers.personId, personId), isNull(splitGroupMembers.removedAt)))
     .where(isNull(splitGroups.deletedAt))
@@ -323,6 +323,7 @@ export async function listGroups(me: Me) {
       id: g.id,
       name: g.name,
       groupType: g.groupType,
+      icon: g.icon,
       simplifyDebts: g.simplifyDebts,
       memberCount: counts.find((c) => c.groupId === g.id)?.n ?? 0,
       myBalances: sumBy(rows, am),
@@ -352,6 +353,7 @@ export async function getGroup(me: Me, groupId: string) {
     id: group.id,
     name: group.name,
     groupType: group.groupType,
+    icon: group.icon,
     simplifyDebts: group.simplifyDebts,
     members: [...persons.values(), ...former.values()].map((p) => ({
       personId: p.id,
@@ -365,7 +367,7 @@ export async function getGroup(me: Me, groupId: string) {
   }
 }
 
-export async function createGroup(me: Me, input: { name: string; groupType?: typeof GROUP_TYPES[number]; simplifyDebts?: boolean; memberIds?: string[]; externalRef?: string | null }) {
+export async function createGroup(me: Me, input: { name: string; icon?: import('@finance-os/domain').IconId | null; groupType?: typeof GROUP_TYPES[number]; simplifyDebts?: boolean; memberIds?: string[]; externalRef?: string | null }) {
   const name = input.name.trim().slice(0, 120)
   if (!name) throw new SplitError(422, 'INVALID_NAME', 'Name the group')
   return db.transaction(async (tx) => {
@@ -377,6 +379,7 @@ export async function createGroup(me: Me, input: { name: string; groupType?: typ
     const [g] = await tx.insert(splitGroups).values({
       name,
       groupType: input.groupType ?? 'other',
+      icon: input.icon ?? null,
       simplifyDebts: input.simplifyDebts ?? true,
       createdByPersonId: me.personId,
       externalRef: input.externalRef ?? null,
@@ -391,7 +394,7 @@ export async function createGroup(me: Me, input: { name: string; groupType?: typ
   })
 }
 
-export async function updateGroup(me: Me, groupId: string, input: { name?: string; groupType?: typeof GROUP_TYPES[number]; simplifyDebts?: boolean }) {
+export async function updateGroup(me: Me, groupId: string, input: { name?: string; icon?: import('@finance-os/domain').IconId | null; groupType?: typeof GROUP_TYPES[number]; simplifyDebts?: boolean }) {
   await db.transaction(async (tx) => {
     const group = await memberGroup(tx, groupId, me.personId)
     if (!group) throw notFound('Group not found')
@@ -402,6 +405,7 @@ export async function updateGroup(me: Me, groupId: string, input: { name?: strin
       set.name = n
     }
     if (input.groupType !== undefined) set.groupType = input.groupType
+    if (input.icon !== undefined) set.icon = input.icon
     if (input.simplifyDebts !== undefined) set.simplifyDebts = input.simplifyDebts
     await tx.update(splitGroups).set(set).where(eq(splitGroups.id, groupId))
     await recordActivity(tx, {

@@ -175,10 +175,11 @@ export function FullSheet({ open, onClose, title, description, onBack, footer, c
       <SheetContent
         side="bottom"
         showCloseButton={false}
+        scrollable={false}
         // The primitive positions side="bottom" sheets with data-[side=bottom] rules, which outrank
         // plain utilities; every override here uses the same variant so it actually applies.
         // Phones: full screen. Desktop (sm+): a centred 520px panel, fully on screen.
-        className="flex flex-col gap-0 overflow-hidden border-0 bg-white p-0 data-[side=bottom]:inset-x-0 data-[side=bottom]:top-0 data-[side=bottom]:bottom-0 data-[side=bottom]:h-[100dvh] data-[side=bottom]:max-h-[100dvh] data-[side=bottom]:w-full data-[side=bottom]:border-t-0 sm:data-[side=bottom]:left-[max(1rem,calc(50%-260px))] sm:data-[side=bottom]:right-auto sm:data-[side=bottom]:top-[max(1rem,5vh)] sm:data-[side=bottom]:bottom-auto sm:data-[side=bottom]:h-auto sm:data-[side=bottom]:max-h-[calc(100dvh-2rem)] sm:data-[side=bottom]:w-[min(520px,calc(100vw-2rem))] sm:data-[side=bottom]:rounded-lg sm:data-[side=bottom]:shadow-xl"
+        className="flex min-h-0 flex-col gap-0 overflow-hidden border-0 bg-white p-0 data-[side=bottom]:inset-x-0 data-[side=bottom]:top-0 data-[side=bottom]:bottom-0 data-[side=bottom]:h-[100dvh] data-[side=bottom]:max-h-[100dvh] data-[side=bottom]:w-full data-[side=bottom]:border-t-0 sm:data-[side=bottom]:left-[max(1rem,calc(50%-260px))] sm:data-[side=bottom]:right-auto sm:data-[side=bottom]:top-[max(1rem,5dvh)] sm:data-[side=bottom]:bottom-auto sm:data-[side=bottom]:h-auto sm:data-[side=bottom]:max-h-[calc(100dvh-max(1rem,5dvh)-1rem)] sm:data-[side=bottom]:w-[min(520px,calc(100vw-2rem))] sm:data-[side=bottom]:rounded-lg sm:data-[side=bottom]:shadow-xl"
       >
         <div className="flex shrink-0 items-center gap-2 px-2 pb-2 pt-[calc(env(safe-area-inset-top)+0.5rem)] lg:pt-2">
           <button
@@ -193,7 +194,7 @@ export function FullSheet({ open, onClose, title, description, onBack, footer, c
           {description && <SheetDescription className="sr-only">{description}</SheetDescription>}
           {headerAction ?? <span className="size-11 shrink-0" />}
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-4 lg:px-5">{children}</div>
+        <div data-slot="sheet-body" className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-[max(env(safe-area-inset-bottom),1rem)] lg:px-5">{children}</div>
         {footer && (
           <div className="shrink-0 border-t border-[var(--border-subtle)] bg-white px-4 pb-[max(env(safe-area-inset-bottom),0.75rem)] pt-3 lg:px-5">{footer}</div>
         )}

@@ -96,8 +96,7 @@ export function CommandPalette() {
   return (
     <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) setSearch(''); }}>
       <DialogContent
-        className="top-1/3 translate-y-0 overflow-hidden rounded-xl! p-0 sm:max-w-lg"
-        showCloseButton={false}
+        className="overflow-hidden rounded-xl! p-0 sm:max-w-lg [&_[data-slot=command-input-wrapper]]:pr-14 [&_[data-slot=command-input-wrapper]]:py-3"
       >
         <DialogTitle className="sr-only">Command Palette</DialogTitle>
         <DialogDescription className="sr-only">Search for a command, page, or transaction</DialogDescription>

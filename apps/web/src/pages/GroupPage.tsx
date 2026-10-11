@@ -1,3 +1,5 @@
+import { IconPicker } from '@/components/IconPicker'
+import { GroupIcon, groupIcon } from '@/lib/icons'
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -82,7 +84,7 @@ function GroupSettingsSheet({ group, open, onClose }: { group: SplitGroup; open:
   const current = group.members.filter((m) => m.isCurrent)
   const me = current.find((m) => m.isMe)
   const done = () => invalidateShared(qc)
-  const patch = useMutation({ mutationFn: (body: { name?: string; groupType?: GroupType; simplifyDebts?: boolean }) => patchSplitGroup(group.id, body), onSuccess: done })
+  const patch = useMutation({ mutationFn: (body: { name?: string; icon?: string | null; groupType?: GroupType; simplifyDebts?: boolean }) => patchSplitGroup(group.id, body), onSuccess: done })
   const addMember = useMutation({
     mutationFn: (body: { personId: string } | { name: string; email?: string | null }) => addSplitGroupMember(group.id, body),
     onSuccess: () => { done(); setNewGuest(''); setNewGuestEmail(''); setAddFriendId('') },
@@ -110,7 +112,10 @@ function GroupSettingsSheet({ group, open, onClose }: { group: SplitGroup; open:
           <span className="text-[13px] font-semibold text-[var(--text-secondary)]">Type</span>
           <Segmented label="Group type" value={group.groupType} onChange={(groupType) => patch.mutate({ groupType })} options={GROUP_TYPES} />
         </div>
+        <IconPicker label="Group icon" value={group.icon} automaticIcon={groupIcon(group.groupType)} onChange={(icon) => patch.mutate({ icon })} disabled={patch.isPending} />
+        <p className="text-xs text-[var(--text-tertiary)]">This icon is shared with every group member.</p>
         <Switch checked={group.simplifyDebts} onChange={(simplifyDebts) => patch.mutate({ simplifyDebts })} label="Simplify group debts" description="Combines debts so fewer payments settle the group." />
+        {patch.isSuccess && <p role="status" className="text-xs text-[var(--positive)]">Saved</p>}
         <ErrorText>{patch.error?.message}</ErrorText>
 
         <section aria-label="Members" className="grid gap-2">
@@ -210,7 +215,7 @@ export function GroupPage() {
       {group && (
         <>
           <header className="mb-4 flex items-center gap-3">
-            <span aria-hidden className="flex size-14 shrink-0 items-center justify-center rounded-lg bg-[var(--ink)] text-[22px] font-bold text-[var(--cream)]">{group.name.slice(0, 1).toUpperCase()}</span>
+            <span aria-hidden className="flex size-14 shrink-0 items-center justify-center rounded-lg bg-[var(--ink)] text-[22px] font-bold text-[var(--cream)]"><GroupIcon group={group} className="size-7" /></span>
             <div className="min-w-0 flex-1">
               <h1 className="truncate text-[26px] font-bold leading-tight tracking-[-0.02em]">{group.name}</h1>
               <MyBalance balances={meMember?.balances ?? []} align="left" />

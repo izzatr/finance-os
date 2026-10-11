@@ -4,7 +4,7 @@ import { ArrowDownRight, ArrowUpRight, ChevronLeft, ChevronRight, Sparkles } fro
 import { Bar, BarChart, Cell, Line, LineChart, ReferenceLine, ResponsiveContainer, XAxis, YAxis } from 'recharts'
 import { getMonthReport, getNetWorth, getWallets, type MonthReport } from '../lib/api'
 import { formatMoney } from '../lib/format'
-import { categoryIcon } from '../lib/categoryIcon'
+import { usePersonalIcons } from '@/hooks/use-category-icons'
 import { averageSaved, biggestChanges, heroHeadline, shownDiff, isInProgress, monthLabel, ordinal, paceSentence, shiftMonth, shortMonth } from '../lib/reportInsights'
 import { useDefaultCurrency } from '../contexts/CurrencyContext'
 import { PageHeader } from '../components/PageHeader'
@@ -206,6 +206,7 @@ function Pace({ report: r }: { report: MonthReport }) {
 }
 
 function Changes({ report: r }: { report: MonthReport }) {
+  const categoryIcon = usePersonalIcons()
   const changes = biggestChanges(r)
   if (!r.usual) {
     return (
@@ -244,6 +245,7 @@ function Changes({ report: r }: { report: MonthReport }) {
 }
 
 function Categories({ report: r }: { report: MonthReport }) {
+  const categoryIcon = usePersonalIcons()
   const [showAll, setShowAll] = useState(false)
   const rows = r.categories.filter((c) => c.spent > 0)
   if (rows.length === 0) return null

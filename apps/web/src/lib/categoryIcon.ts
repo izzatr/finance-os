@@ -1,3 +1,4 @@
+import { storedIcon } from './icons'
 import {
   ArrowDownLeft,
   ArrowLeftRight,
@@ -64,7 +65,9 @@ const RULES: Array<[RegExp, LucideIcon]> = [
   [/fee|charge|admin|service/i, Receipt],
 ]
 
-export function categoryIcon(name: string | null | undefined, type?: string): LucideIcon {
+export function categoryIcon(name: string | null | undefined, type?: string, icon?: string | null): LucideIcon {
+  const custom = storedIcon(icon)
+  if (custom) return custom
   if (type === 'transfer') return ArrowLeftRight
   if (name) {
     for (const [pattern, icon] of RULES) if (pattern.test(name)) return icon

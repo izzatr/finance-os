@@ -54,6 +54,15 @@ export const splitUserSettings = pgTable('split_user_settings', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 })
 
+// Private presentation preferences; shared slugs and everyone else's defaults remain unchanged.
+export const splitCategoryIcons = pgTable('split_category_icons', {
+  userId: varchar('user_id', { length: 255 }).notNull().references(() => users.id, { onDelete: 'cascade' }),
+  slug: varchar('slug', { length: 40 }).notNull(),
+  icon: varchar('icon', { length: 40 }).notNull(),
+}, (table) => ({
+  pk: primaryKey({ columns: [table.userId, table.slug] }),
+}))
+
 export const splitFriendships = pgTable('split_friendships', {
   id: uuid('id').defaultRandom().primaryKey(),
   // Canonical order (low < high) so a pair exists once.
@@ -71,6 +80,7 @@ export const splitGroups = pgTable('split_groups', {
   id: uuid('id').defaultRandom().primaryKey(),
   name: varchar('name', { length: 120 }).notNull(),
   groupType: splitGroupTypeEnum('group_type').notNull().default('other'),
+  icon: varchar('icon', { length: 40 }),
   simplifyDebts: boolean('simplify_debts').notNull().default(true),
   createdByPersonId: uuid('created_by_person_id').notNull().references(() => splitPersons.id),
   externalRef: varchar('external_ref', { length: 255 }),

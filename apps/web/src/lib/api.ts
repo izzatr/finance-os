@@ -268,6 +268,7 @@ export function getSummary(params?: ReportParams) {
 export type CategoryType = 'income' | 'expense' | 'transfer'
 
 export type Category = {
+  icon?: string | null
   id: string
   name: string
   slug: string
@@ -280,14 +281,14 @@ export function getCategories() {
   return request<{ data: Category[] }>('/api/categories')
 }
 
-export function createCategory(body: { name: string; type?: CategoryType; parentId?: string }) {
+export function createCategory(body: { name: string; icon?: string | null; type?: CategoryType; parentId?: string }) {
   return request<{ data: Category }>('/api/categories', {
     method: 'POST',
     body: JSON.stringify(body),
   })
 }
 
-export function patchCategory(id: string, body: { name?: string; type?: CategoryType; parentId?: string | null }) {
+export function patchCategory(id: string, body: { name?: string; icon?: string | null; type?: CategoryType; parentId?: string | null }) {
   return request<{ data: Category }>(`/api/categories/${id}`, {
     method: 'PATCH',
     body: JSON.stringify(body),
@@ -686,7 +687,7 @@ export function parseTransactionText(text: string) {
 // ── Shared expenses (Splitwise-style) ───────────────────────────────────
 
 export type Money = { currency: string; amount: string }
-export type SharedCategory = { slug: string; label: string; group: string }
+export type SharedCategory = { slug: string; label: string; group: string; icon?: string | null }
 export type RepeatInterval = 'never' | 'weekly' | 'fortnightly' | 'monthly' | 'yearly'
 export type GroupType = 'home' | 'trip' | 'couple' | 'other'
 
@@ -719,6 +720,7 @@ export type SplitFriendDetail = SplitFriend & {
 }
 
 export type SplitGroupSummary = {
+  icon?: string | null
   id: string
   name: string
   groupType: GroupType
@@ -738,6 +740,7 @@ export type SplitGroupMember = {
 }
 
 export type SplitGroup = {
+  icon?: string | null
   id: string
   name: string
   groupType: GroupType
@@ -827,6 +830,10 @@ export function getSplitMe() {
   return request<{ data: SplitMe }>('/api/split/me')
 }
 
+export function patchSharedCategoryIcon(slug: string, icon: string | null) {
+  return request<{ data: { slug: string; icon: string | null } }>(`/api/split/category-icons/${encodeURIComponent(slug)}`, { method: 'PATCH', body: JSON.stringify({ icon }) })
+}
+
 export function patchSplitMe(body: { defaultCurrency?: string; activitySeen?: boolean; booksStart?: string }) {
   return request<{ data: { ok: true } }>('/api/split/me', json('PATCH', body))
 }
@@ -876,7 +883,7 @@ export function getDeletedSplitGroups() {
   return request<{ data: Array<{ id: string; name: string; deletedAt: string }> }>('/api/split/groups?deleted=true')
 }
 
-export function createSplitGroup(body: { name: string; groupType?: GroupType; simplifyDebts?: boolean; memberIds?: string[] }) {
+export function createSplitGroup(body: { name: string; icon?: string | null; groupType?: GroupType; simplifyDebts?: boolean; memberIds?: string[] }) {
   return request<{ data: { id: string } }>('/api/split/groups', json('POST', body))
 }
 
@@ -884,7 +891,7 @@ export function getSplitGroup(id: string) {
   return request<{ data: SplitGroup }>(`/api/split/groups/${id}`)
 }
 
-export function patchSplitGroup(id: string, body: { name?: string; groupType?: GroupType; simplifyDebts?: boolean }) {
+export function patchSplitGroup(id: string, body: { name?: string; icon?: string | null; groupType?: GroupType; simplifyDebts?: boolean }) {
   return request<{ data: { ok: true } }>(`/api/split/groups/${id}`, json('PATCH', body))
 }
 
