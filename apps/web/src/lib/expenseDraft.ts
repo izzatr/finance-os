@@ -1,3 +1,4 @@
+import { isSupportedCurrency } from './currencies'
 import type { RepeatInterval, SharedExpense, SharedExpenseInput, Wallet } from './api'
 import { parseAmountInput } from './money'
 import {
@@ -98,6 +99,7 @@ export type BuildResult = { ok: true; body: SharedExpenseInput } | { ok: false; 
 
 /** Validates the draft with the same math as the server and builds the POST/PATCH body. */
 export function buildExpensePayload(draft: ExpenseDraft, participants: string[], mePersonId: string, wallets: Wallet[]): BuildResult {
+  if (!isSupportedCurrency(draft.currency)) return { ok: false, error: 'Pick a supported currency' }
   const description = draft.description.trim()
   if (!description) return { ok: false, error: 'Add a description' }
   const cost = parseAmountInput(draft.cost)

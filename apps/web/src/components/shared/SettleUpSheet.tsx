@@ -1,3 +1,4 @@
+import { isSupportedCurrency } from '@/lib/currencies'
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowRight } from 'lucide-react'
@@ -46,6 +47,7 @@ export type PaymentDraft = {
 
 /** Builds the POST/PATCH body for a payment; null + message when something is missing. */
 export function buildPaymentPayload(d: PaymentDraft, mePersonId: string, walletCurrency: string | null): { body: SharedExpenseInput } | { error: string } {
+  if (!isSupportedCurrency(d.currency)) return { error: 'Pick a supported currency' }
   const cost = parseAmountInput(d.amount)
   if (!cost) return { error: 'Enter an amount greater than zero' }
   try {

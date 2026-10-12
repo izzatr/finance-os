@@ -1,3 +1,4 @@
+import { isSupportedCurrency } from '@/lib/currencies'
 import { GroupIcon } from '@/lib/icons'
 import { categoryIcon } from '@/lib/categoryIcon'
 import { useState } from 'react'
@@ -56,7 +57,7 @@ function SelectedCategoryIcon({ categories, slug }: { categories: SharedCategory
 
 function currencyOptions(extra: string[]): string[] {
   const all = typeof Intl.supportedValuesOf === 'function' ? Intl.supportedValuesOf('currency') : []
-  return [...new Set([...extra, ...COMMON_CURRENCIES, ...all])]
+  return [...new Set([...extra, ...COMMON_CURRENCIES, ...all])].filter(isSupportedCurrency)
 }
 
 const currencyNames = typeof Intl.DisplayNames === 'function' ? new Intl.DisplayNames(['en'], { type: 'currency' }) : null
@@ -306,7 +307,7 @@ function ExpenseForm({ me, mode, initialGroup, conflict, onConflict, onClose, on
           </Field>
 
           <div className="grid grid-cols-[minmax(0,7.5rem)_minmax(0,1fr)] gap-2">
-            <DropdownField label="Currency" searchable value={draft.currency} onChange={(currency) => update({ currency })} options={currencyDropdown([draft.currency, me.defaultCurrency, ...walletCurrencies])} />
+            <DropdownField label="Currency" searchable value={draft.currency} onChange={(currency) => update({ currency, books: { ...draft.books, fundingAmount: '' } })} options={currencyDropdown([draft.currency, me.defaultCurrency, ...walletCurrencies])} />
             <Field label="Amount">
               <input className={`${fieldClass} tabular text-[17px] font-bold`} inputMode="decimal" value={draft.cost} onChange={(e) => update({ cost: e.target.value })} placeholder="0.00" />
             </Field>

@@ -31,17 +31,22 @@ deletes its expenses; both come back if you restore the group.
 - **Split**: equally (choose who is in), exact amounts, percentages, shares, or adjustments
   (extra amounts on top of an equal split). Amounts must add up to the total; leftover cents go to
   one person at a time so nothing is lost to rounding.
-- **Currency**: any ISO currency. Balances are kept per currency.
+- **Currency**: choose from the supported ISO currency catalog using the searchable picker; search by code or name. Available currencies do not depend on your personal wallets. Balances are kept per currency and editing an expense preserves its currency until you explicitly change it.
 - **Repeat**: weekly, every two weeks, monthly or yearly. A new copy appears on each date.
 - Comments and a full activity history are shared with everyone involved.
 
 If two people edit the same expense at once, the second save is refused with a message instead of
 silently overwriting the first.
 
+### Starting without a wallet
+
+You can add shared expenses with no personal wallets. Add a friend by name, choose the currency and amount, and leave **Only track what friends owe** selected. Finance OS creates its managed Friends accounting wallet automatically; you do not need to create or fund a personal wallet. This records the shared obligation, not an invented cash movement.
+
+If you choose **Paid from a wallet** in a different currency, enter the actual amount charged to that wallet. No exchange rate is inferred. Changing the shared expense currency clears that funding amount so you can confirm it again.
+
 ## Settling up
 
-Record a payment from the friend or group page, in full or in part. Pick the wallet the money left or
-arrived in and your books show the transfer too.
+Record a payment from the friend or group page, in full or in part. The searchable currency picker is available for both new and edited payments. Keep **No wallet, just clear the balance** to settle without a personal wallet, or pick the wallet the money left or arrived in to record the transfer too. A different-currency wallet requires an explicitly entered funding amount.
 
 ## How it shows up in your books
 

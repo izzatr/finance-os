@@ -17,13 +17,13 @@ vi.mock('@/lib/api', async (importOriginal) => {
         categories: [{ slug: 'general', label: 'General', group: 'Uncategorized' }, { slug: 'dining', label: 'Dining out', group: 'Food and drink' }],
       },
     }),
-    getSplitFriends: vi.fn().mockResolvedValue({ data: [{ personId: ANA, name: 'Ana', isGuest: true, email: null, isFriend: true, balances: [] }] }),
+    getSplitFriends: vi.fn().mockResolvedValue({ data: [{ personId: ANA, name: 'Taylor', isGuest: true, email: null, isFriend: true, balances: [] }] }),
     getSplitGroups: vi.fn().mockResolvedValue({ data: [] }),
     getSplitGroup: vi.fn(),
     getWallets: vi.fn().mockResolvedValue({
       data: [
-        { id: 'w-eur', name: 'Sparkasse', walletType: 'bank', assetId: 'a-eur', isActive: true, balance: 100, currency: 'EUR' },
-        { id: 'w-idr', name: 'Jago', walletType: 'bank', assetId: 'a-idr', isActive: true, balance: 100, currency: 'IDR' },
+        { id: 'w-eur', name: 'Checking', walletType: 'bank', assetId: 'a-eur', isActive: true, balance: 100, currency: 'EUR' },
+        { id: 'w-idr', name: 'Rupiah cash', walletType: 'bank', assetId: 'a-idr', isActive: true, balance: 100, currency: 'IDR' },
         { id: 'w-fr', name: 'Friends · EUR', walletType: 'custom', assetId: 'a-eur', isActive: true, balance: 0, currency: 'EUR', systemRole: 'split' },
       ],
     }),
@@ -34,7 +34,7 @@ vi.mock('@/lib/api', async (importOriginal) => {
   }
 })
 
-import { createSharedExpense } from '@/lib/api'
+import { createSharedExpense, getWallets } from '@/lib/api'
 import { ExpenseSheet } from './ExpenseSheet'
 
 function renderSheet() {
@@ -64,11 +64,11 @@ describe('ExpenseSheet', () => {
     await user.click(screen.getByRole('button', { name: /Split equally\. Change split options/ }))
     await user.click(screen.getByRole('tab', { name: 'Split by exact amounts' }))
     await user.type(screen.getByLabelText('Amount for You'), '10')
-    await user.type(screen.getByLabelText('Amount for Ana'), '15')
+    await user.type(screen.getByLabelText('Amount for Taylor'), '15')
     expect(screen.getByTestId('split-summary')).toHaveTextContent('€25.00 of €30.00 · €5.00 left')
     expect(screen.getByRole('alert')).toHaveTextContent('€5.00 still to assign')
-    await user.clear(screen.getByLabelText('Amount for Ana'))
-    await user.type(screen.getByLabelText('Amount for Ana'), '20')
+    await user.clear(screen.getByLabelText('Amount for Taylor'))
+    await user.type(screen.getByLabelText('Amount for Taylor'), '20')
     expect(screen.getByTestId('split-summary')).toHaveTextContent('€30.00 of €30.00 · €0.00 left')
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Done' }))
@@ -76,13 +76,13 @@ describe('ExpenseSheet', () => {
     // Friends wallets are never offered as the paying wallet.
     await user.click(screen.getByLabelText('Paid from a wallet'))
     await user.click(screen.getByRole('combobox', { name: 'Wallet' }))
-    expect(await screen.findByRole('option', { name: /Sparkasse/ })).toBeInTheDocument()
+    expect(await screen.findByRole('option', { name: /Checking/ })).toBeInTheDocument()
     expect(screen.queryByRole('option', { name: /Friends/ })).not.toBeInTheDocument()
-    await user.click(screen.getByRole('option', { name: /Jago/ }))
-    expect(screen.getByRole('combobox', { name: 'Wallet' })).toHaveTextContent('Jago')
+    await user.click(await screen.findByRole('option', { name: /Rupiah cash/ }))
+    expect(screen.getByRole('combobox', { name: 'Wallet' })).toHaveTextContent('Rupiah cash')
     await user.click(screen.getByRole('button', { name: 'Save' }))
-    expect(await screen.findByRole('alert')).toHaveTextContent('Enter what Jago was charged in IDR')
-    await user.type(screen.getByLabelText('Charged to Jago in IDR'), '520000')
+    expect(await screen.findByRole('alert')).toHaveTextContent('Enter what Rupiah cash was charged in IDR')
+    await user.type(screen.getByLabelText('Charged to Rupiah cash in IDR'), '520000')
     // Searchable dropdown: type to filter, Enter picks the highlighted option.
     await user.click(screen.getByRole('combobox', { name: 'My category' }))
     expect(await screen.findByRole('option', { name: 'Automatic · Uncategorized' })).toBeInTheDocument()
@@ -108,6 +108,37 @@ describe('ExpenseSheet', () => {
       repeatInterval: 'never',
       myBooks: { fundingWalletId: 'w-idr', fundingAmount: '520000', linkedTransactionId: null, categoryId: 'c-food' },
     })
+  })
+
+  it('records a chosen currency without owning any wallets', async () => {
+    vi.mocked(getWallets).mockResolvedValueOnce({ data: [] })
+    const user = userEvent.setup()
+    renderSheet()
+    await user.type(await screen.findByLabelText('Description'), 'Lunch')
+    await user.type(screen.getByLabelText('Amount'), '20.25')
+    await user.click(screen.getByRole('combobox', { name: 'Currency' }))
+    await user.type(screen.getByRole('textbox', { name: 'Search options' }), 'USD')
+    await user.click(screen.getByRole('option', { name: /USD/ }))
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(createSharedExpense).toHaveBeenCalledWith(expect.objectContaining({ currency: 'USD', cost: '20.25', myBooks: { fundingWalletId: null, fundingAmount: null, linkedTransactionId: null, categoryId: null } })))
+  })
+
+  it('requires a new explicit funding amount after changing the expense currency', async () => {
+    const user = userEvent.setup()
+    renderSheet()
+    await user.type(await screen.findByLabelText('Description'), 'Lunch')
+    await user.type(screen.getByLabelText('Amount'), '20')
+    await user.click(screen.getByLabelText('Paid from a wallet'))
+    await user.click(screen.getByRole('combobox', { name: 'Wallet' }))
+    await user.click(await screen.findByRole('option', { name: /Rupiah cash/ }))
+    await user.type(screen.getByLabelText('Charged to Rupiah cash in IDR'), '400000')
+    await user.click(screen.getByRole('combobox', { name: 'Currency' }))
+    await user.type(screen.getByRole('textbox', { name: 'Search options' }), 'USD')
+    await user.click(screen.getByRole('option', { name: /USD/ }))
+    expect(screen.getByLabelText('Charged to Rupiah cash in IDR')).toHaveValue('')
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Enter what Rupiah cash was charged in IDR')
+    expect(createSharedExpense).not.toHaveBeenCalled()
   })
 
   it('sends an equal split without the people you untick', async () => {

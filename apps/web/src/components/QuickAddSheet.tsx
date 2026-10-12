@@ -8,6 +8,8 @@ import { Input } from '@/components/ui/input'
 import {
   createSharedExpense,
   createTransaction,
+  createWallet,
+  getAssets,
   getAiStatus,
   getCategories,
   getRecentTransactions,
@@ -24,6 +26,7 @@ import { invalidateShared, splitKeys, useSplitMe } from '@/hooks/use-split'
 import { localDateKey, parseAmountInput } from '@/lib/money'
 import { categoryIcon } from '@/lib/categoryIcon'
 import { currencySymbol, dayLabel } from '@/lib/format'
+import { currencyPrecision, toMinor } from '@/lib/split'
 import { currencyDecimals, groupAmountDisplay, pressKey, type KeypadKey } from '@/lib/keypad'
 
 const LAST_WALLET_KEY = 'finance-os-quick-add-wallet'
@@ -92,6 +95,9 @@ export function QuickAddSheet() {
   const [noteOpen, setNoteOpen] = useState(false)
   const [categoryId, setCategoryId] = useState<string | null>(null)
   const [walletId, setWalletId] = useState<string | null>(null)
+  const [currencyCode, setCurrencyCode] = useState<string | null>(null)
+  const [walletName, setWalletName] = useState('')
+  const [createdWallet, setCreatedWallet] = useState<Wallet | null>(null)
   const [date, setDate] = useState(localDateKey)
   const [splitOpen, setSplitOpen] = useState(false)
   const [splitFriendIds, setSplitFriendIds] = useState<string[]>([])
@@ -100,6 +106,7 @@ export function QuickAddSheet() {
   const [parsing, setParsing] = useState(false)
 
   const aiStatusQuery = useQuery({ queryKey: ['ai-status'], queryFn: getAiStatus, enabled: isOpen, staleTime: 5 * 60_000 })
+  const assetsQuery = useQuery({ queryKey: ['assets'], queryFn: getAssets, enabled: isOpen })
   const walletsQuery = useQuery({ queryKey: ['wallets'], queryFn: getWallets, enabled: isOpen })
   // NOTE: existing pages use ['categories'] for the category BREAKDOWN — this is the raw list.
   const categoriesQuery = useQuery({ queryKey: ['category-list'], queryFn: getCategories, enabled: isOpen })
@@ -114,12 +121,36 @@ export function QuickAddSheet() {
   const merchants = useMemo(() => recentMerchants(kind, recent), [kind, recent])
 
   // System wallets (Friends · EUR) are never written directly, so they are not offered here.
-  const wallets = pickableWallets(walletsQuery.data?.data ?? [])
+  const loadedWallets = walletsQuery.data?.data ?? []
+  const wallets = pickableWallets([...loadedWallets, ...(createdWallet && !loadedWallets.some((w) => w.id === createdWallet.id) ? [createdWallet] : [])])
   // Picked wallet, else the one used last time, else the first. Derived, so no sync effect.
   const remembered = isOpen ? readRememberedWallet() : null
-  const wallet: Wallet | undefined =
-    wallets.find((w) => w.id === walletId) ?? wallets.find((w) => w.id === remembered) ?? wallets[0]
-  const decimals = currencyDecimals(wallet?.currency)
+  const preferredWallet = wallets.find((w) => w.id === walletId) ?? wallets.find((w) => w.id === remembered) ?? wallets[0]
+  const currency = currencyCode ?? preferredWallet?.currency ?? 'USD'
+  const wallet: Wallet | undefined = preferredWallet?.currency === currency ? preferredWallet : wallets.find((w) => w.currency === currency)
+  const currencyAssets = (assetsQuery.data?.data ?? []).filter((a) => a.type === 'currency')
+  const asset = currencyAssets.find((a) => a.code === currency)
+  const decimals = currencyDecimals(currency)
+
+  function pickCurrency(code: string) {
+    setCurrencyCode(code)
+    setError(null)
+    setWalletName('')
+  }
+
+  const walletMutation = useMutation({
+    mutationFn: async () => {
+      if (!asset || !walletName.trim()) throw new Error('Enter a wallet name')
+      return createWallet({ name: walletName.trim(), walletType: 'cash', assetId: asset.id, isActive: true })
+    },
+    onSuccess: ({ data }) => {
+      setCreatedWallet(data)
+      setWalletId(data.id)
+      qc.invalidateQueries({ queryKey: ['wallets'] })
+      setError(null)
+    },
+    onError: (err: Error) => setError(err.message),
+  })
   const selectedCategory = categories?.find((c) => c.id === categoryId)
 
   const mutation = useMutation({
@@ -144,6 +175,10 @@ export function QuickAddSheet() {
 
   function reset() {
     setAmount('')
+    setCurrencyCode(null)
+    setWalletName('')
+    setWalletId(null)
+    setCreatedWallet(null)
     setDescription('')
     setNoteOpen(false)
     setCategoryId(null)
@@ -176,7 +211,7 @@ export function QuickAddSheet() {
       setDescription(data.description)
       if (data.walletName) {
         const match = wallets.find((w) => w.name.toLowerCase() === data.walletName!.toLowerCase())
-        if (match) setWalletId(match.id)
+        if (match) { setWalletId(match.id); setCurrencyCode(match.currency) }
       }
       if (data.categoryName) {
         const match = (categories ?? []).find((cat) => cat.name.toLowerCase() === data.categoryName!.toLowerCase())
@@ -191,12 +226,14 @@ export function QuickAddSheet() {
   }
 
   function submit() {
-    if (!wallet) return
+    if (!wallet && !splitting) { setError(`Create a ${currency} wallet first`); return }
     const value = parseAmountInput(amount.replace(/\.$/, ''))
     if (!value) {
       setError('Enter an amount greater than zero')
       return
     }
+    try { toMinor(value, splitting ? currencyPrecision(currency) : asset?.precision ?? decimals) }
+    catch (err) { setError(err instanceof Error ? err.message : 'Check the amount'); return }
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
       setError('Pick a date')
       return
@@ -220,16 +257,17 @@ export function QuickAddSheet() {
           kind: 'expense',
           description: description_,
           cost: value,
-          currency: wallet.currency,
+          currency,
           date: isoDate,
           category: 'general',
           paid: { kind: 'single', personId: me.personId },
           split: { method: 'equal', personIds: [me.personId, ...splitFriendIds] },
-          myBooks: { fundingWalletId: wallet.id, categoryId: categoryId ?? null },
+          myBooks: { fundingWalletId: wallet?.id ?? null, categoryId: categoryId ?? null },
         },
       })
       return
     }
+    if (!wallet) return
     const signed = kind === 'expense' ? `-${value}` : value
     mutation.mutate({
       kind: 'transaction',
@@ -243,7 +281,7 @@ export function QuickAddSheet() {
     })
   }
 
-  const symbol = wallet ? currencySymbol(wallet.currency) : ''
+  const symbol = currencySymbol(currency)
   const amountTone = kind === 'income' ? 'text-[var(--positive)]' : 'text-[var(--text-primary)]'
 
   return (
@@ -307,7 +345,7 @@ export function QuickAddSheet() {
           <span className={`text-[30px] font-semibold [@media(max-height:760px)]:text-[24px] ${amount ? 'text-[var(--text-tertiary)]' : 'text-[#bdb3a2]'}`}>{symbol}</span>
           {useKeypad ? (
             <output aria-label="Amount" aria-live="polite" className={`tabular text-[56px] font-bold leading-none tracking-[-0.03em] [@media(max-height:760px)]:text-[44px] ${amount ? amountTone : 'text-[#bdb3a2]'}`}>
-              {groupAmountDisplay(amount, wallet?.currency)}
+              {groupAmountDisplay(amount, currency)}
             </output>
           ) : (
             <input
@@ -326,10 +364,13 @@ export function QuickAddSheet() {
 
         {/* Wallet · date · note */}
         <div className="flex flex-wrap justify-center gap-2">
+          <Dropdown aria-label="Currency" searchable value={currency} onChange={pickCurrency}
+            options={currencyAssets.map((a) => ({ value: a.code, label: a.code, hint: a.name, keywords: [a.name] }))}
+            className={pillClass} />
           <Dropdown
             aria-label="Wallet"
             value={wallet?.id ?? ''}
-            onChange={setWalletId}
+            onChange={(id) => { setWalletId(id); const next = wallets.find((w) => w.id === id); if (next) pickCurrency(next.currency) }}
             options={wallets.map((w) => ({ value: w.id, label: w.name, hint: w.currency }))}
             className={pillClass}
             trigger={
@@ -362,6 +403,17 @@ export function QuickAddSheet() {
             <span className="truncate">{description.trim() || 'Note'}</span>
           </button>
         </div>
+
+        {currencyCode && wallet && <p role="status" className="mt-3 text-[13px] text-[var(--text-secondary)]">Using {wallet.name} in {currency}. Amount unchanged; no currency conversion.</p>}
+        {!wallet && !splitting && !walletsQuery.isLoading && (
+          <section aria-label="Create a wallet" className="mt-3 grid gap-2 rounded-xl bg-[var(--tint)] p-3">
+            <p className="text-[13px] text-[var(--text-secondary)]">Personal entries need a {currency} wallet. Create one below; the amount stays unchanged and no currency conversion is applied.</p>
+            <Input aria-label="Wallet name" placeholder="Wallet name" value={walletName} maxLength={100} onChange={(e) => setWalletName(e.target.value)} />
+            <button type="button" className="min-h-10 rounded-lg bg-[var(--ink)] px-3 font-semibold text-[var(--cream)] disabled:opacity-40" disabled={!asset || !walletName.trim() || walletMutation.isPending} onClick={() => walletMutation.mutate()}>{walletMutation.isPending ? 'Creating…' : `Create ${currency} wallet`}</button>
+            {assetsQuery.error && <p role="alert">Could not load currencies. Close and try again.</p>}
+          </section>
+        )}
+        {splitting && !wallet && <p className="mt-3 text-[13px] text-[var(--text-secondary)]">Shared only: track what friends owe in {currency}. No personal wallet is needed.</p>}
 
         {noteOpen && (
           <Input
@@ -439,7 +491,7 @@ export function QuickAddSheet() {
           <div className="mt-2" role="group" aria-label="Split with">
             {friendsQuery.isLoading && <p className="text-[13px] text-[var(--text-tertiary)]">Loading friends…</p>}
             {friendsQuery.data && friendsQuery.data.data.filter((f) => f.isFriend).length === 0 && (
-              <p className="text-[13px] text-[var(--text-tertiary)]">No friends yet. Add them under Shared.</p>
+              <p className="text-[13px] text-[var(--text-tertiary)]">No friends yet. <a href="/shared" className="underline">Add friends under Shared</a>; no wallet needed.</p>
             )}
             <div className="flex flex-wrap gap-2">
               {(friendsQuery.data?.data ?? []).filter((f) => f.isFriend).map((f) => {
@@ -495,7 +547,7 @@ export function QuickAddSheet() {
         <button
           type="button"
           onClick={submit}
-          disabled={mutation.isPending || !wallet || amount === ''}
+          disabled={mutation.isPending || walletMutation.isPending || (!wallet && !splitting) || amount === ''}
           className="mt-3 h-14 w-full rounded-2xl bg-[var(--ink)] [@media(max-height:760px)]:mt-2 [@media(max-height:760px)]:h-12 text-base font-bold text-[var(--cream)] transition-colors active:opacity-90 disabled:bg-[var(--tint-strong)] disabled:text-[var(--text-tertiary)]"
         >
           {mutation.isPending ? 'Saving…' : splitting ? 'Save shared expense' : kind === 'expense' ? 'Save expense' : 'Save income'}

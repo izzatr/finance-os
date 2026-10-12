@@ -6,6 +6,13 @@ import type { ReactNode } from 'react'
 
 vi.mock('@/lib/api', () => ({
   createTransaction: vi.fn().mockResolvedValue({ data: {} }),
+  getAssets: vi.fn().mockResolvedValue({ data: [
+    { id: 'a-eur', code: 'EUR', name: 'Euro', type: 'currency', precision: 2 },
+    { id: 'a-usd', code: 'USD', name: 'US Dollar', type: 'currency', precision: 2 },
+    { id: 'a-idr', code: 'IDR', name: 'Indonesian Rupiah', type: 'currency', precision: 2 },
+    { id: 'a-jpy', code: 'JPY', name: 'Japanese Yen', type: 'currency', precision: 0 },
+  ] }),
+  createWallet: vi.fn().mockResolvedValue({ data: { id: 'w-new', name: 'Cash', assetId: 'a-usd', currency: 'USD', isActive: true } }),
   getAiStatus: vi.fn().mockResolvedValue({ data: { enabled: false } }),
   getCategories: vi.fn().mockResolvedValue({
     data: [
@@ -16,7 +23,7 @@ vi.mock('@/lib/api', () => ({
   }),
   getSplitFriends: vi.fn().mockResolvedValue({
     data: [
-      { personId: 'p-ana', name: 'Ana', isGuest: true, email: null, isFriend: true, balances: [] },
+      { personId: 'p-ana', name: 'Taylor', isGuest: true, email: null, isFriend: true, balances: [] },
       { personId: 'p-bo', name: 'Bo', isGuest: false, email: null, isFriend: true, balances: [] },
     ],
   }),
@@ -25,14 +32,14 @@ vi.mock('@/lib/api', () => ({
   pickableWallets: (ws: Array<{ isActive: boolean; systemRole?: string | null }>) => ws.filter((w) => w.isActive && !w.systemRole),
   getRecentTransactions: vi.fn().mockResolvedValue({
     data: [
-      { id: 't1', entryId: 'e1', transactionDate: '2026-10-09T12:00:00Z', type: 'expense', description: 'REWE', notes: null, categoryName: 'Groceries', amount: -42.18, currency: 'EUR', walletName: 'Sparkasse' },
-      { id: 't2', entryId: 'e2', transactionDate: '2026-10-08T12:00:00Z', type: 'expense', description: 'rewe', notes: null, categoryName: 'Groceries', amount: -10, currency: 'EUR', walletName: 'Sparkasse' },
+      { id: 't1', entryId: 'e1', transactionDate: '2026-10-09T12:00:00Z', type: 'expense', description: 'Market', notes: null, categoryName: 'Groceries', amount: -42.18, currency: 'EUR', walletName: 'Checking' },
+      { id: 't2', entryId: 'e2', transactionDate: '2026-10-08T12:00:00Z', type: 'expense', description: 'market', notes: null, categoryName: 'Groceries', amount: -10, currency: 'EUR', walletName: 'Checking' },
     ],
   }),
   getWallets: vi.fn().mockResolvedValue({
     data: [
-      { id: 'w-eur', name: 'Sparkasse', walletType: 'bank', assetId: 'a-eur', isActive: true, balance: 100, currency: 'EUR' },
-      { id: 'w-idr', name: 'Jago', walletType: 'bank', assetId: 'a-idr', isActive: true, balance: 1000000, currency: 'IDR' },
+      { id: 'w-eur', name: 'Checking', walletType: 'bank', assetId: 'a-eur', isActive: true, balance: 100, currency: 'EUR' },
+      { id: 'w-idr', name: 'Rupiah cash', walletType: 'bank', assetId: 'a-idr', isActive: true, balance: 1000000, currency: 'IDR' },
       { id: 'w-old', name: 'Closed', walletType: 'bank', assetId: 'a-eur', isActive: false, balance: 0, currency: 'EUR' },
       { id: 'w-fr', name: 'Friends · EUR', walletType: 'custom', assetId: 'a-eur', isActive: true, balance: 0, currency: 'EUR', systemRole: 'split' },
     ],
@@ -40,7 +47,7 @@ vi.mock('@/lib/api', () => ({
   parseTransactionText: vi.fn(),
 }))
 
-import { createSharedExpense, createTransaction } from '@/lib/api'
+import { createSharedExpense, createTransaction, createWallet, getWallets } from '@/lib/api'
 import { QuickAddProvider, useQuickAdd } from '@/contexts/QuickAddContext'
 import { QuickAddSheet } from './QuickAddSheet'
 
@@ -57,7 +64,7 @@ function renderSheet() {
       <QuickAddProvider>{ui}</QuickAddProvider>
     </QueryClientProvider>
   )
-  return render(wrap(<><OpenOnMount /><QuickAddSheet /></>))
+  return { ...render(wrap(<><OpenOnMount /><QuickAddSheet /></>)), qc }
 }
 
 function setPointer(coarse: boolean) {
@@ -111,14 +118,14 @@ describe('QuickAddSheet', () => {
     const user = userEvent.setup()
     renderSheet()
 
-    const rewe = await screen.findAllByRole('button', { name: /^rewe$/i })
-    expect(rewe).toHaveLength(1) // "REWE" and "rewe" collapse into one chip
-    await user.click(rewe[0])
+    const market = await screen.findAllByRole('button', { name: /^market$/i })
+    expect(market).toHaveLength(1) // "Market" and "market" collapse into one chip
+    await user.click(market[0])
     await user.click(screen.getByRole('button', { name: '5' }))
     await user.click(screen.getByRole('button', { name: 'Save expense' }))
 
     await waitFor(() => expect(createTransaction).toHaveBeenCalled())
-    expect(vi.mocked(createTransaction).mock.calls[0][0]).toMatchObject({ description: 'REWE', categoryId: 'c-groc' })
+    expect(vi.mocked(createTransaction).mock.calls[0][0]).toMatchObject({ description: 'Market', categoryId: 'c-groc' })
   })
 
   it('swaps the decimal key for 000 on rupiah wallets and hides inactive wallets', async () => {
@@ -133,11 +140,11 @@ describe('QuickAddSheet', () => {
     expect(screen.queryByRole('button', { name: 'Decimal point' })).not.toBeInTheDocument()
     expect(screen.getByLabelText('Amount')).toHaveTextContent('35.000')
     await user.click(screen.getByRole('combobox', { name: 'Wallet' }))
-    expect(await screen.findByRole('option', { name: /Sparkasse/ })).toBeInTheDocument()
+    expect(await screen.findByRole('option', { name: /Checking/ })).toBeInTheDocument()
     expect(screen.queryByRole('option', { name: /Closed/ })).not.toBeInTheDocument()
     expect(screen.queryByRole('option', { name: /Friends/ })).not.toBeInTheDocument()
-    await user.click(screen.getByRole('option', { name: /Sparkasse/ }))
-    expect(screen.getByRole('combobox', { name: 'Wallet' })).toHaveTextContent('Sparkasse')
+    await user.click(screen.getByRole('option', { name: /Checking/ }))
+    expect(screen.getByRole('combobox', { name: 'Wallet' })).toHaveTextContent('Checking')
   })
 
   it('splitting with friends saves a shared expense paid by me from the wallet, split equally', async () => {
@@ -152,7 +159,7 @@ describe('QuickAddSheet', () => {
     await user.click(screen.getByRole('button', { name: 'Save shared expense' }))
     expect(await screen.findByRole('alert')).toHaveTextContent('Pick who you split with')
 
-    await user.click(await screen.findByRole('button', { name: 'Ana' }))
+    await user.click(await screen.findByRole('button', { name: 'Taylor' }))
     await user.click(screen.getByRole('button', { name: 'Bo' }))
     await user.click(screen.getByRole('button', { name: 'Save shared expense' }))
 
@@ -169,6 +176,70 @@ describe('QuickAddSheet', () => {
       split: { method: 'equal', personIds: ['p-me', 'p-ana', 'p-bo'] },
       myBooks: { fundingWalletId: 'w-eur', categoryId: 'c-groc' },
     })
+  })
+
+  it('selects a currency with no compatible wallet and creates one without converting the amount', async () => {
+    setPointer(false)
+    const user = userEvent.setup()
+    const { qc } = renderSheet()
+    await user.type(await screen.findByRole('textbox', { name: 'Amount' }), '12.50')
+    await user.click(await screen.findByRole('combobox', { name: 'Currency' }))
+    await user.click(await screen.findByRole('option', { name: /USD/ }))
+    expect(screen.getByRole('combobox', { name: 'Wallet' })).toHaveTextContent('No wallet')
+    expect(screen.getByRole('textbox', { name: 'Amount' })).toHaveValue('12.50')
+    expect(screen.getByRole('button', { name: 'Save expense' })).toBeDisabled()
+    await user.type(screen.getByRole('textbox', { name: 'Wallet name' }), 'Cash')
+    await user.click(screen.getByRole('button', { name: 'Create USD wallet' }))
+    await waitFor(() => expect(createWallet).toHaveBeenCalledWith({ name: 'Cash', walletType: 'cash', assetId: 'a-usd', isActive: true }))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Save expense' })).toBeEnabled())
+    qc.setQueryData(['wallets'], { data: [{ id: 'w-new', name: 'Cash', assetId: 'a-usd', currency: 'USD', isActive: true }] })
+    await user.click(screen.getByRole('combobox', { name: 'Wallet' }))
+    expect(await screen.findAllByRole('option', { name: /Cash/ })).toHaveLength(1)
+    await user.click(screen.getByRole('option', { name: /Cash/ }))
+    await user.click(screen.getByRole('button', { name: 'Save expense' }))
+    await waitFor(() => expect(createTransaction).toHaveBeenCalledWith(expect.objectContaining({ entries: [{ walletId: 'w-new', assetId: 'a-usd', amount: '-12.50' }] })))
+  })
+
+  it('switches to a compatible wallet with explicit feedback and leaves the amount unchanged', async () => {
+    setPointer(false)
+    const user = userEvent.setup()
+    renderSheet()
+    await user.type(await screen.findByRole('textbox', { name: 'Amount' }), '20')
+    await user.click(await screen.findByRole('combobox', { name: 'Currency' }))
+    await user.click(await screen.findByRole('option', { name: /IDR/ }))
+    expect(screen.getByRole('combobox', { name: 'Wallet' })).toHaveTextContent('Rupiah cash')
+    expect(screen.getByRole('status')).toHaveTextContent('Using Rupiah cash in IDR. Amount unchanged; no currency conversion.')
+    expect(screen.getByRole('textbox', { name: 'Amount' })).toHaveValue('20')
+  })
+
+  it('records a shared USD expense with zero personal wallets', async () => {
+    vi.mocked(getWallets).mockResolvedValueOnce({ data: [] })
+    setPointer(false)
+    const user = userEvent.setup()
+    renderSheet()
+    await user.click(await screen.findByRole('combobox', { name: 'Currency' }))
+    await user.click(await screen.findByRole('option', { name: /USD/ }))
+    await user.type(screen.getByRole('textbox', { name: 'Amount' }), '20')
+    await user.click(screen.getByRole('button', { name: 'Split with someone' }))
+    await user.click(await screen.findByRole('button', { name: 'Taylor' }))
+    await user.click(screen.getByRole('button', { name: 'Save shared expense' }))
+    await waitFor(() => expect(createSharedExpense).toHaveBeenCalledWith(expect.objectContaining({ currency: 'USD', cost: '20' })))
+    expect(vi.mocked(createSharedExpense).mock.calls[0][0].myBooks?.fundingWalletId).toBeFalsy()
+    expect(createTransaction).not.toHaveBeenCalled()
+  })
+
+  it('rejects fractional yen without truncating the amount', async () => {
+    setPointer(false)
+    const user = userEvent.setup()
+    renderSheet()
+    await user.click(await screen.findByRole('combobox', { name: 'Currency' }))
+    await user.click(await screen.findByRole('option', { name: /JPY/ }))
+    await user.type(screen.getByRole('textbox', { name: 'Amount' }), '1.5')
+    await user.click(screen.getByRole('button', { name: 'Split with someone' }))
+    await user.click(await screen.findByRole('button', { name: 'Taylor' }))
+    await user.click(screen.getByRole('button', { name: 'Save shared expense' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('no decimals')
+    expect(createSharedExpense).not.toHaveBeenCalled()
   })
 
   it('uses a normal input without the keypad on desktop and rejects an empty amount', async () => {

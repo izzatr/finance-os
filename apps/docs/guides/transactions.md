@@ -58,6 +58,14 @@ transactionEntries = pgTable('transaction_entries', {
 })
 ```
 
+## Quick add and currency
+
+Quick add has a searchable **Currency** picker listing currency assets from the instance catalog, even when you have no wallets. Selecting a currency keeps the entered number unchanged: it is not an FX conversion. Finance OS chooses a compatible personal wallet and names it in the form. It never changes an existing wallet's currency.
+
+If you have no wallet in that currency, enter a wallet name and choose **Create [currency] wallet** in the same sheet. This creates an active cash wallet; then save the expense or income. Personal entries still require a wallet and its asset. You can change the wallet's name/type later under Wallets.
+
+For a shared bill, choose **Split with someone**, pick friends and a currency, then save. No personal wallet is required; if a compatible wallet is selected, the existing personal-book funding integration is retained. If you have no friends yet, the form links to Shared where you can add a named guest.
+
 ## Creating a Transaction
 
 ### Expense
