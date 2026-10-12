@@ -174,6 +174,33 @@ export function getAssets() {
   return request<{ data: Asset[] }>('/api/assets')
 }
 
+/** Account-level currency setup (one default and an ordered preferred list per account). */
+export type CurrencySettings = {
+  defaultCurrency: string
+  /** False while the default is only the EUR fallback and the account never chose one. */
+  defaultIsExplicit: boolean
+  preferredCurrencies: string[]
+  updatedAt: string | null
+}
+export type CatalogCurrency = { code: string; name: string; precision: number }
+
+export function getCurrencySettings() {
+  return request<{ data: CurrencySettings }>('/api/settings/currencies')
+}
+
+export function patchCurrencySettings(body: { defaultCurrency?: string; preferredCurrencies?: string[] }) {
+  return request<{ data: CurrencySettings }>('/api/settings/currencies', json('PATCH', body))
+}
+
+export function getCurrencyCatalog() {
+  return request<{ data: CatalogCurrency[] }>('/api/currencies')
+}
+
+/** Makes sure the currency's reference asset exists (needed to open a wallet in it); creates no wallet. */
+export function ensureCurrencyAsset(code: string) {
+  return request<{ data: { id: string; code: string; precision: number } }>('/api/assets/currency', json('POST', { code }))
+}
+
 export function createWallet(body: {
   name: string
   walletType: string

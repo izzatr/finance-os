@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { getNetWorth } from '@/lib/api'
-import { useDefaultCurrency } from '@/contexts/CurrencyContext'
+import { useCurrencySettings } from '@/contexts/CurrencyContext'
 
 const DISPLAY_CHOICES = ['EUR', 'USD', 'IDR']
 
@@ -13,7 +13,9 @@ function formatTotal(amount: number, currency: string): string {
 }
 
 export function NetWorthCard() {
-  const [currency, setCurrency] = useDefaultCurrency()
+  const { defaultCurrency: currency, preferredCurrencies, setDefaultCurrency: setCurrency, isSaving } = useCurrencySettings()
+  // The quick switch offers the account's own currencies; with none preferred, the familiar three.
+  const choices = [...new Set([currency, ...(preferredCurrencies.length > 0 ? preferredCurrencies : DISPLAY_CHOICES)])].slice(0, 4)
   const query = useQuery({
     queryKey: ['net-worth', currency],
     queryFn: () => getNetWorth({ currency, months: 12 }),
@@ -30,11 +32,12 @@ export function NetWorthCard() {
       <div className="flex items-center justify-between">
         <p className="text-[15px] font-medium text-white/75">Net worth</p>
         <div className="flex gap-1" role="tablist" aria-label="Display currency">
-          {DISPLAY_CHOICES.map((c) => (
+          {choices.map((c) => (
             <button
               key={c}
               role="tab"
               aria-selected={currency === c}
+              disabled={isSaving}
               onClick={() => setCurrency(c)}
               className={`h-8 rounded-full px-3 text-[12px] font-bold transition-colors ${
                 currency === c

@@ -36,6 +36,7 @@ vi.mock('@/lib/api', async (importOriginal) => {
 
 import { createSharedExpense, getWallets } from '@/lib/api'
 import { ExpenseSheet } from './ExpenseSheet'
+import { CurrencyTestProvider } from '@/test/CurrencyTestProvider'
 
 function renderSheet() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -43,7 +44,9 @@ function renderSheet() {
   render(
     <QueryClientProvider client={qc}>
       <MemoryRouter>
-        <ExpenseSheet open mode={{ kind: 'new', friendIds: [ANA] }} onClose={() => {}} onSaved={onSaved} />
+        <CurrencyTestProvider>
+          <ExpenseSheet open mode={{ kind: 'new', friendIds: [ANA] }} onClose={() => {}} onSaved={onSaved} />
+        </CurrencyTestProvider>
       </MemoryRouter>
     </QueryClientProvider>,
   )

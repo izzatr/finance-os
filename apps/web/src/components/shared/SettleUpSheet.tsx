@@ -1,4 +1,5 @@
 import { isSupportedCurrency } from '@/lib/currencies'
+import { useCurrencySettings } from '@/contexts/CurrencyContext'
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowRight } from 'lucide-react'
@@ -255,7 +256,7 @@ function SettleForm({ me, friends, rates, prefill, edit, onClose }: { me: SplitM
     },
   })
 
-  const currencies = [...new Set([draft.currency, ...(friend?.balances.map((b) => b.currency) ?? []), me.defaultCurrency])]
+  const { pickerTop } = useCurrencySettings()
   const groups = friendDetail.data?.data.sharedGroups ?? []
 
   return (
@@ -308,7 +309,7 @@ function SettleForm({ me, friends, rates, prefill, edit, onClose }: { me: SplitM
         )}
 
         <div className="grid grid-cols-[minmax(0,7.5rem)_minmax(0,1fr)] gap-2">
-          <DropdownField label="Currency" searchable value={draft.currency} onChange={pickCurrency} options={currencyDropdown(currencies)} />
+          <DropdownField label="Currency" searchable value={draft.currency} onChange={pickCurrency} options={currencyDropdown(pickerTop)} />
           <Field label="Amount">
             <input className={`${fieldClass} tabular text-[17px] font-bold`} inputMode="decimal" value={draft.amount} onChange={(e) => update({ amount: e.target.value })} placeholder="0.00" />
           </Field>

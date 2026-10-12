@@ -9,10 +9,23 @@ function toNumber(amount: number | string): number {
   return typeof amount === 'string' ? parseFloat(amount) : amount
 }
 
-/** Rupiah is shown without decimals (id-ID grouping), everything else with two (en-US grouping). */
+/** Minor-unit digits for display: Rupiah stays whole (existing choice); others follow ISO via Intl (JPY 0, KWD 3). */
+const digitsCache = new Map<string, number>()
+function currencyDigits(currency: string): number {
+  if (currency === 'IDR') return 0
+  let d = digitsCache.get(currency)
+  if (d === undefined) {
+    try { d = new Intl.NumberFormat('en', { style: 'currency', currency }).resolvedOptions().maximumFractionDigits ?? 2 } catch { d = 2 }
+    digitsCache.set(currency, d)
+  }
+  return d
+}
+
+/** Rupiah is shown without decimals (id-ID grouping); other currencies use their own minor-unit digits (en-US grouping). */
 function formatAbs(abs: number, currency: string): string {
   if (currency === 'IDR') return abs.toLocaleString('id-ID', { maximumFractionDigits: 0 })
-  return abs.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  const digits = currencyDigits(currency)
+  return abs.toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits })
 }
 
 /** `-€1,234.50`, `Rp50.000`. Sign is only ever a leading minus. */

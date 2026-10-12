@@ -6,6 +6,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/).
 ## [Unreleased]
 
 ### Added
+- Account-level currency setup on the Currencies page: choose a default from every supported currency (even with no wallets) and keep an ordered list of preferred currencies that come first in Quick add and in shared expense, edit and settlement pickers. Both are stored per account, so they follow you across devices; the old browser-only default and the separate Shared default are unified, an old browser value is only offered for confirmation, and creating a wallet in a currency stays a separate, optional action. Missing exchange rates are shown as missing rather than assumed to be 1, and currencies use their own number of decimals.
 - International end-of-day investment portfolios backed by Yahoo Finance, with multiple investment wallets, native/base-currency valuation, position-aware history, bounded backfills, refresh leasing, and strict tenant and wallet invariants.
 - A restricted, configurable Cloudflare Worker fallback for Yahoo Finance egress.
 

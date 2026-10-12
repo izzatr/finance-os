@@ -1,4 +1,5 @@
-import { isSupportedCurrency } from '@/lib/currencies'
+import { currencyPickerOptions } from '@/lib/currencies'
+import { useCurrencySettings } from '@/contexts/CurrencyContext'
 import { GroupIcon } from '@/lib/icons'
 import { categoryIcon } from '@/lib/categoryIcon'
 import { useState } from 'react'
@@ -34,8 +35,6 @@ export type ExpenseSheetMode =
   | { kind: 'new'; groupId?: string | null; friendIds?: string[] }
   | { kind: 'edit'; expense: SharedExpense }
 
-const COMMON_CURRENCIES = ['EUR', 'USD', 'GBP', 'IDR', 'JPY', 'CHF', 'SGD', 'AUD', 'CAD', 'THB', 'MYR', 'NZD', 'SEK', 'NOK', 'DKK', 'PLN', 'CZK', 'HUF', 'TRY', 'INR', 'CNY', 'HKD', 'KRW', 'MXN', 'BRL', 'ZAR']
-
 export const REPEAT_OPTIONS: Array<{ value: RepeatInterval; label: string }> = [
   { value: 'never', label: 'Does not repeat' },
   { value: 'weekly', label: 'Every week' },
@@ -55,19 +54,9 @@ function SelectedCategoryIcon({ categories, slug }: { categories: SharedCategory
   return <span aria-hidden className="mt-5 flex size-11 shrink-0 items-center justify-center rounded-lg bg-[var(--tint)] text-[var(--ink)]"><Icon className="size-5" /></span>
 }
 
-function currencyOptions(extra: string[]): string[] {
-  const all = typeof Intl.supportedValuesOf === 'function' ? Intl.supportedValuesOf('currency') : []
-  return [...new Set([...extra, ...COMMON_CURRENCIES, ...all])].filter(isSupportedCurrency)
-}
-
-const currencyNames = typeof Intl.DisplayNames === 'function' ? new Intl.DisplayNames(['en'], { type: 'currency' }) : null
-
-/** Currency options with their English names, so "yen" or "krone" finds the code. */
-export function currencyDropdown(extra: string[]) {
-  return currencyOptions(extra).map((c) => {
-    const name = currencyNames?.of(c) ?? c
-    return { value: c, label: c, hint: name !== c ? name : undefined, keywords: [name] }
-  })
+/** Currency options: the account's default and preferred currencies first, everything else searchable by code or name. */
+export function currencyDropdown(top: string[]) {
+  return currencyPickerOptions(top)
 }
 
 /**
@@ -160,7 +149,7 @@ function ExpenseForm({ me, mode, initialGroup, conflict, onConflict, onClose, on
   const sentence = paidSplitSentence(draft.paid, draft.split.method, participants)
   const fundingWallet = wallets.find((w) => w.id === draft.books.walletId)
   const linkable = (recentQuery.data?.data ?? []).filter((t) => t.type === 'expense' && !t.friendsWallet && !t.sharedExpenseId && t.amount < 0)
-  const walletCurrencies = wallets.map((w) => w.currency)
+  const { pickerTop } = useCurrencySettings()
 
   const update = (patch: Partial<ExpenseDraft>) => {
     setDraft((d) => ({ ...d, ...patch }))
@@ -307,7 +296,7 @@ function ExpenseForm({ me, mode, initialGroup, conflict, onConflict, onClose, on
           </Field>
 
           <div className="grid grid-cols-[minmax(0,7.5rem)_minmax(0,1fr)] gap-2">
-            <DropdownField label="Currency" searchable value={draft.currency} onChange={(currency) => update({ currency, books: { ...draft.books, fundingAmount: '' } })} options={currencyDropdown([draft.currency, me.defaultCurrency, ...walletCurrencies])} />
+            <DropdownField label="Currency" searchable value={draft.currency} onChange={(currency) => update({ currency, books: { ...draft.books, fundingAmount: '' } })} options={currencyDropdown(pickerTop)} />
             <Field label="Amount">
               <input className={`${fieldClass} tabular text-[17px] font-bold`} inputMode="decimal" value={draft.cost} onChange={(e) => update({ cost: e.target.value })} placeholder="0.00" />
             </Field>

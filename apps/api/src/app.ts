@@ -23,6 +23,7 @@ import { registerExchangeRateRoutes } from './routes/exchange-rates'
 import { registerAssetPriceRoutes } from './routes/asset-prices'
 import { registerPortfolioRoutes } from './routes/portfolio'
 import { registerSplitPublicRoutes, registerSplitRoutes } from './routes/split'
+import { registerCurrencySettingsRoutes } from './routes/currency-settings'
 
 const app = new OpenAPIHono()
 
@@ -73,6 +74,7 @@ registerExchangeRateRoutes(app)
 registerAssetPriceRoutes(app)
 registerPortfolioRoutes(app)
 registerSplitRoutes(app)
+registerCurrencySettingsRoutes(app)
 registerAiRoutes(app)
 
 app.doc('/openapi.json', {

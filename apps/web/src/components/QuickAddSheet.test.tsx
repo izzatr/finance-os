@@ -2,7 +2,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { ReactNode } from 'react'
+import type { ComponentProps, ReactNode } from 'react'
 
 vi.mock('@/lib/api', () => ({
   createTransaction: vi.fn().mockResolvedValue({ data: {} }),
@@ -13,6 +13,7 @@ vi.mock('@/lib/api', () => ({
     { id: 'a-jpy', code: 'JPY', name: 'Japanese Yen', type: 'currency', precision: 0 },
   ] }),
   createWallet: vi.fn().mockResolvedValue({ data: { id: 'w-new', name: 'Cash', assetId: 'a-usd', currency: 'USD', isActive: true } }),
+  ensureCurrencyAsset: vi.fn().mockResolvedValue({ data: { id: 'a-nok', code: 'NOK', precision: 2 } }),
   getAiStatus: vi.fn().mockResolvedValue({ data: { enabled: false } }),
   getCategories: vi.fn().mockResolvedValue({
     data: [
@@ -47,9 +48,10 @@ vi.mock('@/lib/api', () => ({
   parseTransactionText: vi.fn(),
 }))
 
-import { createSharedExpense, createTransaction, createWallet, getWallets } from '@/lib/api'
+import { createSharedExpense, createTransaction, createWallet, ensureCurrencyAsset, getWallets } from '@/lib/api'
 import { QuickAddProvider, useQuickAdd } from '@/contexts/QuickAddContext'
 import { QuickAddSheet } from './QuickAddSheet'
+import { CurrencyTestProvider } from '@/test/CurrencyTestProvider'
 
 function OpenOnMount() {
   const { openQuickAdd, isOpen } = useQuickAdd()
@@ -57,11 +59,11 @@ function OpenOnMount() {
   return null
 }
 
-function renderSheet() {
+function renderSheet(currency: Partial<ComponentProps<typeof CurrencyTestProvider>> = {}) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   const wrap = (ui: ReactNode) => (
     <QueryClientProvider client={qc}>
-      <QuickAddProvider>{ui}</QuickAddProvider>
+      <CurrencyTestProvider {...currency}><QuickAddProvider>{ui}</QuickAddProvider></CurrencyTestProvider>
     </QueryClientProvider>
   )
   return { ...render(wrap(<><OpenOnMount /><QuickAddSheet /></>)), qc }
@@ -80,6 +82,8 @@ describe('QuickAddSheet', () => {
   beforeEach(() => {
     vi.mocked(createTransaction).mockClear()
     vi.mocked(createSharedExpense).mockClear()
+    vi.mocked(createWallet).mockClear()
+    vi.mocked(ensureCurrencyAsset).mockClear()
     localStorage.clear()
   })
   afterEach(() => {
@@ -210,6 +214,33 @@ describe('QuickAddSheet', () => {
     expect(screen.getByRole('combobox', { name: 'Wallet' })).toHaveTextContent('Rupiah cash')
     expect(screen.getByRole('status')).toHaveTextContent('Using Rupiah cash in IDR. Amount unchanged; no currency conversion.')
     expect(screen.getByRole('textbox', { name: 'Amount' })).toHaveValue('20')
+  })
+
+  it('starts in the account default currency with no wallets and creates a wallet only on request', async () => {
+    vi.mocked(getWallets).mockResolvedValueOnce({ data: [] })
+    setPointer(false)
+    const user = userEvent.setup()
+    renderSheet({ defaultCurrency: 'NOK' })
+    const currency = await screen.findByRole('combobox', { name: 'Currency' })
+    expect(currency).toHaveTextContent('NOK')
+    expect(createWallet).not.toHaveBeenCalled()
+    // NOK has no asset row yet: it is created on first use, then the wallet is opened.
+    await user.type(await screen.findByRole('textbox', { name: 'Wallet name' }), 'Cash')
+    await user.click(screen.getByRole('button', { name: 'Create NOK wallet' }))
+    await waitFor(() => expect(ensureCurrencyAsset).toHaveBeenCalledWith('NOK'))
+    await waitFor(() => expect(createWallet).toHaveBeenCalledWith({ name: 'Cash', walletType: 'cash', assetId: 'a-nok', isActive: true }))
+  })
+
+  it('lists the default and preferred currencies first, then everything else, still searchable', async () => {
+    setPointer(false)
+    const user = userEvent.setup()
+    renderSheet({ defaultCurrency: 'GBP', preferredCurrencies: ['SGD', 'NOK'] })
+    await user.click(await screen.findByRole('combobox', { name: 'Currency' }))
+    const options = await screen.findAllByRole('option')
+    expect(options.slice(0, 3).map((o) => o.textContent?.slice(0, 3))).toEqual(['GBP', 'SGD', 'NOK'])
+    expect(options.length).toBeGreaterThan(100)
+    await user.type(screen.getByRole('textbox', { name: 'Search options' }), 'yen')
+    expect(screen.getAllByRole('option').map((o) => o.textContent?.slice(0, 3))).toContain('JPY')
   })
 
   it('records a shared USD expense with zero personal wallets', async () => {

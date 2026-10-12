@@ -7,6 +7,7 @@ import {
   splitPersons,
   splitUserSettings,
   splitExpenseShares,
+  userCurrencySettings,
 } from '@finance-os/db'
 import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm'
 
@@ -61,7 +62,10 @@ export async function loadMe(dbx: Dbx, userId: string): Promise<Me | null> {
     .from(splitUserSettings)
     .innerJoin(splitPersons, eq(splitPersons.id, splitUserSettings.personId))
     .where(eq(splitUserSettings.userId, userId))
-  return row ? { userId, ...row } : null
+  if (!row) return null
+  // The account-level currency setting is canonical; the split column is only a legacy fallback.
+  const [account] = await dbx.select({ c: userCurrencySettings.defaultCurrency }).from(userCurrencySettings).where(eq(userCurrencySettings.userId, userId))
+  return { userId, ...row, defaultCurrency: account?.c ?? row.defaultCurrency }
 }
 
 /** Live group where `personId` is a current member, or null. */

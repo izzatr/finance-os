@@ -2,6 +2,7 @@ import { SharedCategoryIcons } from './SharedCategoryIcons'
 import { IconPicker } from '@/components/IconPicker'
 import { groupIcon } from '@/lib/icons'
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Plus, X } from 'lucide-react'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -10,7 +11,6 @@ import {
   addSplitGroupMember,
   adoptFriendsWallet,
   createSplitGroup,
-  getAssets,
   getSplitFriends,
   getWallets,
   isFriendsWallet,
@@ -21,9 +21,8 @@ import {
 import { invalidateShared, splitKeys } from '@/hooks/use-split'
 import { Avatar, ErrorText, Field, FullSheet, Segmented, Switch, fieldClass, primaryButton, secondaryButton } from './ui'
 import { Dropdown } from '@/components/ui/dropdown'
-import { DateField, DropdownField } from './DropdownField'
+import { DateField } from './DropdownField'
 import { keyFromDate } from '@/components/ui/date-picker'
-import { currencyDropdown } from './ExpenseSheet'
 
 const dialogClass = 'rounded-t-lg sm:rounded-lg sm:max-w-md'
 
@@ -172,9 +171,7 @@ const BEGINNING = '1971-01-01'
 export function SharedSettingsSheet({ open, onClose, me }: { open: boolean; onClose: () => void; me: SplitMe }) {
   const qc = useQueryClient()
   const walletsQuery = useQuery({ queryKey: ['wallets'], queryFn: getWallets, enabled: open })
-  const assetsQuery = useQuery({ queryKey: ['assets'], queryFn: getAssets, enabled: open, staleTime: 5 * 60_000 })
   const startsAtBeginning = me.booksStart.slice(0, 10) < BEGINNING
-  const [currency, setCurrency] = useState(me.defaultCurrency)
   const [fromStart, setFromStart] = useState(startsAtBeginning)
   const [booksStart, setBooksStart] = useState(startsAtBeginning ? '' : me.booksStart.slice(0, 10))
   const [adoptId, setAdoptId] = useState('')
@@ -183,12 +180,11 @@ export function SharedSettingsSheet({ open, onClose, me }: { open: boolean; onCl
   const wallets = walletsQuery.data?.data ?? []
   const friendsCurrencies = new Set(wallets.filter(isFriendsWallet).map((w) => w.currency))
   const adoptable = wallets.filter((w) => !isFriendsWallet(w) && w.isActive && !w.unit && !friendsCurrencies.has(w.currency) && w.walletType !== 'investment')
-  const currencies = [...new Set([me.defaultCurrency, ...(assetsQuery.data?.data ?? []).filter((a) => a.type === 'currency').map((a) => a.code)])]
 
   const save = useMutation({
     mutationFn: async () => {
-      const body: { defaultCurrency?: string; booksStart?: string } = {}
-      if (currency !== me.defaultCurrency) body.defaultCurrency = currency
+      // The default currency is an account setting (Currencies page), not a Shared setting.
+      const body: { booksStart?: string } = {}
       const nextStart = fromStart ? '1970-01-01' : booksStart
       if (!fromStart && !/^\d{4}-\d{2}-\d{2}$/.test(booksStart)) throw new Error('Pick a start date')
       if (nextStart !== me.booksStart.slice(0, 10)) body.booksStart = new Date(`${nextStart}T00:00:00.000Z`).toISOString()
@@ -212,7 +208,13 @@ export function SharedSettingsSheet({ open, onClose, me }: { open: boolean; onCl
       }
     >
       <div className="grid gap-6 pt-1">
-        <DropdownField label="Default currency" hint="Used for new expenses." searchable value={currency} onChange={setCurrency} options={currencyDropdown(currencies)} />
+        <div className="grid gap-1">
+          <p className="text-[13px] font-semibold text-[var(--text-secondary)]">Default currency</p>
+          <p className="text-[15px]">
+            {me.defaultCurrency} <Link to="/currencies" onClick={onClose} className="ml-1 text-[14px] font-semibold text-[var(--ink)] underline">Change in Currencies</Link>
+          </p>
+          <p className="text-[13px] text-[var(--text-tertiary)]">One account setting shared with the rest of the app.</p>
+        </div>
         <div className="grid gap-2">
           <Switch checked={fromStart} onChange={setFromStart} label="Count everything in my books" description="Shared expenses before the start date become one opening balance instead of spending." />
           {!fromStart && (

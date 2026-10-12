@@ -9,6 +9,7 @@ import {
   createSharedExpense,
   createTransaction,
   createWallet,
+  ensureCurrencyAsset,
   getAssets,
   getAiStatus,
   getCategories,
@@ -22,6 +23,8 @@ import {
   type Wallet,
 } from '@/lib/api'
 import { useQuickAdd } from '@/contexts/QuickAddContext'
+import { useCurrencySettings } from '@/contexts/CurrencyContext'
+import { currencyPickerOptions } from '@/lib/currencies'
 import { invalidateShared, splitKeys, useSplitMe } from '@/hooks/use-split'
 import { localDateKey, parseAmountInput } from '@/lib/money'
 import { categoryIcon } from '@/lib/categoryIcon'
@@ -86,6 +89,7 @@ const pillClass =
 
 export function QuickAddSheet() {
   const { isOpen, closeQuickAdd } = useQuickAdd()
+  const { defaultCurrency, pickerTop } = useCurrencySettings()
   const qc = useQueryClient()
   const useKeypad = prefersKeypad()
 
@@ -126,7 +130,8 @@ export function QuickAddSheet() {
   // Picked wallet, else the one used last time, else the first. Derived, so no sync effect.
   const remembered = isOpen ? readRememberedWallet() : null
   const preferredWallet = wallets.find((w) => w.id === walletId) ?? wallets.find((w) => w.id === remembered) ?? wallets[0]
-  const currency = currencyCode ?? preferredWallet?.currency ?? 'USD'
+  // A wallet's currency wins; with no wallet yet the account default applies (never a hard-coded one).
+  const currency = currencyCode ?? preferredWallet?.currency ?? defaultCurrency
   const wallet: Wallet | undefined = preferredWallet?.currency === currency ? preferredWallet : wallets.find((w) => w.currency === currency)
   const currencyAssets = (assetsQuery.data?.data ?? []).filter((a) => a.type === 'currency')
   const asset = currencyAssets.find((a) => a.code === currency)
@@ -140,13 +145,16 @@ export function QuickAddSheet() {
 
   const walletMutation = useMutation({
     mutationFn: async () => {
-      if (!asset || !walletName.trim()) throw new Error('Enter a wallet name')
-      return createWallet({ name: walletName.trim(), walletType: 'cash', assetId: asset.id, isActive: true })
+      if (!walletName.trim()) throw new Error('Enter a wallet name')
+      // Any supported currency can be picked; its reference asset is created on first use (no wallet).
+      const target = asset ?? (await ensureCurrencyAsset(currency)).data
+      return createWallet({ name: walletName.trim(), walletType: 'cash', assetId: target.id, isActive: true })
     },
     onSuccess: ({ data }) => {
       setCreatedWallet(data)
       setWalletId(data.id)
       qc.invalidateQueries({ queryKey: ['wallets'] })
+      qc.invalidateQueries({ queryKey: ['assets'] })
       setError(null)
     },
     onError: (err: Error) => setError(err.message),
@@ -365,7 +373,7 @@ export function QuickAddSheet() {
         {/* Wallet · date · note */}
         <div className="flex flex-wrap justify-center gap-2">
           <Dropdown aria-label="Currency" searchable value={currency} onChange={pickCurrency}
-            options={currencyAssets.map((a) => ({ value: a.code, label: a.code, hint: a.name, keywords: [a.name] }))}
+            options={currencyPickerOptions(pickerTop)}
             className={pillClass} />
           <Dropdown
             aria-label="Wallet"
@@ -409,7 +417,7 @@ export function QuickAddSheet() {
           <section aria-label="Create a wallet" className="mt-3 grid gap-2 rounded-xl bg-[var(--tint)] p-3">
             <p className="text-[13px] text-[var(--text-secondary)]">Personal entries need a {currency} wallet. Create one below; the amount stays unchanged and no currency conversion is applied.</p>
             <Input aria-label="Wallet name" placeholder="Wallet name" value={walletName} maxLength={100} onChange={(e) => setWalletName(e.target.value)} />
-            <button type="button" className="min-h-10 rounded-lg bg-[var(--ink)] px-3 font-semibold text-[var(--cream)] disabled:opacity-40" disabled={!asset || !walletName.trim() || walletMutation.isPending} onClick={() => walletMutation.mutate()}>{walletMutation.isPending ? 'Creating…' : `Create ${currency} wallet`}</button>
+            <button type="button" className="min-h-10 rounded-lg bg-[var(--ink)] px-3 font-semibold text-[var(--cream)] disabled:opacity-40" disabled={!walletName.trim() || walletMutation.isPending} onClick={() => walletMutation.mutate()}>{walletMutation.isPending ? 'Creating…' : `Create ${currency} wallet`}</button>
             {assetsQuery.error && <p role="alert">Could not load currencies. Close and try again.</p>}
           </section>
         )}

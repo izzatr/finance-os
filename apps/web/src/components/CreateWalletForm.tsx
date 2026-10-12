@@ -28,6 +28,8 @@ import { cn } from '@/lib/utils'
 
 type Props = {
   onClose: () => void
+  /** ISO code to preselect (e.g. from /currencies); the user can still change it. */
+  initialCurrency?: string
 }
 
 const WALLET_TYPES = [
@@ -40,10 +42,10 @@ const WALLET_TYPES = [
   { value: 'custom', label: 'Custom' },
 ]
 
-export function CreateWalletForm({ onClose }: Props) {
+export function CreateWalletForm({ onClose, initialCurrency }: Props) {
   const [name, setName] = useState('')
   const [walletType, setWalletType] = useState('')
-  const [currency, setCurrency] = useState('')
+  const [pickedCurrency, setCurrency] = useState('')
   const [institution, setInstitution] = useState('')
   const [typeOpen, setTypeOpen] = useState(false)
   const [currencyOpen, setCurrencyOpen] = useState(false)
@@ -53,6 +55,8 @@ export function CreateWalletForm({ onClose }: Props) {
   const assets = assetsQuery.data?.data ?? []
 
   const selectedType = WALLET_TYPES.find((t) => t.value === walletType)
+  // The preselected currency is derived, not copied into state, so it needs no sync effect.
+  const currency = pickedCurrency || assets.find((a) => a.code === initialCurrency && a.type === 'currency')?.id || ''
   const selectedAsset = assets.find((a) => a.id === currency)
 
   const mutation = useMutation({

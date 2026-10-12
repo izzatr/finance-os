@@ -36,7 +36,13 @@ export function pressKey(amount: string, key: KeypadKey, decimals = 2): string {
 
 /** Currencies that are normally written without minor units. */
 export function currencyDecimals(currency: string | undefined): number {
-  return currency && ['IDR', 'JPY', 'KRW', 'VND'].includes(currency) ? 0 : 2
+  if (!currency) return 2
+  if (currency === 'IDR') return 0 // existing choice: Rupiah is typed in whole units
+  try {
+    return new Intl.NumberFormat('en', { style: 'currency', currency }).resolvedOptions().maximumFractionDigits ?? 2
+  } catch {
+    return 2
+  }
 }
 
 /** Group the integer part for display while typing: `35000` → `35.000` (IDR) or `1250.5` → `1,250.5`. */

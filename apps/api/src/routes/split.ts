@@ -5,7 +5,7 @@ import { iconIdSchema } from '@finance-os/domain'
 import { db, splitUserSettings, splitCategoryIcons } from '@finance-os/db'
 import { and, eq } from 'drizzle-orm'
 import { getMe, SplitError } from '../split/core'
-import { isSupportedCurrency } from '../split/currencies'
+import { CurrencySettingsError, updateCurrencySettings } from '../lib/currency-settings'
 import { SHARED_CATEGORIES, isSharedCategory } from '../split/categories'
 import {
   createExpense,
@@ -191,9 +191,11 @@ export function registerSplitRoutes(app: OpenAPIHono) {
       const m = await me(c)
       const body = c.req.valid('json')
       if (body.defaultCurrency) {
-        const code = body.defaultCurrency.toUpperCase()
-        if (!isSupportedCurrency(code)) throw new SplitError(422, 'UNSUPPORTED_CURRENCY', 'Unsupported currency')
-        await db.update(splitUserSettings).set({ defaultCurrency: code }).where(eq(splitUserSettings.userId, m.userId))
+        // One account-level default: this writes the same setting as /api/settings/currencies.
+        try { await updateCurrencySettings(m.userId, { defaultCurrency: body.defaultCurrency }) } catch (err) {
+          if (err instanceof CurrencySettingsError) throw new SplitError(422, 'UNSUPPORTED_CURRENCY', 'Unsupported currency')
+          throw err
+        }
       }
       if (body.activitySeen) await markActivitySeen(m)
       if (body.booksStart) {

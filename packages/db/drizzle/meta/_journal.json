@@ -141,6 +141,13 @@
       "when": 1791747757353,
       "tag": "0019_dark_felicia_hardy",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1791826613302,
+      "tag": "0020_account_currency_settings",
+      "breakpoints": true
     }
   ]
 }

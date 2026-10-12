@@ -16,6 +16,7 @@ import { useQuickAdd } from '@/contexts/QuickAddContext'
 import { getWallets, getRecentTransactions, getSummary, getCategoryBreakdown, getExchangeRates } from '../lib/api'
 import type { CategoryBreakdown } from '../lib/api'
 import { formatCurrency } from '../lib/format'
+import { rateBetween } from '../lib/currencies'
 import { useDefaultCurrency } from '../contexts/CurrencyContext'
 
 const HOME_ACTIVITY_LIMIT = 8
@@ -54,16 +55,19 @@ export function DashboardPage() {
   const wallets = walletsQuery.data?.data ?? []
   const hasFinanceData = Boolean(summary && (summary.walletCount > 0 || summary.transactionCount > 0))
 
-  // Convert any currency amount to the default currency using EUR-based rates
-  const toDefaultRate = rates ? (defaultCurrency === 'EUR' ? 1 : (rates[defaultCurrency] ?? 1)) : 1
+  // Convert any currency amount to the default currency using EUR-based rates. A missing rate is
+  // never assumed to be 1: that currency is left out and named in a note instead.
   function convertToDefault(amount: number, currency: string): number {
-    if (!rates) return 0
-    const fromRate = currency === 'EUR' ? 1 : (rates[currency] ?? 0)
-    if (fromRate === 0) return 0
-    return (amount / fromRate) * toDefaultRate
+    const rate = rateBetween(rates, currency, defaultCurrency)
+    return rate === null ? 0 : amount * rate
   }
+  const withoutRate = rates
+    ? [...new Set([...(summary?.byCurrency ?? []), ...(monthlySummary?.byCurrency ?? [])]
+        .filter((c) => rateBetween(rates, c.currency, defaultCurrency) === null && (c.net !== 0 || c.income !== 0 || c.expense !== 0))
+        .map((c) => c.currency))]
+    : []
 
-  const totalBalance = summary && rates
+  const totalBalance = summary && rates && withoutRate.length === 0
     ? summary.byCurrency.reduce((acc, curr) => acc + convertToDefault(curr.net, curr.currency), 0)
     : null
 
@@ -118,6 +122,11 @@ export function DashboardPage() {
       {/* On phones the body is a white sheet sliding over the bottom of the ink header. */}
       <div className="relative -mx-4 -mt-5 rounded-t-[26px] bg-[var(--bg-elevated)] px-4 pt-5 lg:mx-0 lg:mt-6 lg:rounded-none lg:bg-transparent lg:px-0 lg:pt-0">
         <InboxNudge />
+        {withoutRate.length > 0 && (
+          <p role="status" className="mb-4 rounded-2xl bg-[var(--tint)] px-4 py-2.5 text-[13.5px] text-[var(--text-secondary)]">
+            No exchange rate between {defaultCurrency} and {withoutRate.join(', ')}, so {withoutRate.join(', ')} {withoutRate.length === 1 ? 'is' : 'are'} left out of these totals.
+          </p>
+        )}
 
         {!summaryQuery.isLoading && !hasFinanceData && (
           <section className="mb-8 rounded-3xl bg-[var(--tint)] px-5 py-6">

@@ -39,6 +39,7 @@ export default defineConfig({
           { text: 'Importing Data', link: '/guides/importing-data' },
           { text: 'Categories', link: '/guides/categories' },
           { text: 'Shared expenses', link: '/guides/shared-expenses' },
+          { text: 'Currencies', link: '/guides/currencies' },
         ],
       },
       {

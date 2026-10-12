@@ -537,7 +537,7 @@ invite needs a signed-in session. See the [guide](/guides/shared-expenses).
 | Method | Endpoint | Purpose |
 |---|---|---|
 | `GET` | `/api/split/me` | Your person id, totals owed to you / by you, unread activity, shared categories |
-| `PATCH` | `/api/split/me` | `defaultCurrency`, `activitySeen`, `booksStart` (earlier shared history becomes one opening balance) |
+| `PATCH` | `/api/split/me` | `defaultCurrency` (the same account-level setting as `/api/settings/currencies`), `activitySeen`, `booksStart` (earlier shared history becomes one opening balance) |
 | `GET` | `/api/split/balances` | Totals per currency |
 | `GET` / `POST` | `/api/split/friends` | Friends with balances / add a guest friend `{ name, email? }` |
 | `GET` / `PATCH` / `DELETE` | `/api/split/friends/:personId` | Breakdown by group / rename a guest you added / remove (only when settled) |
@@ -588,6 +588,19 @@ currency (`systemRole: "split"`). Both are read-only through `/api/transactions`
 `409 MANAGED_BY_SHARED` or `422 SYSTEM_WALLET`. Transaction lists include `sharedExpenseId` so clients can
 link to the shared expense. `splits` on `POST /api/transactions` was replaced by shared expenses and now
 returns `422 SPLITS_MOVED`.
+
+---
+
+## Currency settings
+
+Account-level currency setup, the same on every device. Reads work for any credential; writes need a session or a write-scoped key (read and propose keys get `403`). See the [guide](/guides/currencies).
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `GET` | `/api/settings/currencies` | `{ defaultCurrency, defaultIsExplicit, preferredCurrencies, updatedAt }`. Never creates wallets or shared-expense records |
+| `PATCH` | `/api/settings/currencies` | `{ defaultCurrency?, preferredCurrencies? }`. Codes are upper-cased and validated against the supported catalog (`422 UNSUPPORTED_CURRENCY`); the preferred list keeps order, drops duplicates and allows at most 20 (`422 TOO_MANY_PREFERRED_CURRENCIES`). All-or-nothing |
+| `GET` | `/api/currencies` | Supported currency catalog: `[{ code, name, precision }]` |
+| `POST` | `/api/assets/currency` | `{ code }`: ensures the currency's reference asset exists (needed to open a wallet in it). Creates no wallet |
 
 ---
 

@@ -6,6 +6,7 @@ import { MobileTabBar } from './MobileTabBar'
 import { QuickAddProvider } from '@/contexts/QuickAddContext'
 import { QuickAddSheet } from './QuickAddSheet'
 import { RouteErrorBoundary } from './RouteErrorBoundary'
+import { CurrencyGate } from './CurrencyGate'
 
 export function DashboardLayout() {
   return (
@@ -14,7 +15,9 @@ export function DashboardLayout() {
         <AppSidebar />
         <SidebarInset className="pb-tabbar lg:pb-0">
           <RouteErrorBoundary>
-            <Outlet />
+            <CurrencyGate>
+              <Outlet />
+            </CurrencyGate>
           </RouteErrorBoundary>
         </SidebarInset>
         <MobileTabBar />

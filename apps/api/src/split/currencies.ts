@@ -2,10 +2,21 @@ import { db, assets } from '@finance-os/db'
 import type { Dbx } from './core'
 import { eq } from 'drizzle-orm'
 
-const SUPPORTED = new Set<string>(
-  typeof Intl.supportedValuesOf === 'function' ? Intl.supportedValuesOf('currency') : ['EUR', 'USD'],
-)
+/** Units of account that nobody holds as money; never offered as a currency. */
+const NOT_CURRENCIES = new Set(['XDR', 'XSU'])
+export const SUPPORTED_CURRENCY_CODES: readonly string[] = (
+  typeof Intl.supportedValuesOf === 'function' ? Intl.supportedValuesOf('currency') : ['EUR', 'USD']
+).filter((c) => !NOT_CURRENCIES.has(c))
+const SUPPORTED = new Set<string>(SUPPORTED_CURRENCY_CODES)
 const names = new Intl.DisplayNames(['en'], { type: 'currency' })
+
+export function currencyName(code: string): string {
+  return names.of(code) ?? code
+}
+
+export function intlPrecision(code: string): number {
+  return new Intl.NumberFormat('en', { style: 'currency', currency: code }).resolvedOptions().maximumFractionDigits ?? 2
+}
 
 export function isSupportedCurrency(code: string): boolean {
   return /^[A-Z]{3}$/.test(code) && SUPPORTED.has(code)

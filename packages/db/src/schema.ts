@@ -309,3 +309,21 @@ export const listingPrices = pgTable('listing_prices', {
   listingPriceLatestIdx: index('listing_price_latest_idx').on(table.listingId, table.priceDate),
   listingPriceClosePositive: check('listing_price_close_positive', sql`${table.close} > 0`),
 }))
+
+/**
+ * Account-level currency setup, one row per user. `default_currency` is null until the user (or a
+ * confirmed browser-preference import) chooses one; the effective default then falls back to the
+ * legacy shared-expenses setting, then EUR. `preferred_currencies` is an ordered, deduplicated list
+ * of ISO codes shown first in pickers. Neither value creates wallets or converts any history.
+ */
+export const userCurrencySettings = pgTable('user_currency_settings', {
+  userId: varchar('user_id', { length: 255 }).primaryKey().references(() => users.id, { onDelete: 'cascade' }),
+  defaultCurrency: varchar('default_currency', { length: 3 }),
+  preferredCurrencies: varchar('preferred_currencies', { length: 3 }).array().notNull().default(sql`'{}'::varchar[]`),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  defaultCurrencyFormat: check('user_currency_default_format', sql`${table.defaultCurrency} IS NULL OR ${table.defaultCurrency} ~ '^[A-Z]{3}$'`),
+  preferredCurrenciesFormat: check('user_currency_preferred_format', sql`array_to_string(${table.preferredCurrencies}, ',') ~ '^([A-Z]{3}(,[A-Z]{3})*)?$'`),
+  preferredCurrenciesBound: check('user_currency_preferred_bound', sql`cardinality(${table.preferredCurrencies}) <= 20`),
+}))
