@@ -550,7 +550,7 @@ invite needs a signed-in session. See the [guide](/guides/shared-expenses).
 | `POST` | `/api/split/groups/:id/members` | Add a friend `{ personId }` or a new guest `{ name, email? }` |
 | `DELETE` | `/api/split/groups/:id/members/:personId` | Remove a member or leave (only when their group balance is zero) |
 | `GET` | `/api/split/groups/:id/export.csv` | CSV with one column per member |
-| `GET` | `/api/split/expenses` | `groupId`, `friendId`, `q`, `limit`, cursor `beforeDate` + `beforeId`, `includeDeleted` |
+| `GET` | `/api/split/expenses` | `groupId`, `friendId`, `q`, `limit`, cursor `beforeDate` + `beforeId`, `includeDeleted`, `repeating=true` (only expenses that will repeat) |
 | `POST` | `/api/split/expenses` | Create an expense or payment (below) |
 | `GET` / `PATCH` / `DELETE` | `/api/split/expenses/:id` | Read / update (send `version`; `409 VERSION_CONFLICT` if someone else saved first) / delete |
 | `POST` | `/api/split/expenses/:id/restore` | Undo a delete |
@@ -580,7 +580,8 @@ invite needs a signed-in session. See the [guide](/guides/shared-expenses).
 
 `paid` may also be `{ "kind": "multiple", "amounts": { "<person>": "50", "<person>": "30" } }`. `split` methods:
 `equal` (`personIds`), `exact` (`amounts`), `percent` (`percents`, must total 100), `shares` (`shares`) and
-`adjustment` (`personIds` + `adjustments` added on top of an equal split). A payment is
+`adjustment` (`personIds` + `adjustments` added on top of an equal split). `repeatInterval` is `never`, `weekly`,
+`fortnightly`, `monthly`, `quarterly` or `yearly`; reads return the next run as `nextRepeatAt`. A payment is
 `{ "kind": "payment", "cost": "40", "currency": "EUR", "date": "...", "payment": { "fromPersonId": "...", "toPersonId": "..." } }`.
 
 Each registered member gets a managed transaction per expense in their own books plus a system wallet per

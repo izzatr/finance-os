@@ -32,7 +32,7 @@ deletes its expenses; both come back if you restore the group.
   (extra amounts on top of an equal split). Amounts must add up to the total; leftover cents go to
   one person at a time so nothing is lost to rounding.
 - **Currency**: choose from the supported ISO currency catalog using the searchable picker; search by code or name. Available currencies do not depend on your personal wallets. Balances are kept per currency and editing an expense preserves its currency until you explicitly change it.
-- **Repeat**: weekly, every two weeks, monthly or yearly. A new copy appears on each date.
+- **Repeat**: weekly, every two weeks, monthly, every three months or yearly. A new copy appears on each date, with the same people, payer and split. Only the newest copy carries the schedule, so stopping the repeat on it stops the series. Dates past the end of a shorter month land on its last day. Everything that repeats is listed under **Repeating** on the Shared page with its next date.
 - Comments and a full activity history are shared with everyone involved.
 
 If two people edit the same expense at once, the second save is refused with a message instead of

@@ -202,15 +202,15 @@ Splitwise-style shared expenses with friends and groups. Read tools work with an
 | Tool | What it does |
 | --- | --- |
 | `finance_shared_balances` | What friends owe you and what you owe, per friend, per group and in total |
-| `finance_shared_expenses` | Shared expenses and payments, newest first; filter by group, friend or text |
+| `finance_shared_expenses` | Shared expenses and payments, newest first; filter by group, friend, text, or only those that repeat (with their next date) |
 | `finance_shared_groups` | Your groups and balances; name one for members and who owes whom |
 | `finance_shared_comments` | Comments on one shared expense |
 | `finance_add_friend` | Add a friend as a guest |
 | `finance_invite_friend` | Single-use invite link so a guest can sign up and take over their history |
 | `finance_create_group` | Create a group with friends |
 | `finance_add_group_member` | Add a friend to a group |
-| `finance_add_shared_expense` | Record a shared expense: equal split by default, or exact shares |
-| `finance_edit_shared_expense` | Change description, date, amount, category, notes, payer or shares |
+| `finance_add_shared_expense` | Record a shared expense: equal split by default, or exact shares; optionally repeat it weekly, every 2 weeks, monthly, quarterly or yearly |
+| `finance_edit_shared_expense` | Change description, date, amount, category, notes, payer, shares or repeat schedule |
 | `finance_delete_shared_expense` | Delete a shared expense or payment (restorable) |
 | `finance_restore_shared_expense` | Restore a deleted one |
 | `finance_comment_shared_expense` | Comment on a shared expense |
