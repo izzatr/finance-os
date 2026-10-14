@@ -232,6 +232,51 @@ describe('tool registry', () => {
       expect(calls.find((c) => c.method === 'PATCH')!.body).toMatchObject({ kind: 'payment', cost: '25', payment: { fromPersonId: 'p-1', toPersonId: 'p-me' } })
     })
 
+    it('add passes a repeat schedule and reports the next run', async () => {
+      stubFetch({ '/api/split/expenses/se-1': { data: { shares: [], me: null, repeatInterval: 'quarterly', nextRepeatAt: '2027-01-13T12:00:00.000Z' } } })
+      const r = await getTool('finance_add_shared_expense')!.execute(ctx('write'), {
+        date: '2026-10-13', description: 'Water bill', amount: '45.00', currency: 'EUR', withFriends: ['Sam'], paidBy: 'Sam', repeat: 'quarterly',
+      })
+      expect(calls.find((c) => c.method === 'POST')!.body).toMatchObject({ repeatInterval: 'quarterly', paid: { kind: 'single', personId: 'p-1' } })
+      expect(r).toMatchObject({ repeat: 'quarterly', nextRepeat: '2027-01-13' })
+    })
+
+    it('add without a repeat does not repeat', async () => {
+      await getTool('finance_add_shared_expense')!.execute(ctx('write'), { date: '2026-10-13', description: 'x', amount: '1', currency: 'EUR', withFriends: ['Sam'] })
+      expect(calls.find((c) => c.method === 'POST')!.body).toMatchObject({ repeatInterval: 'never' })
+    })
+
+    it('edit sets, keeps, or stops the repeat', async () => {
+      stubFetch({ [`/api/split/expenses/${U}`]: { data: { ...view, repeatInterval: 'monthly' } } })
+      await getTool('finance_edit_shared_expense')!.execute(ctx('write'), { id: U, repeat: 'quarterly' })
+      expect(calls.find((c) => c.method === 'PATCH')!.body).toMatchObject({ repeatInterval: 'quarterly' })
+      stubFetch({ [`/api/split/expenses/${U}`]: { data: { ...view, repeatInterval: 'monthly' } } })
+      await getTool('finance_edit_shared_expense')!.execute(ctx('write'), { id: U, notes: 'x' })
+      expect(calls.find((c) => c.method === 'PATCH')!.body).toMatchObject({ repeatInterval: 'monthly' })
+      stubFetch({ [`/api/split/expenses/${U}`]: { data: { ...view, repeatInterval: 'monthly' } } })
+      await getTool('finance_edit_shared_expense')!.execute(ctx('write'), { id: U, repeat: 'never' })
+      expect(calls.find((c) => c.method === 'PATCH')!.body).toMatchObject({ repeatInterval: 'never' })
+    })
+
+    it('a payment cannot be made to repeat', async () => {
+      stubFetch({ [`/api/split/expenses/${U}`]: { data: { ...view, kind: 'payment' } } })
+      await expect(getTool('finance_edit_shared_expense')!.execute(ctx('write'), { id: U, repeat: 'monthly' })).rejects.toThrow(/cannot repeat/)
+      expect(calls.some((c) => c.method === 'PATCH')).toBe(false)
+    })
+
+    it('lists only repeating expenses with their next date', async () => {
+      stubFetch({ '/api/split/expenses': { data: [
+        { ...view, id: 'r-1', repeatInterval: 'quarterly', nextRepeatAt: '2027-01-13T12:00:00.000Z' },
+      ] } })
+      const r = (await getTool('finance_shared_expenses')!.execute(ctx('read'), { repeatingOnly: true })) as Array<Record<string, unknown>>
+      expect(new URL(calls[0].url).searchParams.get('repeating')).toBe('true')
+      expect(r[0]).toMatchObject({ id: 'r-1', repeat: 'quarterly', nextRepeat: '2027-01-13' })
+      stubFetch({ '/api/split/expenses': { data: [view] } })
+      const plain = (await getTool('finance_shared_expenses')!.execute(ctx('read'), {})) as Array<Record<string, unknown>>
+      expect(plain[0]).not.toHaveProperty('repeat')
+      expect(new URL(calls[0].url).searchParams.has('repeating')).toBe(false)
+    })
+
     it('group creation resolves friend names', async () => {
       await getTool('finance_create_group')!.execute(ctx('write'), { name: 'Trip', type: 'trip', members: ['sam'] })
       expect(calls.find((c) => c.method === 'POST')!.body).toMatchObject({ name: 'Trip', groupType: 'trip', memberIds: ['p-1'] })

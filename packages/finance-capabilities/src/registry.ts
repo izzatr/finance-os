@@ -93,7 +93,7 @@ type Friend = { personId: string; name: string; isGuest: boolean; balances: Arra
 type SharedGroup = { id: string; name: string; myBalances: Array<{ currency: string; amount: string }> }
 type SharedExpenseView = {
   id: string; kind: 'expense' | 'payment'; groupId: string | null; description: string; cost: string; currency: string
-  date: string; category: string; notes: string | null; repeatInterval: string; version: number; deletedAt: string | null
+  date: string; category: string; notes: string | null; repeatInterval: string; nextRepeatAt?: string | null; version: number; deletedAt: string | null
   paidInput: Record<string, unknown> | null; splitInput: Record<string, unknown> | null
   shares: Array<{ personId: string; name: string; paid: string; owed: string }>; me: unknown
 }
@@ -106,6 +106,9 @@ type NewTransactionInput = {
   externalRef?: string
   entries: Array<{ walletId: string; assetId: string; amount: string }>
 }
+
+/** How often a shared expense repeats; mirrors REPEAT_INTERVALS in apps/api/src/split/expenses.ts. */
+const SHARED_REPEAT = z.enum(['never', 'weekly', 'fortnightly', 'monthly', 'quarterly', 'yearly'])
 
 // ── Name resolvers (agents speak names, the API speaks ids) ─────────────────
 
@@ -380,10 +383,12 @@ export const financeTools: FinanceTool[] = [
       groupName: z.string().optional().describe('Only this group'),
       friendName: z.string().optional().describe('Only expenses shared with this friend'),
       search: z.string().optional().describe('Text to look for in description or notes'),
+      repeatingOnly: z.boolean().optional().describe('Only expenses set to repeat (one per schedule: its latest copy)'),
       limit: z.number().int().min(1).max(100).optional().describe('How many (default 30)'),
     }),
     execute: async (ctx, args) => {
       const params = new URLSearchParams()
+      if (args.repeatingOnly === true) params.set('repeating', 'true')
       if (typeof args.groupName === 'string' && args.groupName) params.set('groupId', (await resolveGroup(ctx, args.groupName)).id)
       if (typeof args.friendName === 'string' && args.friendName) params.set('friendId', (await resolveFriend(ctx, args.friendName)).personId)
       if (typeof args.search === 'string' && args.search) params.set('q', args.search)
@@ -392,6 +397,7 @@ export const financeTools: FinanceTool[] = [
       return data.map((e) => ({
         id: e.id, date: String(e.date).slice(0, 10), kind: e.kind, description: e.description, cost: e.cost, currency: e.currency,
         group: e.groupName, category: e.category, shares: e.shares, mine: e.me,
+        ...(e.repeatInterval && e.repeatInterval !== 'never' ? { repeat: e.repeatInterval, nextRepeat: typeof e.nextRepeatAt === 'string' ? e.nextRepeatAt.slice(0, 10) : null } : {}),
       }))
     },
   },
@@ -607,6 +613,7 @@ export const financeTools: FinanceTool[] = [
       category: z.string().optional().describe('Shared category slug, e.g. groceries, dining, rent, hotel, transport (default general)'),
       notes: z.string().optional(),
       paidFromWallet: z.string().optional().describe('When you paid: the wallet name it came from, so your books show the payment'),
+      repeat: SHARED_REPEAT.optional().describe('Repeat it on this schedule from its date (quarterly = every 3 months); a copy is created automatically each period. Default never'),
     }),
     execute: async (ctx, args) => {
       requireWrite(ctx, 'record shared expenses')
@@ -634,13 +641,17 @@ export const financeTools: FinanceTool[] = [
         kind: 'expense', description: args.description, cost: args.amount, currency: String(args.currency).toUpperCase(),
         date: `${args.date}T12:00:00.000Z`, category: args.category ?? 'general', notes: args.notes ?? null,
         groupId: group?.id ?? null, paid: { kind: 'single', personId: payer }, split,
+        repeatInterval: (args.repeat as string | undefined) ?? 'never',
       }
       if (typeof args.paidFromWallet === 'string' && args.paidFromWallet && payer === me) {
         body.myBooks = { fundingWalletId: (await resolveWallet(ctx, args.paidFromWallet)).id }
       }
       const { data } = await request<{ data: { id: string } }>(ctx, '/api/split/expenses', { method: 'POST', body })
-      const { data: view } = await request<{ data: { me: unknown; shares: unknown } }>(ctx, `/api/split/expenses/${data.id}`)
-      return { status: 'recorded', id: data.id, shares: view.shares, mine: view.me }
+      const { data: view } = await request<{ data: { me: unknown; shares: unknown; repeatInterval?: string; nextRepeatAt?: string | null } }>(ctx, `/api/split/expenses/${data.id}`)
+      return {
+        status: 'recorded', id: data.id, shares: view.shares, mine: view.me,
+        ...(view.repeatInterval && view.repeatInterval !== 'never' ? { repeat: view.repeatInterval, nextRepeat: view.nextRepeatAt?.slice(0, 10) ?? null } : {}),
+      }
     },
   },
   {
@@ -731,7 +742,7 @@ export const financeTools: FinanceTool[] = [
   },
   {
     name: 'finance_edit_shared_expense',
-    description: 'Change a shared expense or payment by id (from finance_shared_expenses): description, date, amount, category, notes, who paid, or exact shares. An equal/percent/shares split re-splits a new amount automatically. Requires a write-scoped credential.',
+    description: 'Change a shared expense or payment by id (from finance_shared_expenses): description, date, amount, category, notes, who paid, exact shares, or its repeat schedule. An equal/percent/shares split re-splits a new amount automatically. Requires a write-scoped credential.',
     kind: 'write',
     schema: z.object({
       id: z.string().uuid(),
@@ -742,6 +753,7 @@ export const financeTools: FinanceTool[] = [
       notes: z.string().nullable().optional(),
       paidBy: z.string().optional().describe('Friend name or "me" (expenses only)'),
       shares: z.record(z.string(), z.string()).optional().describe('Exact amount owed per name ("me" for yourself); replaces the split'),
+      repeat: SHARED_REPEAT.optional().describe('Set or change the repeat schedule (never stops it). Expenses only'),
     }),
     execute: async (ctx, args) => {
       requireWrite(ctx, 'edit shared expenses')
@@ -754,8 +766,9 @@ export const financeTools: FinanceTool[] = [
         kind: v.kind, groupId: v.groupId, currency: v.currency, cost, version: v.version,
         date: typeof args.date === 'string' ? `${args.date}T12:00:00.000Z` : v.date,
         notes: args.notes !== undefined ? args.notes : v.notes,
-        repeatInterval: v.repeatInterval,
+        repeatInterval: (args.repeat as string | undefined) ?? v.repeatInterval,
       }
+      if (v.kind === 'payment' && args.repeat !== undefined && args.repeat !== 'never') throw new ToolError('Payments cannot repeat')
       if (v.kind === 'payment') {
         const from = v.shares.find((s) => Number(s.paid) > 0)
         const to = v.shares.find((s) => Number(s.owed) > 0)
@@ -779,7 +792,10 @@ export const financeTools: FinanceTool[] = [
       }
       await request(ctx, `/api/split/expenses/${args.id}`, { method: 'PATCH', body })
       const { data: after } = await request<{ data: SharedExpenseView }>(ctx, `/api/split/expenses/${args.id}`)
-      return { status: 'updated', id: args.id, cost: after.cost, currency: after.currency, shares: after.shares, mine: after.me }
+      return {
+        status: 'updated', id: args.id, cost: after.cost, currency: after.currency, shares: after.shares, mine: after.me,
+        ...(after.repeatInterval && after.repeatInterval !== 'never' ? { repeat: after.repeatInterval, nextRepeat: after.nextRepeatAt?.slice(0, 10) ?? null } : {}),
+      }
     },
   },
   {
