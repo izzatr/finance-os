@@ -17,6 +17,7 @@ import { useSharedCategoryIcon } from '@/hooks/use-category-icons'
 import { formatAmount, isZeroAmount } from '@/lib/split'
 import { relativeTime } from '@/lib/splitActivity'
 import { ExpenseSheet, REPEAT_OPTIONS } from '@/components/shared/ExpenseSheet'
+import { shortDate } from '@/components/shared/ExpenseFeed'
 import { SettleUpSheet } from '@/components/shared/SettleUpSheet'
 import { Avatar, ErrorText, dangerButton, fieldClass, secondaryButton } from '@/components/shared/ui'
 
@@ -133,7 +134,7 @@ export function ExpensePage() {
               <div className="flex justify-between gap-3"><dt className="text-[var(--text-tertiary)]">Category</dt><dd className="text-right font-semibold">{category?.label ?? e.category}</dd></div>
             )}
             {e.repeatInterval !== 'never' && (
-              <div className="flex justify-between gap-3"><dt className="text-[var(--text-tertiary)]">Repeats</dt><dd className="flex items-center gap-1 font-semibold"><Repeat className="size-3.5" />{REPEAT_OPTIONS.find((r) => r.value === e.repeatInterval)?.label}</dd></div>
+              <div className="flex justify-between gap-3"><dt className="text-[var(--text-tertiary)]">Repeats</dt><dd className="flex flex-wrap items-center justify-end gap-x-1 text-right font-semibold"><Repeat className="size-3.5" />{REPEAT_OPTIONS.find((r) => r.value === e.repeatInterval)?.label}{e.nextRepeatAt && !e.deletedAt && <span className="font-normal text-[var(--text-secondary)]">· next {shortDate(e.nextRepeatAt)}</span>}</dd></div>
             )}
             {e.myBooks && (
               <div className="flex justify-between gap-3">

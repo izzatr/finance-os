@@ -160,4 +160,14 @@ describe('ExpenseSheet', () => {
       myBooks: { fundingWalletId: null, linkedTransactionId: null, categoryId: null },
     })
   })
+  it('saves an every-3-months repeat', async () => {
+    const user = userEvent.setup()
+    renderSheet()
+    await user.type(await screen.findByLabelText('Description'), 'Phone plan')
+    await user.type(screen.getByLabelText('Amount'), '40')
+    await user.click(screen.getByRole('combobox', { name: 'Repeat' }))
+    await user.click(await screen.findByRole('option', { name: 'Every 3 months' }))
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(createSharedExpense).toHaveBeenCalledWith(expect.objectContaining({ description: 'Phone plan', repeatInterval: 'quarterly' })))
+  })
 })

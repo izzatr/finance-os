@@ -40,6 +40,7 @@ export const REPEAT_OPTIONS: Array<{ value: RepeatInterval; label: string }> = [
   { value: 'weekly', label: 'Every week' },
   { value: 'fortnightly', label: 'Every 2 weeks' },
   { value: 'monthly', label: 'Every month' },
+  { value: 'quarterly', label: 'Every 3 months' },
   { value: 'yearly', label: 'Every year' },
 ]
 

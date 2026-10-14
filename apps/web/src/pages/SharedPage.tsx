@@ -10,6 +10,7 @@ import { formatAmount } from '@/lib/split'
 import { ActivityFeed } from '@/components/shared/ActivityFeed'
 import { AddFriendDialog, CreateGroupSheet, GROUP_TYPES, SharedSettingsSheet } from '@/components/shared/SharedDialogs'
 import { ExpenseSheet } from '@/components/shared/ExpenseSheet'
+import { RepeatingExpenses } from '@/components/shared/RepeatingExpenses'
 import { SettleUpSheet } from '@/components/shared/SettleUpSheet'
 import { Avatar, EmptyState, ErrorText, FriendBalance, MyBalance, secondaryButton } from '@/components/shared/ui'
 
@@ -178,6 +179,8 @@ export function SharedPage() {
           <button type="button" onClick={() => setSettling(true)} className={`${secondaryButton} mt-2.5 w-full`}>Settle up</button>
         )}
       </section>
+
+      <RepeatingExpenses mePersonId={me?.personId} />
 
       <div role="tablist" aria-label="Shared sections" className="sticky top-0 z-10 -mx-4 mb-3 flex gap-1.5 bg-[var(--bg-base)] px-4 py-2 lg:-mx-8 lg:px-8">
         {(['friends', 'groups', 'activity'] as const).map((t) => (

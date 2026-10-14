@@ -715,7 +715,7 @@ export function parseTransactionText(text: string) {
 
 export type Money = { currency: string; amount: string }
 export type SharedCategory = { slug: string; label: string; group: string; icon?: string | null }
-export type RepeatInterval = 'never' | 'weekly' | 'fortnightly' | 'monthly' | 'yearly'
+export type RepeatInterval = 'never' | 'weekly' | 'fortnightly' | 'monthly' | 'quarterly' | 'yearly'
 export type GroupType = 'home' | 'trip' | 'couple' | 'other'
 
 export type SplitMe = {
@@ -793,6 +793,8 @@ export type SharedExpense = {
   splitInput: import('./split').SplitInput | null
   paidInput: import('./split').PaidInput | null
   repeatInterval: RepeatInterval
+  /** When the next copy will be created; null when it does not repeat. */
+  nextRepeatAt: string | null
   shares: SplitShare[]
   createdBy: { personId: string; name: string }
   updatedBy: { personId: string; name: string } | null
@@ -944,8 +946,9 @@ export function splitGroupExportUrl(groupId: string) {
 
 export type ExpenseCursor = { date: string; id: string }
 
-export function getSharedExpenses(params: { groupId?: string; friendId?: string; q?: string; before?: ExpenseCursor; limit?: number; includeDeleted?: boolean }) {
+export function getSharedExpenses(params: { groupId?: string; friendId?: string; q?: string; before?: ExpenseCursor; limit?: number; includeDeleted?: boolean; repeating?: boolean }) {
   const sp = new URLSearchParams()
+  if (params.repeating) sp.set('repeating', 'true')
   if (params.groupId) sp.set('groupId', params.groupId)
   if (params.friendId) sp.set('friendId', params.friendId)
   if (params.q) sp.set('q', params.q)

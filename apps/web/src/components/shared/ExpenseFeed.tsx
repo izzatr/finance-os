@@ -13,6 +13,12 @@ function monthLabel(iso: string, now = new Date()) {
   return d.toLocaleDateString('en-GB', { month: 'long', ...(d.getUTCFullYear() !== now.getFullYear() ? { year: 'numeric' } : {}), timeZone: 'UTC' })
 }
 
+/** "13 Jan" this year, "13 Jan 2027" otherwise. Dates are calendar days stored at 12:00 UTC. */
+export function shortDate(iso: string, now = new Date()) {
+  const d = new Date(`${iso.slice(0, 10)}T12:00:00Z`)
+  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', ...(d.getUTCFullYear() !== now.getFullYear() ? { year: 'numeric' } : {}), timeZone: 'UTC' })
+}
+
 /** One line about who paid ("You paid €30.00", "Ana and Bo paid €30.00"). */
 export function payerLine(e: SharedExpense, mePersonId: string | undefined): string {
   if (e.kind === 'payment') {

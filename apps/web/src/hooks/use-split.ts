@@ -11,6 +11,7 @@ export const splitKeys = {
   deletedGroups: ['split', 'groups', 'deleted'] as const,
   group: (id: string) => ['split', 'group', id] as const,
   expenses: (filters: { groupId?: string; friendId?: string; q?: string }) => ['split', 'expenses', filters] as const,
+  repeating: ['split', 'expenses', 'repeating'] as const,
   expense: (id: string) => ['split', 'expense', id] as const,
   comments: (id: string) => ['split', 'comments', id] as const,
   activity: ['split', 'activity'] as const,
