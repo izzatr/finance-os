@@ -136,7 +136,7 @@ export const splitExpenses = pgTable('split_expenses', {
     .on(table.createdByPersonId, table.externalRef)
     .where(sql`external_ref IS NOT NULL`),
   splitExpenseCostPositive: check('split_expense_cost_positive', sql`cost > 0`),
-  splitExpenseRepeatValid: check('split_expense_repeat_valid', sql`repeat_interval IN ('never','weekly','fortnightly','monthly','yearly')`),
+  splitExpenseRepeatValid: check('split_expense_repeat_valid', sql`repeat_interval IN ('never','weekly','fortnightly','monthly','quarterly','yearly')`),
 }))
 
 export const splitExpenseShares = pgTable('split_expense_shares', {

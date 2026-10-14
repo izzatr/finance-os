@@ -148,6 +148,13 @@
       "when": 1791826613302,
       "tag": "0020_account_currency_settings",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1792014650799,
+      "tag": "0021_split_quarterly_repeat",
+      "breakpoints": true
     }
   ]
 }

@@ -486,6 +486,7 @@ export function registerSplitRoutes(app: OpenAPIHono) {
         beforeId: uuid.optional(),
         limit: z.coerce.number().int().min(1).max(100).optional(),
         includeDeleted: z.enum(['true', 'false']).optional(),
+        repeating: z.enum(['true', 'false']).optional(),
       }),
     },
     responses: ok('Expenses and payments you can see, newest first (cursor pagination)'),
@@ -499,6 +500,7 @@ export function registerSplitRoutes(app: OpenAPIHono) {
         before: q.beforeDate && q.beforeId ? { date: q.beforeDate, id: q.beforeId } : undefined,
         limit: q.limit ?? 30,
         includeDeleted: q.includeDeleted === 'true',
+        repeating: q.repeating === 'true',
       })
       return c.json(result, 200)
     } catch (err) {

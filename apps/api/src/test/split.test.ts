@@ -618,6 +618,55 @@ describe('shared expenses: security review regressions', () => {
     }
   })
 
+  it('repeats quarterly: the copy lands three months later and the schedule is listable', async () => {
+    const a = await createTestUser(app)
+    const meA = await me(app, a)
+    const sam = await addGuest(app, a, 'Sam')
+    const start = new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 13, 12))
+    const r = await expense(a, { description: 'Water bill', cost: '45.00', category: 'utilities', date: start.toISOString(), repeatInterval: 'quarterly', paid: { kind: 'single', personId: sam }, split: { method: 'equal', personIds: [meA.personId, sam] } })
+    expect(r.status, JSON.stringify(r.body)).toBe(201)
+    await expense(a, { description: 'One-off', cost: '5', paid: { kind: 'single', personId: meA.personId }, split: { method: 'equal', personIds: [meA.personId, sam] } })
+
+    const expected = new Date(start)
+    expected.setUTCMonth(expected.getUTCMonth() + 3)
+    const view = (await api(app, a).get(`/api/split/expenses/${r.body.data.id}`)).body.data
+    expect(view.repeatInterval).toBe('quarterly')
+    expect(view.nextRepeatAt).toBe(expected.toISOString())
+    const repeating = (await api(app, a).get('/api/split/expenses?repeating=true')).body.data
+    expect(repeating.map((e: any) => e.description)).toEqual(['Water bill'])
+
+    const { materializeDueSplitExpenses } = await import('../split/recurring')
+    expect((await materializeDueSplitExpenses(new Date(start.getTime() + 60 * 86_400_000))).created).toBe(0)
+    expect((await materializeDueSplitExpenses(new Date(expected.getTime() + 1000))).created).toBe(1)
+    const list = (await api(app, a).get('/api/split/expenses?q=Water')).body.data
+    expect(list.map((e: any) => [e.date, e.repeatInterval, e.cost])).toEqual([
+      [expected.toISOString(), 'quarterly', '45.00'],
+      [start.toISOString(), 'never', '45.00'],
+    ])
+    expect(list[0].shares.find((s: any) => s.personId === sam).paid).toBe('45.00')
+    expect(list[0].me.owed).toBe('22.50')
+    // Only the newest copy carries the schedule, so the repeating list still shows one entry.
+    expect((await api(app, a).get('/api/split/expenses?repeating=true')).body.data).toHaveLength(1)
+  })
+
+  it('switching a repeat off clears the next run', async () => {
+    const a = await createTestUser(app)
+    const meA = await me(app, a)
+    const g = await addGuest(app, a, 'G')
+    const e = await expense(a, { description: 'Phone', cost: '20', repeatInterval: 'monthly', paid: { kind: 'single', personId: meA.personId }, split: { method: 'equal', personIds: [meA.personId, g] } })
+    const body = { kind: 'expense', currency: 'EUR', date: future(), description: 'Phone', cost: '20', version: 1, repeatInterval: 'never', paid: { kind: 'single', personId: meA.personId }, split: { method: 'equal', personIds: [meA.personId, g] } }
+    expect((await api(app, a).patch(`/api/split/expenses/${e.body.data.id}`, body)).status).toBe(200)
+    const view = (await api(app, a).get(`/api/split/expenses/${e.body.data.id}`)).body.data
+    expect([view.repeatInterval, view.nextRepeatAt]).toEqual(['never', null])
+  })
+
+  it('rejects an unknown repeat interval', async () => {
+    const a = await createTestUser(app)
+    const meA = await me(app, a)
+    const r = await expense(a, { description: 'x', cost: '1', repeatInterval: 'hourly', paid: { kind: 'single', personId: meA.personId }, split: { method: 'equal', personIds: [meA.personId] } })
+    expect(r.status).toBe(400)
+  })
+
   it('an old repeating expense makes one copy, not a backlog', async () => {
     const a = await createTestUser(app)
     const meA = await me(app, a)

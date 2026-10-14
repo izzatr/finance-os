@@ -1,0 +1,2 @@
+ALTER TABLE "split_expenses" DROP CONSTRAINT "split_expense_repeat_valid";--> statement-breakpoint
+ALTER TABLE "split_expenses" ADD CONSTRAINT "split_expense_repeat_valid" CHECK (repeat_interval IN ('never','weekly','fortnightly','monthly','quarterly','yearly'));

@@ -32,7 +32,7 @@ import { computeShares, fromMinor, pairwiseDebts, SplitMathError, toMinor, valid
 import { ensureCurrencyAsset, getAssetById } from './currencies'
 import { isSharedCategory } from './categories'
 
-export const REPEAT_INTERVALS = ['never', 'weekly', 'fortnightly', 'monthly', 'yearly'] as const
+export const REPEAT_INTERVALS = ['never', 'weekly', 'fortnightly', 'monthly', 'quarterly', 'yearly'] as const
 export type RepeatInterval = typeof REPEAT_INTERVALS[number]
 
 export type MyBooksInput = {
@@ -93,14 +93,19 @@ export function nextRepeat(from: Date, interval: RepeatInterval): Date | null {
   const d = new Date(from)
   if (interval === 'weekly') d.setUTCDate(d.getUTCDate() + 7)
   else if (interval === 'fortnightly') d.setUTCDate(d.getUTCDate() + 14)
-  else if (interval === 'monthly') {
-    const day = d.getUTCDate()
-    d.setUTCDate(1)
-    d.setUTCMonth(d.getUTCMonth() + 1)
-    const last = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate()
-    d.setUTCDate(Math.min(day, last))
-  } else if (interval === 'yearly') d.setUTCFullYear(d.getUTCFullYear() + 1)
+  else if (interval === 'monthly') addMonthsClamped(d, 1)
+  else if (interval === 'quarterly') addMonthsClamped(d, 3)
+  else if (interval === 'yearly') addMonthsClamped(d, 12)
   return d
+}
+
+/** Moves a date forward whole months, keeping the day but clamping to the target month's end (31 Jan + 1 = 28/29 Feb). */
+function addMonthsClamped(d: Date, months: number) {
+  const day = d.getUTCDate()
+  d.setUTCDate(1)
+  d.setUTCMonth(d.getUTCMonth() + months)
+  const last = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate()
+  d.setUTCDate(Math.min(day, last))
 }
 
 /** Validates the input, computes shares and checks the actor may involve everyone listed. */
@@ -565,6 +570,7 @@ export async function loadExpenseViews(me: Me, ids: string[]) {
     splitInput: splitExpenses.splitInput,
     paidInput: splitExpenses.paidInput,
     repeatInterval: splitExpenses.repeatInterval,
+    nextRepeatAt: splitExpenses.nextRepeatAt,
     createdBy: splitExpenses.createdByPersonId,
     updatedBy: splitExpenses.updatedByPersonId,
     createdAt: splitExpenses.createdAt,
@@ -616,6 +622,7 @@ export async function loadExpenseViews(me: Me, ids: string[]) {
       splitInput: r.splitInput,
       paidInput: r.paidInput,
       repeatInterval: r.repeatInterval,
+      nextRepeatAt: r.nextRepeatAt ? r.nextRepeatAt.toISOString() : null,
       shares: myShares.map((s) => ({ personId: s.personId, name: s.name, isGuest: s.isGuest, paid: fmt(s.paid), owed: fmt(s.owed) })),
       createdBy: { personId: r.createdBy, name: persons.get(r.createdBy)?.displayName ?? 'Someone' },
       updatedBy: r.updatedBy ? { personId: r.updatedBy, name: persons.get(r.updatedBy)?.displayName ?? 'Someone' } : null,
@@ -660,10 +667,13 @@ export async function listExpenses(me: Me, filters: {
   before?: { date: string; id: string }
   limit: number
   includeDeleted?: boolean
+  /** Only expenses that will repeat (the latest copy of each schedule). */
+  repeating?: boolean
 }) {
   const conds: SQL[] = [visibleCondition(me.personId)]
   if (!filters.includeDeleted) conds.push(isNull(splitExpenses.deletedAt))
   if (filters.groupId) conds.push(eq(splitExpenses.groupId, filters.groupId))
+  if (filters.repeating) conds.push(sql`${splitExpenses.repeatInterval} <> 'never'`)
   if (filters.friendId) {
     conds.push(sql`EXISTS (SELECT 1 FROM split_expense_shares s WHERE s.expense_id = ${splitExpenses.id} AND s.person_id = ${filters.friendId})`)
     conds.push(sql`EXISTS (SELECT 1 FROM split_expense_shares s WHERE s.expense_id = ${splitExpenses.id} AND s.person_id = ${me.personId})`)
