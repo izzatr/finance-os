@@ -87,7 +87,8 @@ const KEYS_WHOLE: KeypadKey[] = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0
 const pillClass =
   'relative inline-flex h-9 max-w-[46%] items-center gap-1.5 rounded-full bg-[var(--tint)] px-3 text-[13px] font-semibold text-[var(--text-primary)] focus-within:outline-2 focus-within:outline-[var(--ink)]'
 
-export function QuickAddSheet() {
+/** `pageWalletId`: the wallet whose page is open. Entries made there belong to it, not to the last-used one. */
+export function QuickAddSheet({ pageWalletId }: { pageWalletId?: string } = {}) {
   const { isOpen, closeQuickAdd } = useQuickAdd()
   const { defaultCurrency, pickerTop } = useCurrencySettings()
   const qc = useQueryClient()
@@ -127,9 +128,13 @@ export function QuickAddSheet() {
   // System wallets (Friends · EUR) are never written directly, so they are not offered here.
   const loadedWallets = walletsQuery.data?.data ?? []
   const wallets = pickableWallets([...loadedWallets, ...(createdWallet && !loadedWallets.some((w) => w.id === createdWallet.id) ? [createdWallet] : [])])
-  // Picked wallet, else the one used last time, else the first. Derived, so no sync effect.
+  // Picked wallet, else the wallet page you're on, else the one used last time, else the first. Derived, so no sync effect.
   const remembered = isOpen ? readRememberedWallet() : null
-  const preferredWallet = wallets.find((w) => w.id === walletId) ?? wallets.find((w) => w.id === remembered) ?? wallets[0]
+  const preferredWallet =
+    wallets.find((w) => w.id === walletId) ??
+    wallets.find((w) => w.id === pageWalletId) ??
+    wallets.find((w) => w.id === remembered) ??
+    wallets[0]
   // A wallet's currency wins; with no wallet yet the account default applies (never a hard-coded one).
   const currency = currencyCode ?? preferredWallet?.currency ?? defaultCurrency
   const wallet: Wallet | undefined = preferredWallet?.currency === currency ? preferredWallet : wallets.find((w) => w.currency === currency)
@@ -307,7 +312,7 @@ export function QuickAddSheet() {
         <div data-slot="sheet-body" className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5">
         <SheetHeader className="p-0">
           <SheetTitle className="sr-only">Add transaction</SheetTitle>
-          <div className="flex rounded-xl bg-[var(--tint)] p-[3px]" role="tablist" aria-label="Transaction type">
+          <div className="flex rounded-full bg-[var(--tint)] p-[3px]" role="tablist" aria-label="Transaction type">
             {(['expense', 'income'] as const).map((k) => (
               <button
                 key={k}
@@ -315,7 +320,7 @@ export function QuickAddSheet() {
                 role="tab"
                 aria-selected={kind === k}
                 onClick={() => { setKind(k); setCategoryId(null); setSplitOpen(false); setSplitFriendIds([]) }}
-                className={`h-9 flex-1 rounded-[9px] text-sm font-semibold capitalize transition-colors ${
+                className={`h-9 flex-1 rounded-full text-sm font-semibold capitalize transition-colors ${
                   kind === k ? 'bg-white text-[var(--text-primary)] shadow-[0_1px_3px_rgba(0,0,0,0.08)]' : 'text-[var(--text-tertiary)]'
                 }`}
               >

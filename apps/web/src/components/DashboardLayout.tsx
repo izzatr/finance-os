@@ -1,4 +1,4 @@
-import { Outlet } from 'react-router-dom'
+import { Outlet, useMatch } from 'react-router-dom'
 import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar'
 import { AppSidebar } from './AppSidebar'
 import { CommandPalette } from './CommandPalette'
@@ -9,6 +9,7 @@ import { RouteErrorBoundary } from './RouteErrorBoundary'
 import { CurrencyGate } from './CurrencyGate'
 
 export function DashboardLayout() {
+  const walletPage = useMatch('/wallets/:walletId')
   return (
     <QuickAddProvider>
       <SidebarProvider>
@@ -21,7 +22,7 @@ export function DashboardLayout() {
           </RouteErrorBoundary>
         </SidebarInset>
         <MobileTabBar />
-        <QuickAddSheet />
+        <QuickAddSheet pageWalletId={walletPage?.params.walletId} />
         <CommandPalette />
       </SidebarProvider>
     </QuickAddProvider>

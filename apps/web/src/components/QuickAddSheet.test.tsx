@@ -59,14 +59,14 @@ function OpenOnMount() {
   return null
 }
 
-function renderSheet(currency: Partial<ComponentProps<typeof CurrencyTestProvider>> = {}) {
+function renderSheet(currency: Partial<ComponentProps<typeof CurrencyTestProvider>> = {}, sheet: ComponentProps<typeof QuickAddSheet> = {}) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   const wrap = (ui: ReactNode) => (
     <QueryClientProvider client={qc}>
       <CurrencyTestProvider {...currency}><QuickAddProvider>{ui}</QuickAddProvider></CurrencyTestProvider>
     </QueryClientProvider>
   )
-  return { ...render(wrap(<><OpenOnMount /><QuickAddSheet /></>)), qc }
+  return { ...render(wrap(<><OpenOnMount /><QuickAddSheet {...sheet} /></>)), qc }
 }
 
 function setPointer(coarse: boolean) {
@@ -114,6 +114,23 @@ describe('QuickAddSheet', () => {
       categoryId: 'c-groc',
       description: 'Groceries',
       entries: [{ walletId: 'w-eur', assetId: 'a-eur', amount: '-42.18' }],
+    })
+  })
+
+  it('defaults to the wallet whose page is open over the remembered one', async () => {
+    setPointer(true)
+    localStorage.setItem('finance-os-quick-add-wallet', 'w-eur')
+    const user = userEvent.setup()
+    renderSheet({}, { pageWalletId: 'w-idr' })
+
+    await user.click(await screen.findByRole('button', { name: '5' }))
+    await waitFor(() => expect(screen.getAllByText('Rupiah cash').length).toBeGreaterThan(0))
+    await user.click(screen.getByRole('button', { name: 'Save expense' }))
+
+    await waitFor(() => expect(createTransaction).toHaveBeenCalledTimes(1))
+    expect(vi.mocked(createTransaction).mock.calls[0][0]).toMatchObject({
+      type: 'expense',
+      entries: [{ walletId: 'w-idr', assetId: 'a-idr', amount: '-5' }],
     })
   })
 
