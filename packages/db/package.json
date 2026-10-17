@@ -15,15 +15,15 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@better-auth/api-key": "~1.6.33",
-    "@better-auth/core": "~1.6.33",
-    "better-auth": "~1.6.33",
-    "drizzle-orm": "^0.45.2",
-    "pg": "^8.13.1"
+    "@better-auth/api-key": "~1.7.8",
+    "@better-auth/core": "~1.7.8",
+    "better-auth": "~1.7.8",
+    "drizzle-orm": "^0.45.4",
+    "pg": "^8.23.1"
   },
   "devDependencies": {
-    "drizzle-kit": "^0.31.10",
-    "tsx": "^4.19.2",
+    "drizzle-kit": "^0.31.11",
+    "tsx": "^4.23.15",
     "typescript": "^5.7.2"
   }
 }
