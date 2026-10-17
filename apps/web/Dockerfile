@@ -31,6 +31,8 @@ COPY --from=build /app/apps/web/dist /usr/share/nginx/html
 # so the api upstream stays configurable per environment.
 COPY apps/web/nginx.conf /etc/nginx/templates/default.conf.template
 ENV API_UPSTREAM=http://api:27032
+# fills ${NGINX_LOCAL_RESOLVERS} (used by `resolver` in nginx.conf) from /etc/resolv.conf at boot
+ENV NGINX_ENTRYPOINT_LOCAL_RESOLVERS=1
 
 EXPOSE 3000
 
