@@ -8,7 +8,7 @@ services:
       POSTGRES_USER: finance
       POSTGRES_PASSWORD: finance
     ports:
-      - "27033:5432"
+      - "127.0.0.1:27033:5432"
     volumes:
       - finance_os_postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -24,7 +24,7 @@ services:
     container_name: finance-os-api
     restart: unless-stopped
     ports:
-      - "27032:27032"
+      - "127.0.0.1:27032:27032"
     environment:
       DATABASE_URL: postgres://finance:finance@postgres:5432/finance_os
       PORT: "27032"
@@ -43,7 +43,7 @@ services:
     container_name: finance-os-web
     restart: unless-stopped
     ports:
-      - "27031:3000"
+      - "127.0.0.1:27031:3000"
     depends_on:
       - api
 
