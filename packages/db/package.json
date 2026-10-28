@@ -15,9 +15,9 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@better-auth/api-key": "~1.6.33",
-    "@better-auth/core": "~1.6.33",
-    "better-auth": "~1.6.33",
+    "@better-auth/api-key": "^1.7.7",
+    "@better-auth/core": "^1.7.7",
+    "better-auth": "^1.7.7",
     "drizzle-orm": "^0.45.2",
     "pg": "^8.13.1"
   },

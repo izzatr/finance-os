@@ -45,6 +45,11 @@ export const accounts = pgTable('accounts', {
   providerId: varchar('provider_id', { length: 255 }).notNull(),
   accessToken: text('access_token'),
   refreshToken: text('refresh_token'),
+  // Better Auth 1.7 validates the full account model at startup and refuses
+  // writes when these standard columns are missing.
+  idToken: text('id_token'),
+  accessTokenExpiresAt: timestamp('access_token_expires_at', { withTimezone: true }),
+  refreshTokenExpiresAt: timestamp('refresh_token_expires_at', { withTimezone: true }),
   expiresAt: timestamp('expires_at', { withTimezone: true }),
   scope: text('scope'),
   password: text('password'),
