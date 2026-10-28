@@ -14,7 +14,7 @@
     "@finance-os/db": "0.1.0",
     "@finance-os/domain": "0.1.0",
     "@finance-os/finance-capabilities": "0.1.0",
-    "@hono/node-server": "^1.19.14",
+    "@hono/node-server": "^2.1.5",
     "@hono/zod-openapi": "^0.18.4",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "dotenv": "^16.6.1",
