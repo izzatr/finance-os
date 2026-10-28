@@ -8,6 +8,13 @@ const minimumSeverity = 'high'
 // advisories. Keep the latest release and fail closed after the expiry date.
 const allowedAdvisories = new Map([
   [
+    // zod 3.x has no patched release (fixed only in 4.6.6). The API's
+    // @hono/zod-openapi 0.18 stack requires zod 3; moving it to zod 4 is a
+    // separate major migration. Request bodies are size-limited at the edge.
+    'https://github.com/advisories/GHSA-mrhx-c7xc-m3w5',
+    { expires: '2026-11-30', reason: 'No patched zod 3 release; zod 4 migration pending' },
+  ],
+  [
     'https://github.com/advisories/GHSA-qwww-vcr4-c8h2',
     { expires: '2026-08-15', reason: 'No patched React Router release is available' },
   ],
