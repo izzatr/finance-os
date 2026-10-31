@@ -5,7 +5,7 @@ import { fetchDailyRates } from './fetch-rates'
 import { generateWeeklyDigests } from './weekly-digest'
 import { bootstrapRatesIfEmpty } from './fetch-rates'
 import { drainClaimedDueListings } from '../portfolio/service'
-import { YahooMarketDataProvider } from '../portfolio/yahoo'
+import { createMarketDataProvider } from '../portfolio/market-data'
 
 /**
  * Hourly recurring-rule materialization (minute 7, to stay off the top-of-hour
@@ -53,7 +53,7 @@ export function startScheduler(): void {
 
   cron.schedule('17 * * * *', async () => {
     try {
-      const results = await drainClaimedDueListings(new YahooMarketDataProvider(), {
+      const results = await drainClaimedDueListings(createMarketDataProvider(), {
         concurrency: 5, batchSize: 200, maxBatches: 5, maxDurationMs: 5 * 60_000,
       })
       const failed = results.filter((result) => result.error).length

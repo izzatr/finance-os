@@ -1,9 +1,25 @@
-import { AlertTriangle, Plus, RefreshCw, Trash2 } from 'lucide-react'
-import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import { useState } from 'react'
+import { AlertTriangle, ChevronDown, Plus, RefreshCw, Trash2 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { SectionDivider } from './SectionDivider'
+import { HoldingPriceChart } from './HoldingPriceChart'
+
+export type InstrumentType = 'stock' | 'etf' | 'crypto' | 'commodity' | 'mutual_fund'
+
+const UNIT_LABEL: Record<InstrumentType, [string, string]> = {
+  stock: ['share', 'shares'],
+  etf: ['share', 'shares'],
+  mutual_fund: ['unit', 'units'],
+  crypto: ['coin', 'coins'],
+  commodity: ['oz', 'oz'],
+}
+
+function unitLabel(type: InstrumentType | undefined, quantity: number) {
+  const [one, many] = UNIT_LABEL[type ?? 'stock'] ?? UNIT_LABEL.stock
+  return quantity === 1 ? one : many
+}
 
 export type PortfolioHolding = {
   id: string
@@ -16,11 +32,15 @@ export type PortfolioHolding = {
     name: string
     exchange: string
     quoteCurrency: string
+    instrumentType?: InstrumentType
   }
   latestPrice: number | null
   nativeValue: number | null
   baseValue: number | null
   dailyChangePercent: number | null
+  costBaseValue?: number | null
+  unrealizedBase?: number | null
+  unrealizedPercent?: number | null
   priceAsOf: string | null
   priceSource: string | null
   priceStatus: 'fresh' | 'stale' | 'error' | 'missing'
@@ -33,11 +53,13 @@ export type PortfolioSummary = {
   totalBaseValue: number | null
   dailyChangeBase: number | null
   dailyChangePercent: number | null
+  totalCostBase?: number | null
+  totalUnrealizedBase?: number | null
+  totalUnrealizedPercent?: number | null
   asOf: string | null
   source: string | null
   status: 'fresh' | 'stale' | 'partial' | 'empty'
   holdings: PortfolioHolding[]
-  history: Array<{ date: string; value: number }>
 }
 
 type Props = {
@@ -82,11 +104,18 @@ function signedMoney(value: number, currency: string) {
   return `${value >= 0 ? '+' : '−'}${formatMoney(Math.abs(value), currency)}`
 }
 
+function signedPercent(value: number) {
+  return `${value >= 0 ? '+' : '−'}${Math.abs(value).toFixed(2)}%`
+}
+
 export function PortfolioSection({ portfolio, onAddHolding, onRefresh, onEditHolding, onDeleteHolding, refreshing }: Props) {
   const hasHoldings = portfolio.holdings.length > 0
   const movementPositive = (portfolio.dailyChangeBase ?? 0) >= 0
   const stale = portfolio.status === 'stale' || portfolio.status === 'partial'
   const totalBaseValue = portfolio.totalBaseValue
+  const [expanded, setExpanded] = useState<string | null>(null)
+  const totalReturn = portfolio.totalUnrealizedBase ?? null
+  const totalReturnPercent = portfolio.totalUnrealizedPercent ?? null
 
   return (
     <section aria-label="Investment portfolio" className="mb-14">
@@ -100,7 +129,12 @@ export function PortfolioSection({ portfolio, onAddHolding, onRefresh, onEditHol
               <p className="mt-2 font-mono text-3xl font-semibold tracking-tight">{totalBaseValue === null ? '—' : formatMoney(totalBaseValue, portfolio.baseCurrency)}</p>
               {portfolio.dailyChangeBase !== null && portfolio.dailyChangePercent !== null && (
                 <p className={`mt-1 font-mono text-xs ${movementPositive ? 'text-[var(--positive)]' : 'text-[var(--negative)]'}`}>
-                  {signedMoney(portfolio.dailyChangeBase, portfolio.baseCurrency)} · {portfolio.dailyChangePercent >= 0 ? '+' : ''}{portfolio.dailyChangePercent.toFixed(2)}%
+                  {signedMoney(portfolio.dailyChangeBase, portfolio.baseCurrency)} · {portfolio.dailyChangePercent >= 0 ? '+' : ''}{portfolio.dailyChangePercent.toFixed(2)}% today
+                </p>
+              )}
+              {totalReturn !== null && totalReturnPercent !== null && (
+                <p className={`mt-0.5 font-mono text-xs ${totalReturn >= 0 ? 'text-[var(--positive)]' : 'text-[var(--negative)]'}`}>
+                  {signedMoney(totalReturn, portfolio.baseCurrency)} · {signedPercent(totalReturnPercent)} since bought
                 </p>
               )}
               <p className="mt-2 text-xs text-muted-foreground">EOD prices · {portfolio.source ? portfolio.source[0].toUpperCase() + portfolio.source.slice(1) : 'Awaiting first refresh'} · {formatAge(portfolio.asOf)}</p>
@@ -132,24 +166,38 @@ export function PortfolioSection({ portfolio, onAddHolding, onRefresh, onEditHol
               {portfolio.holdings.map((holding) => {
                 const native = holding.nativeValue === null ? 'No price' : formatMoney(holding.nativeValue, holding.listing.quoteCurrency)
                 const showBase = holding.baseValue !== null && holding.listing.quoteCurrency !== portfolio.baseCurrency
+                const isOpen = expanded === holding.id
                 return (
-                  <article key={holding.id} className="group grid gap-3 px-5 py-4 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-center sm:px-7">
-                    <div className="min-w-0">
+                  <div key={holding.id}>
+                  <article className="group grid gap-3 px-5 py-4 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-center sm:px-7">
+                    <button
+                      type="button"
+                      aria-expanded={isOpen}
+                      aria-label={`${isOpen ? 'Hide' : 'Show'} ${holding.listing.symbol} price chart`}
+                      onClick={() => setExpanded(isOpen ? null : holding.id)}
+                      className="min-w-0 text-left"
+                    >
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="font-mono text-sm font-semibold">{holding.listing.symbol}</span>
+                        <ChevronDown className={`size-4 text-muted-foreground transition-transform ${isOpen ? 'rotate-180' : ''}`} />
                         <Badge variant="outline" className="text-[9px] uppercase tracking-wider">{holding.listing.exchange}</Badge>
                         {holding.priceStatus !== 'fresh' && <Badge variant="outline" className="border-amber-200 bg-amber-50 text-[9px] text-amber-800">{holding.priceStatus}</Badge>}
                       </div>
-                      <p className="mt-1 truncate text-xs text-muted-foreground">{holding.listing.name} · {holding.quantity.toLocaleString()} shares</p>
+                      <p className="mt-1 truncate text-xs text-muted-foreground">{holding.listing.name} · {holding.quantity.toLocaleString()} {unitLabel(holding.listing.instrumentType, holding.quantity)}</p>
                       {holding.priceError && <p className="mt-1 text-[11px] text-[var(--negative)]">{holding.priceError}</p>}
                       <p className="mt-1 text-[10px] text-muted-foreground">{holding.priceSource ? holding.priceSource[0].toUpperCase() + holding.priceSource.slice(1) : 'No source'} · {formatAge(holding.priceAsOf)}</p>
-                    </div>
+                    </button>
                     <div className="sm:text-right">
                       <p className="font-mono text-sm font-semibold tabular-nums">{native}</p>
                       {showBase && <p className="mt-0.5 font-mono text-[11px] text-muted-foreground">≈ {formatMoney(holding.baseValue!, portfolio.baseCurrency)}</p>}
                       {holding.dailyChangePercent !== null && (
                         <p className={`mt-0.5 font-mono text-[10px] ${holding.dailyChangePercent >= 0 ? 'text-[var(--positive)]' : 'text-[var(--negative)]'}`}>
-                          {holding.dailyChangePercent >= 0 ? '+' : ''}{holding.dailyChangePercent.toFixed(2)}%
+                          {holding.dailyChangePercent >= 0 ? '+' : ''}{holding.dailyChangePercent.toFixed(2)}% today
+                        </p>
+                      )}
+                      {holding.unrealizedPercent !== null && holding.unrealizedPercent !== undefined && holding.unrealizedBase !== null && holding.unrealizedBase !== undefined && (
+                        <p className={`mt-0.5 font-mono text-[10px] ${holding.unrealizedBase >= 0 ? 'text-[var(--positive)]' : 'text-[var(--negative)]'}`}>
+                          {signedMoney(holding.unrealizedBase, portfolio.baseCurrency)} · {signedPercent(holding.unrealizedPercent)} since bought
                         </p>
                       )}
                     </div>
@@ -158,32 +206,13 @@ export function PortfolioSection({ portfolio, onAddHolding, onRefresh, onEditHol
                       <Button aria-label={`Delete ${holding.listing.symbol}`} variant="ghost" size="icon-sm" onClick={() => onDeleteHolding(holding)} className="hover:text-[var(--negative)]"><Trash2 className="size-4" /></Button>
                     </div>
                   </article>
+                  {isOpen && <HoldingPriceChart listingId={holding.listing.id} symbol={holding.listing.symbol} averageCost={holding.averageCost} averageCostCurrency={holding.averageCostCurrency} />}
+                  </div>
                 )
               })}
             </div>
           )}
 
-          {portfolio.history.length > 1 && (
-            <div className="border-t border-border/60 px-4 pb-4 pt-6 sm:px-7">
-              <div className="h-52" aria-label="Portfolio history chart">
-                <ResponsiveContainer width="100%" height="100%" initialDimension={{ width: 800, height: 208 }}>
-                  <AreaChart data={portfolio.history} margin={{ top: 4, right: 4, bottom: 0, left: 4 }}>
-                    <defs><linearGradient id="portfolio-fill" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#0e1729" stopOpacity={0.25} /><stop offset="95%" stopColor="#0e1729" stopOpacity={0} /></linearGradient></defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#ede7dc" />
-                    <XAxis dataKey="date" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
-                    <YAxis tick={{ fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={(value) => formatMoney(Number(value), portfolio.baseCurrency, true)} width={70} />
-                    <Tooltip formatter={(value) => [formatMoney(Number(value), portfolio.baseCurrency), 'Portfolio']} contentStyle={{ fontSize: 12, borderRadius: 8 }} />
-                    <Area type="monotone" dataKey="value" stroke="#0e1729" strokeWidth={2.5} fill="url(#portfolio-fill)" />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-              <table className="sr-only">
-                <caption>Portfolio history in {portfolio.baseCurrency}</caption>
-                <thead><tr><th>Date</th><th>Value</th></tr></thead>
-                <tbody>{portfolio.history.map((point) => <tr key={point.date}><td>{point.date}</td><td>{point.value}</td></tr>)}</tbody>
-              </table>
-            </div>
-          )}
         </CardContent>
       </Card>
     </section>

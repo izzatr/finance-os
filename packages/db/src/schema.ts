@@ -212,7 +212,7 @@ export const assetPrices = pgTable('asset_prices', {
 export const instruments = pgTable('instruments', {
   id: uuid('id').defaultRandom().primaryKey(),
   name: varchar('name', { length: 255 }).notNull(),
-  type: varchar('type', { length: 20 }).notNull(), // stock|etf|crypto|commodity
+  type: varchar('type', { length: 20 }).notNull(), // stock|etf|crypto|commodity|mutual_fund
   isin: varchar('isin', { length: 12 }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (table) => ({

@@ -35,7 +35,7 @@ describe('AddHoldingDialog', () => {
 
     render(<AddHoldingDialog open onClose={() => {}} onSearch={onSearch} onSubmit={onSubmit} />)
 
-    await user.type(screen.getByLabelText(/search stocks and etfs/i), 'Bank Central Asia')
+    await user.type(screen.getByLabelText(/search stocks, etfs/i), 'Bank Central Asia')
     await user.click(screen.getByRole('button', { name: /^search$/i }))
 
     await waitFor(() => expect(onSearch).toHaveBeenCalledWith('Bank Central Asia'))
@@ -61,7 +61,7 @@ describe('AddHoldingDialog', () => {
     const onSubmit = vi.fn()
     render(<AddHoldingDialog open onClose={() => {}} onSearch={onSearch} onSubmit={onSubmit} />)
 
-    const search = screen.getByLabelText(/search stocks and etfs/i)
+    const search = screen.getByLabelText(/search stocks, etfs/i)
     await user.type(search, 'BBCA{Enter}')
     await waitFor(() => expect(onSearch).toHaveBeenCalledWith('BBCA'))
     const listing = await screen.findByRole('button', { name: /BBCA · Jakarta · IDR/i })
@@ -82,7 +82,7 @@ describe('AddHoldingDialog', () => {
 
     render(<AddHoldingDialog open onClose={() => {}} onSearch={onSearch} onSubmit={vi.fn()} />)
 
-    await user.type(screen.getByLabelText(/search stocks and etfs/i), 'BBCA')
+    await user.type(screen.getByLabelText(/search stocks, etfs/i), 'BBCA')
     await user.click(screen.getByRole('button', { name: /^search$/i }))
 
     expect(await screen.findByText(/temporarily unavailable/i)).toBeInTheDocument()

@@ -1,4 +1,5 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { PortfolioSection } from './PortfolioSection'
 
 describe('PortfolioSection', () => {
@@ -53,10 +54,9 @@ describe('PortfolioSection', () => {
         priceStatus: 'fresh' as const,
       },
     ],
-    history: [
-      { date: '2026-07-16', value: 5961.75 },
-      { date: '2026-07-17', value: 6037.25 },
-    ],
+    totalCostBase: 5600,
+    totalUnrealizedBase: 437.25,
+    totalUnrealizedPercent: 7.81,
   }
 
   it('renders the account total, daily movement, and international holdings', () => {
@@ -91,8 +91,27 @@ describe('PortfolioSection', () => {
   })
 
   it('renders a useful empty state', () => {
-    render(<PortfolioSection portfolio={{ ...portfolio, totalBaseValue: 0, holdings: [], history: [] }} onAddHolding={() => {}} onRefresh={() => {}} onEditHolding={() => {}} onDeleteHolding={() => {}} refreshing={false} />)
+    render(<PortfolioSection portfolio={{ ...portfolio, totalBaseValue: 0, holdings: [] }} onAddHolding={() => {}} onRefresh={() => {}} onEditHolding={() => {}} onDeleteHolding={() => {}} refreshing={false} />)
 
     expect(screen.getByText(/add your first holding/i)).toBeInTheDocument()
+  })
+
+  it('shows the return since purchase and opens a price chart per holding', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ data: { listingId: 'listing-bbca', currency: 'IDR', points: [
+      { date: '2026-07-15', close: 6200, currency: 'IDR' },
+      { date: '2026-07-16', close: 6475, currency: 'IDR' },
+    ] } }), { status: 200, headers: { 'content-type': 'application/json' } })))
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const withReturn = { ...portfolio, holdings: [{ ...portfolio.holdings[0], unrealizedBase: 26.5, unrealizedPercent: 8.55 }] }
+    render(<QueryClientProvider client={client}><PortfolioSection portfolio={withReturn} onAddHolding={() => {}} onRefresh={() => {}} onEditHolding={() => {}} onDeleteHolding={() => {}} refreshing={false} /></QueryClientProvider>)
+
+    expect(screen.getByText(/\+€437\.25 · \+7\.81% since bought/)).toBeInTheDocument()
+    expect(screen.getByText(/\+€26\.50 · \+8\.55% since bought/)).toBeInTheDocument()
+    expect(screen.getByText(/1,000 shares/)).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /show BBCA\.JK price chart/i }))
+    expect(await screen.findByLabelText('BBCA.JK price chart')).toBeInTheDocument()
+    expect(await screen.findByText(/\+4\.44% over 6M/)).toBeInTheDocument()
+    vi.unstubAllGlobals()
   })
 })

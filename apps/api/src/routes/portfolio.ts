@@ -5,7 +5,7 @@ import { holdingCreateSchema, holdingPatchSchema, marketSearchQuerySchema } from
 import { and, asc, desc, eq, isNull, lt, sql } from 'drizzle-orm'
 import { convertAmount, getLatestRates } from '../lib/fx'
 import { claimManualRefresh, claimManualRefreshBatch, listingIdsForWallet, refreshDueListings, refreshListing, refreshListings } from '../portfolio/service'
-import { YahooMarketDataProvider } from '../portfolio/yahoo'
+import { createMarketDataProvider } from '../portfolio/market-data'
 import type { MarketSearchResult } from '../portfolio/yahoo'
 
 const errorSchema = z.object({ error: z.object({ code: z.string(), message: z.string() }) })
@@ -21,7 +21,7 @@ function cachedYahooSearch(query: string, limit: number): Promise<MarketSearchRe
     for (const [cacheKey, entry] of yahooSearchCache) if (entry.expiresAt <= now) yahooSearchCache.delete(cacheKey)
     if (yahooSearchCache.size >= 500) yahooSearchCache.delete(yahooSearchCache.keys().next().value!)
   }
-  const promise = new YahooMarketDataProvider().search(query, limit)
+  const promise = createMarketDataProvider().search(query, limit)
     .catch((error) => { yahooSearchCache.delete(key); throw error })
   yahooSearchCache.set(key, { expiresAt: now + 60_000, promise })
   return promise
@@ -30,7 +30,7 @@ function cachedYahooSearch(query: string, limit: number): Promise<MarketSearchRe
 async function resolveYahooSymbol(symbol: string): Promise<MarketSearchResult> {
   const normalized = symbol.trim().toUpperCase()
   const exact = (await cachedYahooSearch(normalized, 25)).find((item) => item.providerSymbol.toUpperCase() === normalized)
-  if (!exact) throw new Error('Yahoo symbol was not found')
+  if (!exact) throw new Error('Symbol was not found')
   return exact
 }
 
@@ -92,7 +92,7 @@ export function registerPortfolioRoutes(app: OpenAPIHono) {
 
     const [knownMapping] = await db.select({ listingId: providerSymbols.listingId }).from(providerSymbols)
       .where(and(eq(providerSymbols.provider, 'yahoo'), eq(providerSymbols.symbol, input.providerSymbol))).limit(1)
-    let canonical: Awaited<ReturnType<YahooMarketDataProvider['resolveSymbol']>> | null = null
+    let canonical: MarketSearchResult | null = null
     if (!knownMapping) {
       try {
         canonical = await resolveYahooSymbol(input.providerSymbol)
@@ -184,7 +184,7 @@ export function registerPortfolioRoutes(app: OpenAPIHono) {
     if (!owns) return c.json({ error: { code: 'NOT_FOUND', message: 'Listing not found' } }, 404)
     const leaseOwner = await claimManualRefresh(id, c.get('user').id)
     if (!leaseOwner) return c.json({ error: { code: 'RATE_LIMITED', message: 'This listing was refreshed recently' } }, 429)
-    const result = await refreshListing(id, new YahooMarketDataProvider(), { leaseOwner })
+    const result = await refreshListing(id, createMarketDataProvider(), { leaseOwner })
     if (result.error) return c.json({ error: { code: 'PROVIDER_ERROR', message: result.error } }, 502)
     return c.json({ data: result }, 200)
   })
@@ -195,11 +195,34 @@ export function registerPortfolioRoutes(app: OpenAPIHono) {
     if (!await ownedWallet(c.get('user').id, id)) return c.json({ error: { code: 'NOT_FOUND', message: 'Wallet not found' } }, 404)
     const listingIds = await listingIdsForWallet(c.get('user').id, id)
     const claim = await claimManualRefreshBatch(listingIds, c.get('user').id)
-    return c.json({ data: await refreshListings(claim.ids, new YahooMarketDataProvider(), { leaseOwner: claim.leaseOwner }) }, 200)
+    return c.json({ data: await refreshListings(claim.ids, createMarketDataProvider(), { leaseOwner: claim.leaseOwner }) }, 200)
   })
 
   const refreshDueRoute = createRoute({ method: 'post', path: '/api/portfolio/refresh-due', tags: ['portfolio'], responses: { 200: { description: 'Refresh user due listings', content: { 'application/json': { schema: dataUnknown } } } } })
-  app.openapi(refreshDueRoute, async (c) => c.json({ data: await refreshDueListings(new YahooMarketDataProvider(), { userId: c.get('user').id }) }, 200))
+  app.openapi(refreshDueRoute, async (c) => c.json({ data: await refreshDueListings(createMarketDataProvider(), { userId: c.get('user').id }) }, 200))
+
+  const pricesRoute = createRoute({
+    method: 'get', path: '/api/portfolio/listings/{id}/prices', tags: ['portfolio'],
+    request: { params: z.object({ id: z.string().uuid() }), query: z.object({ from: z.string().date(), to: z.string().date() }).refine((v) => v.from <= v.to) },
+    responses: {
+      200: { description: 'Daily closing prices for a listing the user holds', content: { 'application/json': { schema: dataUnknown } } },
+      400: { description: 'Range too large', content: { 'application/json': { schema: errorSchema } } },
+      404: { description: 'Not found', content: { 'application/json': { schema: errorSchema } } },
+    },
+  })
+  app.openapi(pricesRoute, async (c) => {
+    const id = c.req.valid('param').id; const { from, to } = c.req.valid('query')
+    if ((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000 > 1830) return c.json({ error: { code: 'RANGE_TOO_LARGE', message: 'Price history is limited to five years' } }, 400)
+    const [owns] = await userHoldingRows(c.get('user').id, undefined, undefined, id)
+    if (!owns) return c.json({ error: { code: 'NOT_FOUND', message: 'Listing not found' } }, 404)
+    const rows = await db.execute<{ date: string; close: string; currency: string }>(sql`
+      SELECT DISTINCT ON (price_date) price_date::text AS "date", close::text, currency
+      FROM listing_prices
+      WHERE listing_id = ${id}::uuid AND price_date BETWEEN ${from}::date AND ${to}::date
+      ORDER BY price_date, updated_at DESC
+    `)
+    return c.json({ data: { listingId: id, currency: owns.currency, points: rows.rows.map((row) => ({ date: row.date, close: Number(row.close), currency: row.currency })) } }, 200)
+  })
 
   registerPortfolioValuationRoutes(app)
 }
@@ -236,8 +259,20 @@ function registerPortfolioValuationRoutes(app: OpenAPIHono) {
       const priceAge = price ? now - new Date(`${price.priceDate}T23:59:59Z`).getTime() : Infinity
       const priceStatus = !price ? 'missing' : row.refreshError ? 'error' : priceAge > 96 * 3_600_000 ? 'stale' : 'fresh'
       const dailyChangePercent = price && previous && Number(previous.close) !== 0 ? ((Number(price.close) - Number(previous.close)) / Number(previous.close)) * 100 : null
-      return { ...holdingResponse(row), price: price ? Number(price.close) : null, previousClose: previous ? Number(previous.close) : null, priceDate: price?.priceDate ?? null, nativeCurrency: price?.currency ?? row.currency, nativeValue, baseValue, previousBaseValue, dailyChangePercent, priceStatus }
+      // Cost basis = quantity x average cost, converted at today's rate, so the gain also
+      // reflects currency moves (e.g. gold priced in USD but bought with rupiah).
+      let costBaseValue: number | null = null
+      if (row.averageCost !== null && baseCurrency) {
+        try { costBaseValue = convertAmount(Number(row.quantity) * Number(row.averageCost), row.costCurrency ?? price?.currency ?? row.currency, baseCurrency, rates) } catch { costBaseValue = null }
+      }
+      const unrealizedBase = baseValue !== null && costBaseValue !== null ? baseValue - costBaseValue : null
+      const unrealizedPercent = unrealizedBase !== null && costBaseValue ? (unrealizedBase / costBaseValue) * 100 : null
+      return { ...holdingResponse(row), price: price ? Number(price.close) : null, previousClose: previous ? Number(previous.close) : null, priceDate: price?.priceDate ?? null, nativeCurrency: price?.currency ?? row.currency, nativeValue, baseValue, previousBaseValue, dailyChangePercent, costBaseValue, unrealizedBase, unrealizedPercent, priceStatus }
     })
+    const withCost = valued.filter((row) => row.costBaseValue !== null && row.baseValue !== null)
+    const totalCostBase = withCost.length ? withCost.reduce((sum, row) => sum + row.costBaseValue!, 0) : null
+    const totalUnrealizedBase = withCost.length ? withCost.reduce((sum, row) => sum + row.unrealizedBase!, 0) : null
+    const totalUnrealizedPercent = totalCostBase && totalUnrealizedBase !== null ? (totalUnrealizedBase / totalCostBase) * 100 : null
     const baseValues = valued.map((row) => row.baseValue)
     const totalBaseValue = valued.length > 0 && baseValues.every((value) => value !== null) ? baseValues.reduce<number>((sum, value) => sum + (value ?? 0), 0) : null
     const previousBaseValues = valued.map((row) => row.previousBaseValue)
@@ -248,7 +283,7 @@ function registerPortfolioValuationRoutes(app: OpenAPIHono) {
     const statuses = valued.map((row) => row.priceStatus)
     const status = valued.length === 0 ? 'empty' : statuses.every((value) => value === 'fresh') ? 'fresh' : statuses.every((value) => value === 'stale') ? 'stale' : 'partial'
     const asOf = rows.map((row) => row.lastSuccessAt?.toISOString() ?? null).filter(Boolean).sort().at(-1) ?? null
-    return c.json({ data: { baseCurrency, totalBaseValue, dailyChangeBase, dailyChangePercent, nativeTotals, asOf, source: 'yahoo', status, holdings: valued } }, 200)
+    return c.json({ data: { baseCurrency, totalBaseValue, dailyChangeBase, dailyChangePercent, totalCostBase, totalUnrealizedBase, totalUnrealizedPercent, costCoverage: { withCost: withCost.length, total: valued.length }, nativeTotals, asOf, source: 'yahoo', status, holdings: valued } }, 200)
   })
 
   const historyRoute = createRoute({ method: 'get', path: '/api/portfolio/history', tags: ['portfolio'], request: { query: query.extend({ from: z.string().date(), to: z.string().date() }).refine((v) => v.from <= v.to) }, responses: { 200: { description: 'Portfolio EOD history', content: { 'application/json': { schema: dataUnknown } } }, 400: { description: 'Range too large', content: { 'application/json': { schema: errorSchema } } } } })
