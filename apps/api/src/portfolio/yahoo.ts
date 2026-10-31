@@ -1,4 +1,4 @@
-export type InstrumentType = 'stock' | 'etf' | 'crypto' | 'commodity'
+export type InstrumentType = 'stock' | 'etf' | 'crypto' | 'commodity' | 'mutual_fund'
 
 // Yahoo quote types we can value from a daily close. Crypto pairs (BTC-EUR) and commodity
 // futures (GC=F gold, priced per troy ounce) sit beside stocks/ETFs so non-security

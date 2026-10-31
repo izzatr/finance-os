@@ -284,6 +284,44 @@ describe('portfolio API', () => {
     ])
   })
 
+  it('reports cost basis and unrealized gain against the average cost', async () => {
+    const { cookie } = await createTestUser(app)
+    const walletId = await wallet(cookie, 'European ETF')
+    const created = await addHolding(cookie, walletId, {
+      providerSymbol: 'VWCE.DE', name: 'Vanguard FTSE All-World UCITS ETF', instrumentType: 'etf', exchangeCode: 'XETR', exchangeName: 'XETRA',
+      mic: 'XETR', currency: 'EUR', timezone: 'Europe/Berlin', quantity: '2', averageCost: '120', costCurrency: 'EUR',
+    })
+    const holding = (await created.json() as { data: { listing: { id: string } } }).data
+    await db.insert(listingPrices).values([
+      { listingId: holding.listing.id, priceDate: '2026-07-16', close: '130', currency: 'EUR', source: 'yahoo' },
+      { listingId: holding.listing.id, priceDate: '2026-07-17', close: '150', currency: 'EUR', source: 'yahoo' },
+    ])
+    const res = await app.request(`/api/portfolio/summary?walletId=${walletId}&baseCurrency=EUR`, { headers: { cookie } })
+    const data = (await res.json() as { data: Record<string, unknown> & { holdings: Array<Record<string, unknown>> } }).data
+    expect(data).toMatchObject({ totalBaseValue: 300, totalCostBase: 240, totalUnrealizedBase: 60, totalUnrealizedPercent: 25, costCoverage: { withCost: 1, total: 1 } })
+    expect(data.holdings[0]).toMatchObject({ costBaseValue: 240, unrealizedBase: 60, unrealizedPercent: 25 })
+  })
+
+  it('returns daily closing prices only for listings the user holds', async () => {
+    const owner = await createTestUser(app)
+    const walletId = await wallet(owner.cookie)
+    const holding = (await (await addHolding(owner.cookie, walletId)).json() as { data: { listing: { id: string } } }).data
+    await db.insert(listingPrices).values([
+      { listingId: holding.listing.id, priceDate: '2026-07-14', close: '8900', currency: 'IDR', source: 'yahoo' },
+      { listingId: holding.listing.id, priceDate: '2026-07-15', close: '9000', currency: 'IDR', source: 'yahoo' },
+      { listingId: holding.listing.id, priceDate: '2026-07-16', close: '9100', currency: 'IDR', source: 'yahoo' },
+    ])
+    const res = await app.request(`/api/portfolio/listings/${holding.listing.id}/prices?from=2026-07-15&to=2026-07-16`, { headers: { cookie: owner.cookie } })
+    expect(res.status).toBe(200)
+    expect((await res.json() as { data: unknown }).data).toEqual({
+      listingId: holding.listing.id, currency: 'IDR',
+      points: [{ date: '2026-07-15', close: 9000, currency: 'IDR' }, { date: '2026-07-16', close: 9100, currency: 'IDR' }],
+    })
+    const stranger = await createTestUser(app)
+    const denied = await app.request(`/api/portfolio/listings/${holding.listing.id}/prices?from=2026-07-15&to=2026-07-16`, { headers: { cookie: stranger.cookie } })
+    expect(denied.status).toBe(404)
+  })
+
   it('uses position events for quantity changes and deletions in portfolio history', async () => {
     const { cookie } = await createTestUser(app)
     const walletId = await wallet(cookie)

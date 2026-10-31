@@ -590,7 +590,7 @@ export type PortfolioSearchResult = {
   provider: 'yahoo'
   providerSymbol: string
   name: string
-  instrumentType: 'stock' | 'etf' | 'crypto' | 'commodity'
+  instrumentType: 'stock' | 'etf' | 'crypto' | 'commodity' | 'mutual_fund'
   exchangeCode: string
   exchangeName: string
   mic: string | null
@@ -615,7 +615,7 @@ export type PortfolioHoldingApi = {
     exchangeName: string
     timezone: string
     instrumentName: string
-    instrumentType: 'stock' | 'etf' | 'crypto' | 'commodity'
+    instrumentType: 'stock' | 'etf' | 'crypto' | 'commodity' | 'mutual_fund'
     lastRefreshAt: string | null
     lastSuccessAt: string | null
     refreshError: string | null
@@ -631,6 +631,10 @@ export type PortfolioSummaryApi = {
   status?: 'fresh' | 'stale' | 'partial' | 'empty'
   dailyChangeBase?: number | null
   dailyChangePercent?: number | null
+  totalCostBase?: number | null
+  totalUnrealizedBase?: number | null
+  totalUnrealizedPercent?: number | null
+  costCoverage?: { withCost: number; total: number }
   holdings: Array<PortfolioHoldingApi & {
     price: number | null
     previousClose?: number | null
@@ -639,8 +643,17 @@ export type PortfolioSummaryApi = {
     nativeValue: number | null
     baseValue: number | null
     dailyChangePercent?: number | null
+    costBaseValue?: number | null
+    unrealizedBase?: number | null
+    unrealizedPercent?: number | null
     priceStatus?: 'fresh' | 'stale' | 'error' | 'missing'
   }>
+}
+
+export type ListingPricesApi = {
+  listingId: string
+  currency: string
+  points: Array<{ date: string; close: number; currency: string }>
 }
 
 export type PortfolioHistoryApi = {
@@ -686,6 +699,11 @@ export function getPortfolioSummary(walletId: string, baseCurrency: string) {
 export function getPortfolioHistory(walletId: string, baseCurrency: string, from: string, to: string) {
   const params = new URLSearchParams({ walletId, baseCurrency, from, to })
   return request<{ data: PortfolioHistoryApi }>(`/api/portfolio/history?${params}`)
+}
+
+export function getListingPrices(listingId: string, from: string, to: string) {
+  const params = new URLSearchParams({ from, to })
+  return request<{ data: ListingPricesApi }>(`/api/portfolio/listings/${listingId}/prices?${params}`)
 }
 
 // ── AI assistant ─────────────────────────────────────────────────────────

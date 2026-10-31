@@ -12,7 +12,9 @@ import { SectionDivider } from '../components/SectionDivider'
 import { WalletPortfolio } from '../components/WalletPortfolio'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { getWalletTransactions } from '../lib/api'
+import { format, subDays } from 'date-fns'
+import { getPortfolioHistory, getWalletTransactions } from '../lib/api'
+import { buildValueTrend } from '../lib/valueTrend'
 import type { WalletTransaction } from '../lib/api'
 
 const CURRENCY_SYMBOLS: Record<string, string> = { IDR: 'Rp', EUR: '\u20ac', USD: '$' }
@@ -52,9 +54,18 @@ export function WalletDetailPage() {
   })
 
   const detail = query.data?.data
+  const isInvestment = detail?.wallet.walletType === 'investment'
+  const historyTo = format(new Date(), 'yyyy-MM-dd')
+  const historyFrom = format(subDays(new Date(), 365), 'yyyy-MM-dd')
+  const holdingsHistory = useQuery({
+    queryKey: ['portfolio-history', walletId, detail?.wallet.currency, historyFrom, historyTo],
+    queryFn: () => getPortfolioHistory(walletId!, detail!.wallet.currency, historyFrom, historyTo),
+    enabled: !!walletId && !!detail && isInvestment,
+    staleTime: 300_000,
+  })
 
   // Compute cumulative balance over time from transactions
-  const balanceTrend = useMemo(() => {
+  const ledgerTrend = useMemo(() => {
     if (!detail) return []
 
     const sorted = [...detail.transactions].sort(
@@ -79,6 +90,15 @@ export function WalletDetailPage() {
 
     return points
   }, [detail])
+
+  // Investment wallets chart their value: cash ledger plus the market value of holdings.
+  const holdingPoints = holdingsHistory.data?.data.points
+  const balanceTrend = useMemo(
+    () => (isInvestment && holdingPoints ? buildValueTrend(ledgerTrend, holdingPoints) : ledgerTrend),
+    [isInvestment, holdingPoints, ledgerTrend],
+  )
+  const latestHoldingsValue = holdingPoints ? [...holdingPoints].reverse().find((point) => point.baseValue !== null)?.baseValue ?? null : null
+  const showsValue = isInvestment && latestHoldingsValue !== null && latestHoldingsValue > 0
 
   const chartFmt = (v: number) => {
     if (!detail) return String(v)
@@ -138,11 +158,16 @@ export function WalletDetailPage() {
             </div>
 
             <p className="mt-6 text-[14px] font-medium text-white/70">
-              {detail.wallet.walletType === 'investment' ? 'Cash balance' : 'Balance'}
+              {showsValue ? 'Value' : detail.wallet.walletType === 'investment' ? 'Cash balance' : 'Balance'}
             </p>
-            <p className={`tabular text-[38px] font-bold leading-tight tracking-[-0.03em] ${Number(detail.wallet.balance) < 0 ? 'text-[#ffb4a8]' : ''}`}>
-              {formatCurrency(Number(detail.wallet.balance), detail.wallet.currency)}
+            <p className={`tabular text-[38px] font-bold leading-tight tracking-[-0.03em] ${Number(detail.wallet.balance) < 0 && !showsValue ? 'text-[#ffb4a8]' : ''}`}>
+              {formatCurrency(showsValue ? Number(detail.wallet.balance) + latestHoldingsValue! : Number(detail.wallet.balance), detail.wallet.currency)}
             </p>
+            {showsValue && (
+              <p className="mt-1 text-[13px] text-white/70">
+                Holdings {formatCurrency(latestHoldingsValue!, detail.wallet.currency)} · Cash {formatCurrency(Number(detail.wallet.balance), detail.wallet.currency)}
+              </p>
+            )}
           </header>
 
           {detail.wallet.systemRole && (
@@ -152,12 +177,12 @@ export function WalletDetailPage() {
             </p>
           )}
 
-          {detail.wallet.walletType === 'investment' && <WalletPortfolio walletId={walletId!} />}
+          {detail.wallet.walletType === 'investment' && <WalletPortfolio walletId={walletId!} baseCurrency={detail.wallet.currency} />}
 
           {/* Balance Trend Chart */}
           {balanceTrend.length > 1 && (
             <>
-              <SectionDivider title="Balance trend" badge={detail.wallet.currency} />
+              <SectionDivider title={showsValue ? 'Value trend' : 'Balance trend'} badge={detail.wallet.currency} />
               <Card className="mb-8 bg-white">
                 <CardContent className="px-2 py-1 sm:px-4">
                   <div className="h-56 sm:h-72">
@@ -192,7 +217,7 @@ export function WalletDetailPage() {
                             fontSize: 13,
                           }}
                           labelFormatter={(label) => formatDate(String(label ?? ''))}
-                          formatter={(value) => [chartFmt(value as number), 'Balance']}
+                          formatter={(value) => [chartFmt(value as number), showsValue ? 'Value' : 'Balance']}
                         />
                         <Area
                           type="monotone"
