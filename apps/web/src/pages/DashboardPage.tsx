@@ -13,7 +13,7 @@ import { ActivityList } from '../components/ActivityList'
 import { SectionDivider } from '../components/SectionDivider'
 import { CreateWalletForm } from '../components/CreateWalletForm'
 import { useQuickAdd } from '@/contexts/QuickAddContext'
-import { getWallets, getRecentTransactions, getSummary, getCategoryBreakdown, getExchangeRates } from '../lib/api'
+import { getWallets, getRecentTransactions, getSummary, getCategoryBreakdown, getExchangeRates, getNetWorth } from '../lib/api'
 import type { CategoryBreakdown } from '../lib/api'
 import { formatCurrency } from '../lib/format'
 import { rateBetween } from '../lib/currencies'
@@ -48,6 +48,12 @@ export function DashboardPage() {
   })
   const categoryQuery = useQuery({ queryKey: ['categories'], queryFn: () => getCategoryBreakdown() })
   const ratesQuery = useQuery({ queryKey: ['exchange-rates'], queryFn: getExchangeRates, staleTime: 1000 * 60 * 30 })
+  // Net worth comes from the API so investment holdings (valued from market prices in the
+  // portfolio subledger) count alongside wallet cash, matching the Reports net-worth card.
+  const netWorthQuery = useQuery({
+    queryKey: ['net-worth', defaultCurrency],
+    queryFn: () => getNetWorth({ currency: defaultCurrency, months: 12 }),
+  })
 
   const summary = summaryQuery.data?.data
   const monthlySummary = monthlySummaryQuery.data?.data
@@ -67,9 +73,13 @@ export function DashboardPage() {
         .map((c) => c.currency))]
     : []
 
-  const totalBalance = summary && rates && withoutRate.length === 0
+  const ledgerBalance = summary && rates && withoutRate.length === 0
     ? summary.byCurrency.reduce((acc, curr) => acc + convertToDefault(curr.net, curr.currency), 0)
     : null
+  const netWorth = netWorthQuery.data?.data
+  const totalBalance = netWorth && netWorth.currency === defaultCurrency && netWorth.missing.length === 0
+    ? netWorth.total
+    : ledgerBalance
 
   const monthlyIncome = monthlySummary && rates
     ? monthlySummary.byCurrency.reduce((acc, curr) => acc + convertToDefault(curr.income, curr.currency), 0)
