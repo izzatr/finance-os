@@ -5,14 +5,14 @@ import type { MarketDataProvider } from '../portfolio/yahoo'
 
 const fundList = [
   { Id: 0, Name: 'PIRC-S', IsinCode: null },
-  { Id: 2058, Name: 'Sucorinvest Money Market Fund', IsinCode: 'IDN000183902', Currency: 0, NetAssetValue: 2001.4, LastUpdate: '2026-10-30T00:00:00' },
-  { Id: 5495, Name: 'Sucorinvest Money Market USD', IsinCode: 'IDN000539806', Currency: 1, NetAssetValue: 1.12, LastUpdate: '2026-10-30T00:00:00' },
-  { Id: 1252, Name: 'Manulife Obligasi Unggulan Kelas A', IsinCode: 'IDN000020500', Currency: 0, NetAssetValue: 2572.09, LastUpdate: '2026-10-30T00:00:00' },
+  { Id: 9101, Name: 'Alpha Money Market Fund', IsinCode: 'IDN000000101', Currency: 0, NetAssetValue: 2001.4, LastUpdate: '2026-10-30T00:00:00' },
+  { Id: 9102, Name: 'Alpha Money Market USD', IsinCode: 'IDN000000102', Currency: 1, NetAssetValue: 1.12, LastUpdate: '2026-10-30T00:00:00' },
+  { Id: 9103, Name: 'Beta Bond Fund Class A', IsinCode: 'IDN000000103', Currency: 0, NetAssetValue: 2572.09, LastUpdate: '2026-10-30T00:00:00' },
   { Id: 9, Name: 'Broken NAV fund', IsinCode: 'IDN000000009', Currency: 0, NetAssetValue: 0, LastUpdate: 'n/a' },
 ]
 
 const snapshot = {
-  Id: 2058,
+  Id: 9101,
   NetAssetValues: [
     { Date: '2026-10-27T00:00:00', Value: 2000.9 },
     { Date: '2026-10-28T00:00:00', Value: 2001.1 },
@@ -38,32 +38,32 @@ describe('PasardanaFundProvider', () => {
 
   it('searches funds by name terms or exact ISIN and skips entries without an ISIN', async () => {
     const provider = new PasardanaFundProvider({ fetchImpl: fakeFetch() })
-    const byName = await provider.search('sucorinvest money')
+    const byName = await provider.search('alpha money')
     expect(byName.map((fund) => [fund.providerSymbol, fund.currency, fund.instrumentType])).toEqual([
-      ['IDN000183902', 'IDR', 'mutual_fund'],
-      ['IDN000539806', 'USD', 'mutual_fund'],
+      ['IDN000000101', 'IDR', 'mutual_fund'],
+      ['IDN000000102', 'USD', 'mutual_fund'],
     ])
-    expect((await provider.search('IDN000020500'))[0]).toMatchObject({ name: 'Manulife Obligasi Unggulan Kelas A', exchangeCode: 'IDFUND', timezone: 'Asia/Jakarta' })
+    expect((await provider.search('IDN000000103'))[0]).toMatchObject({ name: 'Beta Bond Fund Class A', exchangeCode: 'IDFUND', timezone: 'Asia/Jakarta' })
     expect(await provider.search('pi')).toEqual([])
   })
 
   it('caches the fund list across provider instances', async () => {
     const fetchImpl = fakeFetch()
-    await new PasardanaFundProvider({ fetchImpl }).search('manulife')
-    await new PasardanaFundProvider({ fetchImpl }).search('sucorinvest')
+    await new PasardanaFundProvider({ fetchImpl }).search('beta')
+    await new PasardanaFundProvider({ fetchImpl }).search('alpha')
     expect(fetchImpl).toHaveBeenCalledOnce()
   })
 
   it('returns snapshot NAV history inside the requested window and drops invalid points', async () => {
     const provider = new PasardanaFundProvider({ fetchImpl: fakeFetch() })
-    const chart = await provider.dailyChart('IDN000183902', new Date('2026-10-28T00:00:00Z'), new Date('2026-10-31T00:00:00Z'))
-    expect(chart.metadata).toMatchObject({ symbol: 'IDN000183902', currency: 'IDR' })
+    const chart = await provider.dailyChart('IDN000000101', new Date('2026-10-28T00:00:00Z'), new Date('2026-10-31T00:00:00Z'))
+    expect(chart.metadata).toMatchObject({ symbol: 'IDN000000101', currency: 'IDR' })
     expect(chart.prices).toEqual([{ date: '2026-10-28', close: 2001.1 }, { date: '2026-10-30', close: 2001.4 }])
   })
 
   it('falls back to the latest listed NAV when the snapshot is unavailable', async () => {
     const provider = new PasardanaFundProvider({ fetchImpl: fakeFetch(() => new Response('nope', { status: 500 })) })
-    const chart = await provider.dailyChart('IDN000020500', new Date('2026-10-25T00:00:00Z'), new Date('2026-10-31T00:00:00Z'))
+    const chart = await provider.dailyChart('IDN000000103', new Date('2026-10-25T00:00:00Z'), new Date('2026-10-31T00:00:00Z'))
     expect(chart.prices).toEqual([{ date: '2026-10-30', close: 2572.09 }])
   })
 
@@ -84,9 +84,9 @@ describe('MarketDataRouter', () => {
     const funds = stub('pasardana', async () => [])
     const router = new MarketDataRouter(yahoo, funds)
     const from = new Date('2026-10-01T00:00:00Z'); const to = new Date('2026-10-31T00:00:00Z')
-    await router.dailyChart('idn000183902', from, to)
+    await router.dailyChart('idn000000101', from, to)
     await router.dailyChart('BBCA.JK', from, to)
-    expect(funds.dailyChart).toHaveBeenCalledWith('idn000183902', from, to)
+    expect(funds.dailyChart).toHaveBeenCalledWith('idn000000101', from, to)
     expect(yahoo.dailyChart).toHaveBeenCalledWith('BBCA.JK', from, to)
     expect(router.name).toBe('yahoo')
   })
