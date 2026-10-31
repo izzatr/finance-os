@@ -47,6 +47,24 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Build API image
-        run: docker build -f apps/api/Dockerfile .
+        run: docker build -t finance-os-api:ci -f apps/api/Dockerfile .
+      - name: Smoke-test API image (migrations + readiness)
+        run: |
+          docker network create smoke
+          docker run -d --name smoke-db --network smoke -e POSTGRES_USER=finance -e POSTGRES_PASSWORD=smoke -e POSTGRES_DB=finance_os postgres:16-alpine
+          for i in $(seq 30); do docker exec smoke-db pg_isready -U finance -d finance_os && break; sleep 1; done
+          docker run -d --name smoke-api --network smoke \
+            -e NODE_ENV=production -e PORT=27032 \
+            -e DATABASE_URL=postgres://finance:smoke@smoke-db:5432/finance_os \
+            -e BETTER_AUTH_SECRET=smoke-test-secret-that-is-long-enough-0123 \
+            -e BETTER_AUTH_URL=https://api.example.test -e WEB_ORIGIN=https://app.example.test \
+            finance-os-api:ci
+          for i in $(seq 60); do
+            if docker exec smoke-api node -e "fetch('http://127.0.0.1:27032/ready').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"; then
+              echo "API image migrated and is ready"; exit 0
+            fi
+            sleep 2
+          done
+          docker logs smoke-api; exit 1
       - name: Build web image
         run: docker build -f apps/web/Dockerfile --build-arg VITE_API_BASE_URL=/ .
