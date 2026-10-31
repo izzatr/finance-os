@@ -11,18 +11,18 @@ describe('buildValueTrend', () => {
   it('adds holdings market value from the first valued day and carries cash forward', () => {
     const trend = buildValueTrend(
       [
-        { date: '2025-06-30T00:00:00Z', balance: 2_655_000 },
+        { date: '2025-06-30T00:00:00Z', balance: 2_500 },
         { date: '2026-10-31T10:44:00Z', balance: 0 },
       ],
       [
         { date: '2026-10-29', baseValue: null },
         { date: '2026-10-30', baseValue: null },
-        { date: '2026-10-31', baseValue: 34_123_846.94 },
+        { date: '2026-10-31', baseValue: 3_400.5 },
       ],
     )
     expect(trend).toEqual([
-      { date: '2025-06-30', balance: 2_655_000 },
-      { date: '2026-10-31', balance: 34_123_846.94 },
+      { date: '2025-06-30', balance: 2_500 },
+      { date: '2026-10-31', balance: 3_400.5 },
     ])
   })
 

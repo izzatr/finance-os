@@ -9,12 +9,10 @@ import { EditWalletForm } from '../components/EditWalletForm'
 import { DeleteWalletDialog } from '../components/DeleteWalletDialog'
 import { EditTransactionForm } from '../components/EditTransactionForm'
 import { SectionDivider } from '../components/SectionDivider'
-import { WalletPortfolio } from '../components/WalletPortfolio'
+import { InvestmentWalletView } from '../components/investments/InvestmentWalletView'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { format, subDays } from 'date-fns'
-import { getPortfolioHistory, getWalletTransactions } from '../lib/api'
-import { buildValueTrend } from '../lib/valueTrend'
+import { getWalletTransactions } from '../lib/api'
 import type { WalletTransaction } from '../lib/api'
 
 const CURRENCY_SYMBOLS: Record<string, string> = { IDR: 'Rp', EUR: '\u20ac', USD: '$' }
@@ -55,14 +53,6 @@ export function WalletDetailPage() {
 
   const detail = query.data?.data
   const isInvestment = detail?.wallet.walletType === 'investment'
-  const historyTo = format(new Date(), 'yyyy-MM-dd')
-  const historyFrom = format(subDays(new Date(), 365), 'yyyy-MM-dd')
-  const holdingsHistory = useQuery({
-    queryKey: ['portfolio-history', walletId, detail?.wallet.currency, historyFrom, historyTo],
-    queryFn: () => getPortfolioHistory(walletId!, detail!.wallet.currency, historyFrom, historyTo),
-    enabled: !!walletId && !!detail && isInvestment,
-    staleTime: 300_000,
-  })
 
   // Compute cumulative balance over time from transactions
   const ledgerTrend = useMemo(() => {
@@ -90,15 +80,7 @@ export function WalletDetailPage() {
 
     return points
   }, [detail])
-
-  // Investment wallets chart their value: cash ledger plus the market value of holdings.
-  const holdingPoints = holdingsHistory.data?.data.points
-  const balanceTrend = useMemo(
-    () => (isInvestment && holdingPoints ? buildValueTrend(ledgerTrend, holdingPoints) : ledgerTrend),
-    [isInvestment, holdingPoints, ledgerTrend],
-  )
-  const latestHoldingsValue = holdingPoints ? [...holdingPoints].reverse().find((point) => point.baseValue !== null)?.baseValue ?? null : null
-  const showsValue = isInvestment && latestHoldingsValue !== null && latestHoldingsValue > 0
+  const balanceTrend = ledgerTrend
 
   const chartFmt = (v: number) => {
     if (!detail) return String(v)
@@ -107,35 +89,8 @@ export function WalletDetailPage() {
     return `${CURRENCY_SYMBOLS[c] ?? c}${v.toLocaleString('en-US', { maximumFractionDigits: 0 })}`
   }
 
-  return (
-    <main className="mx-auto w-full max-w-[960px] px-4 pb-8 pt-6 lg:px-12 lg:pt-10">
-      {query.isLoading && (
-        <p className="py-8 text-center text-sm text-muted-foreground">Loading wallet...</p>
-      )}
-      {query.error && (
-        <p className="py-8 text-center text-sm text-muted-foreground">{query.error.message}</p>
-      )}
-
-      {detail && (
-        <>
-          <Link to="/wallets" className="-ml-1 mb-3 inline-flex h-9 items-center gap-0.5 text-[14px] font-semibold text-[var(--text-secondary)] no-underline hover:text-[var(--text-primary)]">
-            <ChevronLeft className="size-5" /> Wallets
-          </Link>
-
-          {/* Hero */}
-          <header className="mb-8 rounded-[24px] bg-[var(--ink)] px-5 pb-5 pt-4 text-white">
-            <div className="flex items-start gap-3">
-              <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-white/10 text-[var(--cream)]">
-                <WalletIcon walletType={detail.wallet.walletType} size={22} />
-              </span>
-              <div className="min-w-0 flex-1 pt-0.5">
-                <h1 className="break-words text-[22px] font-bold leading-tight tracking-[-0.01em]">{detail.wallet.name}</h1>
-                <p className="mt-0.5 text-[13px] capitalize text-white/65">
-                  {detail.wallet.walletType}
-                  {detail.wallet.institution ? ` · ${detail.wallet.institution}` : ''}
-                </p>
-              </div>
-              {!detail.wallet.systemRole && <div className="-mr-2 flex shrink-0 items-center">
+  const walletActions = (
+    <>
                 <Button
                   variant="ghost"
                   size="icon"
@@ -154,20 +109,61 @@ export function WalletDetailPage() {
                 >
                   <Trash2 size={19} />
                 </Button>
-              </div>}
+    </>
+  )
+
+  return (
+    <main className="mx-auto w-full max-w-[960px] px-4 pb-8 pt-6 lg:px-12 lg:pt-10">
+      {query.isLoading && (
+        <p className="py-8 text-center text-sm text-muted-foreground">Loading wallet...</p>
+      )}
+      {query.error && (
+        <p className="py-8 text-center text-sm text-muted-foreground">{query.error.message}</p>
+      )}
+
+      {detail && (
+        <>
+          <Link to="/wallets" className="-ml-1 mb-3 inline-flex h-9 items-center gap-0.5 text-[14px] font-semibold text-[var(--text-secondary)] no-underline hover:text-[var(--text-primary)]">
+            <ChevronLeft className="size-5" /> Wallets
+          </Link>
+
+          {isInvestment ? (
+            <InvestmentWalletView
+              wallet={{
+                id: detail.wallet.id,
+                name: detail.wallet.name,
+                currency: detail.wallet.currency,
+                balance: Number(detail.wallet.balance),
+                subtitle: ['Investments', detail.wallet.institution].filter(Boolean).join(' · '),
+              }}
+              ledgerTrend={ledgerTrend}
+              icon={<WalletIcon walletType={detail.wallet.walletType} size={22} />}
+              actions={detail.wallet.systemRole ? null : walletActions}
+            />
+          ) : (
+            <>
+          {/* Hero */}
+          <header className="mb-8 rounded-[24px] bg-[var(--ink)] px-5 pb-5 pt-4 text-white">
+            <div className="flex items-start gap-3">
+              <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-white/10 text-[var(--cream)]">
+                <WalletIcon walletType={detail.wallet.walletType} size={22} />
+              </span>
+              <div className="min-w-0 flex-1 pt-0.5">
+                <h1 className="break-words text-[22px] font-bold leading-tight tracking-[-0.01em]">{detail.wallet.name}</h1>
+                <p className="mt-0.5 text-[13px] capitalize text-white/65">
+                  {detail.wallet.walletType}
+                  {detail.wallet.institution ? ` · ${detail.wallet.institution}` : ''}
+                </p>
+              </div>
+              {!detail.wallet.systemRole && <div className="-mr-2 flex shrink-0 items-center">{walletActions}</div>}
             </div>
 
             <p className="mt-6 text-[14px] font-medium text-white/70">
-              {showsValue ? 'Value' : detail.wallet.walletType === 'investment' ? 'Cash balance' : 'Balance'}
+              Balance
             </p>
-            <p className={`tabular text-[38px] font-bold leading-tight tracking-[-0.03em] ${Number(detail.wallet.balance) < 0 && !showsValue ? 'text-[#ffb4a8]' : ''}`}>
-              {formatCurrency(showsValue ? Number(detail.wallet.balance) + latestHoldingsValue! : Number(detail.wallet.balance), detail.wallet.currency)}
+            <p className={`tabular text-[38px] font-bold leading-tight tracking-[-0.03em] ${Number(detail.wallet.balance) < 0 ? 'text-[#ffb4a8]' : ''}`}>
+              {formatCurrency(Number(detail.wallet.balance), detail.wallet.currency)}
             </p>
-            {showsValue && (
-              <p className="mt-1 text-[13px] text-white/70">
-                Holdings {formatCurrency(latestHoldingsValue!, detail.wallet.currency)} · Cash {formatCurrency(Number(detail.wallet.balance), detail.wallet.currency)}
-              </p>
-            )}
           </header>
 
           {detail.wallet.systemRole && (
@@ -177,12 +173,11 @@ export function WalletDetailPage() {
             </p>
           )}
 
-          {detail.wallet.walletType === 'investment' && <WalletPortfolio walletId={walletId!} baseCurrency={detail.wallet.currency} />}
 
           {/* Balance Trend Chart */}
           {balanceTrend.length > 1 && (
             <>
-              <SectionDivider title={showsValue ? 'Value trend' : 'Balance trend'} badge={detail.wallet.currency} />
+              <SectionDivider title="Balance trend" badge={detail.wallet.currency} />
               <Card className="mb-8 bg-white">
                 <CardContent className="px-2 py-1 sm:px-4">
                   <div className="h-56 sm:h-72">
@@ -217,7 +212,7 @@ export function WalletDetailPage() {
                             fontSize: 13,
                           }}
                           labelFormatter={(label) => formatDate(String(label ?? ''))}
-                          formatter={(value) => [chartFmt(value as number), showsValue ? 'Value' : 'Balance']}
+                          formatter={(value) => [chartFmt(value as number), 'Balance']}
                         />
                         <Area
                           type="monotone"
@@ -231,6 +226,9 @@ export function WalletDetailPage() {
                   </div>
                 </CardContent>
               </Card>
+            </>
+          )}
+
             </>
           )}
 
