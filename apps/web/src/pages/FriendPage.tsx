@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ChevronLeft, Copy, Pencil, Plus, Send, Share2, Trash2 } from 'lucide-react'
+import { ChevronLeft, Copy, Ellipsis, Pencil, Plus, Send, Share2, Trash2 } from 'lucide-react'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { createSplitInvite, getSplitFriend, patchSplitFriend, removeSplitFriend, type SplitFriendDetail } from '@/lib/api'
 import { invalidateShared, splitKeys, useSplitMe } from '@/hooks/use-split'
 import { ExpenseFeed } from '@/components/shared/ExpenseFeed'
@@ -99,6 +100,7 @@ export function FriendPage() {
   const [inviting, setInviting] = useState(false)
   const [editing, setEditing] = useState(false)
   const [confirmRemove, setConfirmRemove] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
   const remove = useMutation({
     mutationFn: () => removeSplitFriend(friendId),
     onSuccess: () => { invalidateShared(qc); navigate('/shared') },
@@ -121,10 +123,24 @@ export function FriendPage() {
               <h1 className="truncate text-[26px] font-bold leading-tight tracking-[-0.02em]">{friend.name}</h1>
               <p className="text-[13.5px] text-[var(--text-tertiary)]">{friend.isGuest ? (friend.email ? `Guest · ${friend.email}` : 'Guest') : 'Has an account'}</p>
             </div>
-            {friend.canEdit && (
-              <button type="button" onClick={() => setEditing(true)} aria-label={`Edit ${friend.name}`} className="flex size-10 items-center justify-center rounded-full active:bg-[var(--tint)]">
-                <Pencil className="size-[18px]" />
-              </button>
+            {(friend.canEdit || friend.isFriend) && (
+              <Popover open={menuOpen} onOpenChange={setMenuOpen}>
+                <PopoverTrigger aria-label={`More options for ${friend.name}`} className="flex size-10 shrink-0 items-center justify-center rounded-full outline-none hover:bg-[var(--tint)] focus-visible:ring-2 focus-visible:ring-[var(--ink)]/20 data-[popup-open]:bg-[var(--tint)]">
+                  <Ellipsis className="size-5" />
+                </PopoverTrigger>
+                <PopoverContent align="end" className="w-52 gap-0 bg-white p-1 text-[15px] text-[var(--text-primary)]">
+                  {friend.canEdit && (
+                    <button type="button" className="flex min-h-11 w-full items-center gap-2.5 rounded-md px-2.5 text-left hover:bg-[var(--tint)]" onClick={() => { setMenuOpen(false); setEditing(true) }}>
+                      <Pencil className="size-4" /> Edit details
+                    </button>
+                  )}
+                  {friend.isFriend && (
+                    <button type="button" className="flex min-h-11 w-full items-center gap-2.5 rounded-md px-2.5 text-left text-[var(--negative)] hover:bg-[var(--tint)]" onClick={() => { setMenuOpen(false); remove.reset(); setConfirmRemove(true) }}>
+                      <Trash2 className="size-4" /> Remove friend
+                    </button>
+                  )}
+                </PopoverContent>
+              </Popover>
             )}
           </header>
 
@@ -157,22 +173,19 @@ export function FriendPage() {
           <h2 className="text-[18px] font-bold">Expenses</h2>
           <ExpenseFeed friendId={friendId} mePersonId={me?.personId} emptyLabel="Nothing shared with this friend yet." />
 
-          {friend.isFriend && (
-            <div className="mt-8 grid gap-2">
-              {!confirmRemove ? (
-                <button type="button" className={dangerButton} onClick={() => setConfirmRemove(true)}><Trash2 className="size-4" /> Remove friend</button>
-              ) : (
-                <div className="grid gap-2 rounded-lg bg-[var(--tint)] p-3">
-                  <p className="text-[14px]">Remove {friend.name}? Shared history stays. You need to be settled up first.</p>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button type="button" className={secondaryButton} onClick={() => { setConfirmRemove(false); remove.reset() }}>Keep</button>
-                    <button type="button" className={dangerButton} disabled={remove.isPending} onClick={() => remove.mutate()}>{remove.isPending ? 'Removing…' : 'Remove'}</button>
-                  </div>
-                </div>
-              )}
+          <Dialog open={confirmRemove} onOpenChange={(open) => { if (!open && !remove.isPending) setConfirmRemove(false) }}>
+            <DialogContent className="max-w-sm">
+              <DialogHeader>
+                <DialogTitle>Remove {friend.name}?</DialogTitle>
+                <DialogDescription>Shared history stays. You need to be settled up first.</DialogDescription>
+              </DialogHeader>
               <ErrorText>{remove.error?.message}</ErrorText>
-            </div>
-          )}
+              <div className="grid grid-cols-2 gap-2">
+                <button type="button" className={secondaryButton} onClick={() => setConfirmRemove(false)}>Keep</button>
+                <button type="button" className={dangerButton} disabled={remove.isPending} onClick={() => remove.mutate()}>{remove.isPending ? 'Removing…' : 'Remove'}</button>
+              </div>
+            </DialogContent>
+          </Dialog>
 
           <ExpenseSheet open={adding} mode={{ kind: 'new', friendIds: [friendId] }} onClose={() => setAdding(false)} />
           <SettleUpSheet open={settling} onClose={() => setSettling(false)} prefill={{ friendId }} />
