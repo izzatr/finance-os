@@ -167,6 +167,7 @@ describe('tool registry', () => {
       finance_delete_transaction: { id: '00000000-0000-0000-0000-000000000001' },
       finance_restore_transaction: { id: '00000000-0000-0000-0000-000000000001' },
       finance_create_wallet: { name: 'W', walletType: 'bank', currency: 'EUR' },
+      finance_create_category: { name: 'Side Income', type: 'income' },
       finance_edit_wallet: { walletName: 'Main Bank', newName: 'X' },
       finance_reconcile: { walletName: 'Main Bank', expectedBalance: '0', autoAdjust: true },
       finance_add_asset_price: { assetCode: 'XAU_G', price: '1', currency: 'EUR' },
@@ -187,6 +188,29 @@ describe('tool registry', () => {
       const mutating = calls.filter((c) => c.method !== 'GET' && !c.url.includes('/api/proposals'))
       expect(mutating, `${tool.name} leaked a mutating call: ${JSON.stringify(mutating)}`).toHaveLength(0)
     }
+  })
+
+  it('creates a category, reuses an existing one, and validates the parent', async () => {
+    const tool = getTool('finance_create_category')!
+    await expect(tool.execute(ctx('propose'), { name: 'Side Income', type: 'income' })).rejects.toThrow(/write-scoped/)
+    expect(calls.filter((c) => c.method === 'POST')).toHaveLength(0)
+
+    stubFetch({ '/api/categories': { data: [{ id: 'c-1', name: 'Groceries', slug: 'groceries', type: 'expense', parentId: null }] } })
+    const created = (await tool.execute(ctx('write'), { name: ' Side Income ', type: 'income' })) as { status: string }
+    expect(created.status).toBe('created')
+    expect(calls.find((c) => c.method === 'POST')).toMatchObject({ url: 'http://api.test/api/categories', body: { name: 'Side Income', type: 'income' } })
+
+    stubFetch()
+    const reused = (await tool.execute(ctx('write'), { name: 'groceries', type: 'expense' })) as { status: string; category: { id: string } }
+    expect(reused).toMatchObject({ status: 'exists', category: { id: 'c-1' } })
+    expect(calls.filter((c) => c.method === 'POST')).toHaveLength(0)
+
+    await expect(tool.execute(ctx('write'), { name: 'Bonus', type: 'income', parentName: 'Groceries' })).rejects.toThrow(/expense category/)
+    await expect(tool.execute(ctx('write'), { name: 'Bonus', type: 'income', parentName: 'Nope' })).rejects.toThrow(/not found/)
+
+    stubFetch()
+    await tool.execute(ctx('write'), { name: 'Snacks', type: 'expense', parentName: 'Groceries' })
+    expect(calls.find((c) => c.method === 'POST')?.body).toEqual({ name: 'Snacks', type: 'expense', parentId: 'c-1' })
   })
 
   it('settle and approve demand write scope', async () => {

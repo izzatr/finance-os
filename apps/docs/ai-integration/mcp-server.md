@@ -173,6 +173,16 @@ Create a new wallet.
 | `currency`  | string | yes      | Currency code: `IDR`, `EUR`, or `USD`                              |
 | `institution`| string | no      | Bank/provider name                                                 |
 
+#### `finance_create_category`
+
+Create a transaction category. Returns the existing one (`status: "exists"`) when a category with the same name is already there, so it is safe to call repeatedly.
+
+| Parameter    | Type   | Required | Description                                                     |
+|--------------|--------|----------|-----------------------------------------------------------------|
+| `name`       | string | yes      | Category name, e.g. `Side Income`                               |
+| `type`       | string | yes      | `income`, `expense`, or `transfer`                              |
+| `parentName` | string | no       | Existing category to nest it under (must have the same type)    |
+
 #### `finance_edit_wallet`
 
 Edit an existing wallet.
