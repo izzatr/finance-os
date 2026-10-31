@@ -927,6 +927,35 @@ export const financeTools: FinanceTool[] = [
     },
   },
   {
+    name: 'finance_create_category',
+    description: 'Create a transaction category (income, expense or transfer), optionally under a parent category of the same type. If one with the same name already exists it is returned instead of duplicated. Requires a write-scoped credential.',
+    kind: 'write',
+    schema: z.object({
+      name: z.string().min(1).max(120).describe('Category name, e.g. "Side Income"'),
+      type: z.enum(['income', 'expense', 'transfer']).describe('What kind of transactions it is for'),
+      parentName: z.string().optional().describe('Existing category to nest it under (must have the same type)'),
+    }),
+    execute: async (ctx, args) => {
+      requireWrite(ctx, 'create categories')
+      const { data: existing } = await request<{ data: Category[] }>(ctx, '/api/categories')
+      const name = String(args.name).trim()
+      const duplicate = existing.find((c) => c.name.toLowerCase() === name.toLowerCase())
+      if (duplicate) return { status: 'exists', category: duplicate }
+      let parentId: string | undefined
+      if (args.parentName) {
+        const parent = existing.find((c) => c.name.toLowerCase() === String(args.parentName).toLowerCase())
+        if (!parent) throw new ToolError(`Parent category "${args.parentName}" not found. Available: ${existing.map((c) => c.name).join(', ')}`)
+        if (parent.type !== args.type) throw new ToolError(`Parent "${parent.name}" is a ${parent.type} category; a ${args.type} category can't go under it`)
+        parentId = parent.id
+      }
+      const { data } = await request<{ data: Category }>(ctx, '/api/categories', {
+        method: 'POST',
+        body: { name, type: args.type, ...(parentId ? { parentId } : {}) },
+      })
+      return { status: 'created', category: data }
+    },
+  },
+  {
     name: 'finance_edit_wallet',
     description: 'Edit an existing wallet (name, type, institution, active status). Requires a write-scoped credential.',
     kind: 'write',
