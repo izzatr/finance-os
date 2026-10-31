@@ -1,0 +1,29 @@
+{
+  "name": "@finance-os/db",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:migrate:runtime": "tsx src/migrate.ts",
+    "db:studio": "drizzle-kit studio",
+    "db:seed": "tsx src/seed-base.ts",
+    "db:seed:demo": "tsx src/seed-demo.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@better-auth/api-key": "^1.7.7",
+    "@better-auth/core": "^1.7.7",
+    "better-auth": "^1.7.7",
+    "drizzle-orm": "^0.45.2",
+    "pg": "^8.13.1"
+  },
+  "devDependencies": {
+    "drizzle-kit": "^0.31.10",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}

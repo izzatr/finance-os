@@ -1,0 +1,2 @@
+ALTER TABLE "split_comments" ADD COLUMN "external_ref" varchar(255);--> statement-breakpoint
+CREATE UNIQUE INDEX "split_comment_external_unique" ON "split_comments" USING btree ("expense_id","external_ref") WHERE external_ref IS NOT NULL;

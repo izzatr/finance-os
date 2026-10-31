@@ -1,0 +1,54 @@
+import { defineConfig } from 'vitest/config'
+import react from '@vitejs/plugin-react'
+import tailwindcss from '@tailwindcss/vite'
+import { VitePWA } from 'vite-plugin-pwa'
+import path from 'path'
+
+export default defineConfig({
+  test: {
+    globals: true,
+    environment: 'jsdom',
+    setupFiles: ['./src/test/setup.ts'],
+    css: true,
+  },
+  plugins: [
+    react(),
+    tailwindcss(),
+    VitePWA({
+      registerType: 'autoUpdate',
+      includeAssets: ['pwa-192.png', 'pwa-512.png'],
+      manifest: {
+        name: 'Finance OS',
+        short_name: 'Finance OS',
+        description: 'Personal finance tracker built for humans and their agents',
+        theme_color: '#0e1729',
+        background_color: '#fbf9f5',
+        display: 'standalone',
+        start_url: '/dashboard',
+        icons: [
+          { src: '/pwa-192.png', sizes: '192x192', type: 'image/png' },
+          { src: '/pwa-512.png', sizes: '512x512', type: 'image/png' },
+          { src: '/pwa-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+        ],
+      },
+      workbox: {
+        // Cache the app shell; API data stays network-only (finance data must be fresh).
+        globPatterns: ['**/*.{js,css,html,png,woff2}'],
+        navigateFallbackDenylist: [/^\/api/, /^\/auth/, /^\/mcp/, /^\/openapi/],
+        runtimeCaching: [],
+      },
+    }),
+  ],
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, './src'),
+    },
+  },
+  server: {
+    port: 3000,
+    // Same-origin API in dev, mirroring the nginx proxy in apps/web/nginx.conf.
+    proxy: Object.fromEntries(
+      ['/api', '/auth', '/mcp', '/openapi.json', '/health'].map((p) => [p, process.env.DEV_API_UPSTREAM ?? 'http://localhost:27032']),
+    ),
+  },
+})

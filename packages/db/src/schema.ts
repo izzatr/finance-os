@@ -1,0 +1,329 @@
+import {
+  boolean,
+  check,
+  date,
+  index,
+  integer,
+  jsonb,
+  numeric,
+  pgEnum,
+  pgTable,
+  text,
+  timestamp,
+  unique,
+  uniqueIndex,
+  uuid,
+  varchar,
+} from 'drizzle-orm/pg-core'
+import { sql } from 'drizzle-orm'
+import { users } from './auth-schema'
+
+export const assetTypeEnum = pgEnum('asset_type', ['currency', 'crypto', 'stock', 'commodity', 'custom'])
+export const walletTypeEnum = pgEnum('wallet_type', ['bank', 'cash', 'ewallet', 'crypto', 'investment', 'credit', 'custom'])
+export const transactionTypeEnum = pgEnum('transaction_type', ['expense', 'income', 'transfer', 'exchange', 'adjustment', 'fee'])
+export const importStatusEnum = pgEnum('import_status', ['pending', 'parsed', 'reviewed', 'imported', 'failed'])
+export const categoryTypeEnum = pgEnum('category_type', ['income', 'expense', 'transfer'])
+export const recurringModeEnum = pgEnum('recurring_mode', ['auto_post', 'draft'])
+export const proposalStatusEnum = pgEnum('proposal_status', ['pending', 'approved', 'rejected'])
+
+export const assets = pgTable('assets', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  code: varchar('code', { length: 16 }).notNull().unique(),
+  name: varchar('name', { length: 120 }).notNull(),
+  type: assetTypeEnum('type').notNull(),
+  precision: integer('precision').notNull().default(2),
+  unit: varchar('unit', { length: 16 }), // 'g','oz','share','BTC'; null for fiat
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
+export const wallets = pgTable('wallets', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userId: varchar('user_id', { length: 255 }).notNull().references(() => users.id),
+  name: varchar('name', { length: 120 }).notNull(),
+  walletType: walletTypeEnum('wallet_type').notNull(),
+  institution: varchar('institution', { length: 120 }),
+  assetId: uuid('asset_id').notNull().references(() => assets.id),
+  isActive: boolean('is_active').notNull().default(true),
+  // 'split' = the system wallet holding what friends owe you (or you owe them) in this currency.
+  systemRole: varchar('system_role', { length: 20 }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  deletedAt: timestamp('deleted_at', { withTimezone: true }),
+}, (table) => ({
+  walletAssetIdx: index('wallet_asset_idx').on(table.assetId),
+  walletUserIdx: index('wallet_user_idx').on(table.userId),
+  walletSplitUnique: uniqueIndex('wallet_split_unique')
+    .on(table.userId, table.assetId)
+    .where(sql`system_role = 'split' AND deleted_at IS NULL`),
+}))
+
+export const categories = pgTable('categories', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userId: varchar('user_id', { length: 255 }).notNull().references(() => users.id),
+  name: varchar('name', { length: 120 }).notNull(),
+  slug: varchar('slug', { length: 120 }).notNull(),
+  icon: varchar('icon', { length: 40 }),
+  type: categoryTypeEnum('type').notNull().default('expense'),
+  // parent_id FK added in 0006 migration (self-reference)
+  parentId: uuid('parent_id'),
+  needsReview: boolean('needs_review').notNull().default(false),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  categoriesUserNameUnique: unique('categories_user_name_unique').on(table.userId, table.name),
+  categoriesUserSlugUnique: unique('categories_user_slug_unique').on(table.userId, table.slug),
+}))
+
+export const transactions = pgTable('transactions', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userId: varchar('user_id', { length: 255 }).notNull().references(() => users.id),
+  transactionDate: timestamp('transaction_date', { withTimezone: true }).notNull(),
+  type: transactionTypeEnum('type').notNull(),
+  description: varchar('description', { length: 255 }).notNull(),
+  notes: text('notes'),
+  externalRef: varchar('external_ref', { length: 255 }),
+  categoryId: uuid('category_id').references(() => categories.id),
+  // 'split' = written by shared expenses; read-only through the normal transaction API.
+  managedBy: varchar('managed_by', { length: 20 }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  deletedAt: timestamp('deleted_at', { withTimezone: true }),
+}, (table) => ({
+  transactionManagedRefUnique: uniqueIndex('transaction_managed_ref_unique')
+    .on(table.userId, table.externalRef)
+    .where(sql`managed_by IS NOT NULL`),
+  transactionDateIdx: index('transaction_date_idx').on(table.transactionDate),
+  transactionUserIdx: index('transaction_user_idx').on(table.userId),
+  // Recurring materialization dedupe: a (rule, occurrence-date) ref may exist at most once
+  // per user. Scoped to the recurring: prefix — import refs legitimately repeat.
+  transactionRecurringRefUnique: uniqueIndex('transaction_user_recurring_ref_unique')
+    .on(table.userId, table.externalRef)
+    .where(sql`external_ref LIKE 'recurring:%'`),
+}))
+
+export const transactionEntries = pgTable('transaction_entries', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  transactionId: uuid('transaction_id').notNull().references(() => transactions.id, { onDelete: 'cascade' }),
+  walletId: uuid('wallet_id').notNull().references(() => wallets.id),
+  assetId: uuid('asset_id').notNull().references(() => assets.id),
+  amount: numeric('amount', { precision: 20, scale: 8 }).notNull(),
+  notes: text('notes'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  transactionEntryTxIdx: index('transaction_entry_tx_idx').on(table.transactionId),
+  transactionEntryWalletIdx: index('transaction_entry_wallet_idx').on(table.walletId),
+}))
+
+export const people = pgTable('people', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userId: varchar('user_id', { length: 255 }).notNull().references(() => users.id),
+  name: varchar('name', { length: 120 }).notNull(),
+  email: varchar('email', { length: 255 }),
+  notes: text('notes'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  deletedAt: timestamp('deleted_at', { withTimezone: true }),
+}, (table) => ({
+  peopleUserIdx: index('people_user_idx').on(table.userId),
+  peopleUserNameUnique: unique('people_user_name_unique').on(table.userId, table.name),
+}))
+
+export const transactionSplits = pgTable('transaction_splits', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  transactionId: uuid('transaction_id').notNull().references(() => transactions.id, { onDelete: 'cascade' }),
+  personId: uuid('person_id').notNull().references(() => people.id),
+  assetId: uuid('asset_id').notNull().references(() => assets.id),
+  amount: numeric('amount', { precision: 20, scale: 8 }).notNull(), // positive = person owes the user
+  settledAt: timestamp('settled_at', { withTimezone: true }),
+  settlementTransactionId: uuid('settlement_transaction_id').references(() => transactions.id),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  splitTxIdx: index('split_tx_idx').on(table.transactionId),
+  splitPersonIdx: index('split_person_idx').on(table.personId),
+}))
+
+export const recurringRules = pgTable('recurring_rules', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userId: varchar('user_id', { length: 255 }).notNull().references(() => users.id),
+  name: varchar('name', { length: 120 }).notNull(),
+  template: jsonb('template').$type<Record<string, unknown>>().notNull(), // NewTransactionInput minus transactionDate
+  freq: varchar('freq', { length: 10 }).notNull(), // daily|weekly|monthly|yearly
+  interval: integer('interval').notNull().default(1),
+  startAt: timestamp('start_at', { withTimezone: true }).notNull(),
+  endAt: timestamp('end_at', { withTimezone: true }),
+  mode: recurringModeEnum('mode').notNull().default('draft'),
+  isActive: boolean('is_active').notNull().default(true),
+  lastRunAt: timestamp('last_run_at', { withTimezone: true }),
+  nextRunAt: timestamp('next_run_at', { withTimezone: true }).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  recurringUserIdx: index('recurring_user_idx').on(table.userId),
+}))
+
+export const proposals = pgTable('proposals', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userId: varchar('user_id', { length: 255 }).notNull().references(() => users.id),
+  source: varchar('source', { length: 30 }).notNull(), // recurring_draft|ai_chat|mcp
+  actorLabel: varchar('actor_label', { length: 120 }).notNull(),
+  payload: jsonb('payload').$type<Record<string, unknown>>().notNull(), // { transaction: NewTransactionInput, dedupeRef?: string }
+  status: proposalStatusEnum('status').notNull().default('pending'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+}, (table) => ({
+  proposalUserStatusIdx: index('proposal_user_status_idx').on(table.userId, table.status),
+}))
+
+export const statementImports = pgTable('statement_imports', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userId: varchar('user_id', { length: 255 }).notNull().references(() => users.id),
+  sourceName: varchar('source_name', { length: 120 }).notNull(),
+  sourceType: varchar('source_type', { length: 60 }).notNull(),
+  fileName: varchar('file_name', { length: 255 }).notNull(),
+  checksum: varchar('checksum', { length: 128 }).notNull(),
+  status: importStatusEnum('status').notNull().default('pending'),
+  rawMetadata: jsonb('raw_metadata').$type<Record<string, unknown>>(),
+  importedAt: timestamp('imported_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  importChecksumIdx: index('import_checksum_idx').on(table.checksum),
+  importUserIdx: index('import_user_idx').on(table.userId),
+}))
+
+export const exchangeRates = pgTable('exchange_rates', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  base: varchar('base', { length: 16 }).notNull(), // always 'EUR' from the fetch job; manual rows may differ
+  quote: varchar('quote', { length: 16 }).notNull(),
+  rate: numeric('rate', { precision: 20, scale: 10 }).notNull(),
+  asOf: timestamp('as_of', { withTimezone: true }).notNull(),
+  source: varchar('source', { length: 30 }).notNull().default('manual'), // manual|frankfurter
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  rateQuoteAsOfIdx: index('rate_quote_asof_idx').on(table.quote, table.asOf),
+  rateUniquePerDay: unique('rate_base_quote_asof_unique').on(table.base, table.quote, table.asOf),
+}))
+
+export const assetPrices = pgTable('asset_prices', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  assetId: uuid('asset_id').notNull().references(() => assets.id),
+  price: numeric('price', { precision: 20, scale: 8 }).notNull(),
+  currency: varchar('currency', { length: 16 }).notNull(),
+  asOf: timestamp('as_of', { withTimezone: true }).notNull(),
+  source: varchar('source', { length: 30 }).notNull().default('manual'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({ priceAssetAsOfIdx: index('price_asset_asof_idx').on(table.assetId, table.asOf) }))
+
+// Global security identity. A company/fund exists once even when traded on several exchanges.
+export const instruments = pgTable('instruments', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  name: varchar('name', { length: 255 }).notNull(),
+  type: varchar('type', { length: 20 }).notNull(), // stock|etf|crypto|commodity|mutual_fund
+  isin: varchar('isin', { length: 12 }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  instrumentIsinUnique: uniqueIndex('instrument_isin_unique').on(table.isin).where(sql`isin IS NOT NULL`),
+}))
+
+export const exchanges = pgTable('exchanges', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  code: varchar('code', { length: 30 }).notNull().unique(),
+  name: varchar('name', { length: 120 }).notNull(),
+  mic: varchar('mic', { length: 4 }),
+  timezone: varchar('timezone', { length: 64 }).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  exchangeMicIdx: index('exchange_mic_idx').on(table.mic),
+}))
+
+export const listings = pgTable('listings', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  instrumentId: uuid('instrument_id').notNull().references(() => instruments.id),
+  exchangeId: uuid('exchange_id').notNull().references(() => exchanges.id),
+  symbol: varchar('symbol', { length: 64 }).notNull(),
+  currency: varchar('currency', { length: 16 }).notNull(),
+  isActive: boolean('is_active').notNull().default(true),
+  lastRefreshAt: timestamp('last_refresh_at', { withTimezone: true }),
+  lastSuccessAt: timestamp('last_success_at', { withTimezone: true }),
+  refreshError: text('refresh_error'),
+  nextRefreshAt: timestamp('next_refresh_at', { withTimezone: true }),
+  refreshLeaseOwner: varchar('refresh_lease_owner', { length: 64 }),
+  refreshLeaseUntil: timestamp('refresh_lease_until', { withTimezone: true }),
+  historyBackfilledAt: timestamp('history_backfilled_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  listingExchangeSymbolUnique: unique('listing_exchange_symbol_unique').on(table.exchangeId, table.symbol),
+  listingInstrumentIdx: index('listing_instrument_idx').on(table.instrumentId),
+  listingDueIdx: index('listing_due_idx').on(table.isActive, table.nextRefreshAt),
+  listingLeaseIdx: index('listing_lease_idx').on(table.isActive, table.refreshLeaseUntil),
+}))
+
+export const providerSymbols = pgTable('provider_symbols', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  listingId: uuid('listing_id').notNull().references(() => listings.id, { onDelete: 'cascade' }),
+  provider: varchar('provider', { length: 30 }).notNull(),
+  symbol: varchar('symbol', { length: 100 }).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  providerSymbolUnique: unique('provider_symbol_unique').on(table.provider, table.symbol),
+  listingProviderUnique: unique('listing_provider_unique').on(table.listingId, table.provider),
+}))
+
+export const holdings = pgTable('holdings', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  walletId: uuid('wallet_id').notNull().references(() => wallets.id, { onDelete: 'cascade' }),
+  listingId: uuid('listing_id').notNull().references(() => listings.id),
+  quantity: numeric('quantity', { precision: 28, scale: 8 }).notNull(),
+  averageCost: numeric('average_cost', { precision: 28, scale: 8 }),
+  costCurrency: varchar('cost_currency', { length: 16 }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  holdingWalletListingUnique: unique('holding_wallet_listing_unique').on(table.walletId, table.listingId),
+  holdingWalletIdx: index('holding_wallet_idx').on(table.walletId),
+  holdingListingIdx: index('holding_listing_idx').on(table.listingId),
+  holdingQuantityPositive: check('holding_quantity_positive', sql`${table.quantity} > 0`),
+  holdingAverageCostPositive: check('holding_average_cost_positive', sql`${table.averageCost} IS NULL OR ${table.averageCost} > 0`),
+}))
+
+export const holdingPositionEvents = pgTable('holding_position_events', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  walletId: uuid('wallet_id').notNull().references(() => wallets.id, { onDelete: 'cascade' }),
+  listingId: uuid('listing_id').notNull().references(() => listings.id),
+  quantity: numeric('quantity', { precision: 28, scale: 8 }).notNull(),
+  effectiveAt: timestamp('effective_at', { withTimezone: true }).notNull().defaultNow(),
+  reason: varchar('reason', { length: 20 }).notNull(), // created|updated|deleted
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  holdingEventWalletEffectiveIdx: index('holding_event_wallet_effective_idx').on(table.walletId, table.effectiveAt),
+  holdingEventListingEffectiveIdx: index('holding_event_listing_effective_idx').on(table.listingId, table.effectiveAt),
+  holdingEventQuantityNonNegative: check('holding_event_quantity_non_negative', sql`${table.quantity} >= 0`),
+}))
+
+export const listingPrices = pgTable('listing_prices', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  listingId: uuid('listing_id').notNull().references(() => listings.id, { onDelete: 'cascade' }),
+  priceDate: date('price_date').notNull(),
+  close: numeric('close', { precision: 28, scale: 8 }).notNull(),
+  currency: varchar('currency', { length: 16 }).notNull(),
+  source: varchar('source', { length: 30 }).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  listingPriceUnique: unique('listing_price_unique').on(table.listingId, table.priceDate, table.source),
+  listingPriceLatestIdx: index('listing_price_latest_idx').on(table.listingId, table.priceDate),
+  listingPriceClosePositive: check('listing_price_close_positive', sql`${table.close} > 0`),
+}))
+
+/**
+ * Account-level currency setup, one row per user. `default_currency` is null until the user (or a
+ * confirmed browser-preference import) chooses one; the effective default then falls back to the
+ * legacy shared-expenses setting, then EUR. `preferred_currencies` is an ordered, deduplicated list
+ * of ISO codes shown first in pickers. Neither value creates wallets or converts any history.
+ */
+export const userCurrencySettings = pgTable('user_currency_settings', {
+  userId: varchar('user_id', { length: 255 }).primaryKey().references(() => users.id, { onDelete: 'cascade' }),
+  defaultCurrency: varchar('default_currency', { length: 3 }),
+  preferredCurrencies: varchar('preferred_currencies', { length: 3 }).array().notNull().default(sql`'{}'::varchar[]`),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+  defaultCurrencyFormat: check('user_currency_default_format', sql`${table.defaultCurrency} IS NULL OR ${table.defaultCurrency} ~ '^[A-Z]{3}$'`),
+  preferredCurrenciesFormat: check('user_currency_preferred_format', sql`array_to_string(${table.preferredCurrencies}, ',') ~ '^([A-Z]{3}(,[A-Z]{3})*)?$'`),
+  preferredCurrenciesBound: check('user_currency_preferred_bound', sql`cardinality(${table.preferredCurrencies}) <= 20`),
+}))

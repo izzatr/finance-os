@@ -1,0 +1,48 @@
+import { useQuery } from '@tanstack/react-query'
+import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import { getNetWorth } from '@/lib/api'
+import { useDefaultCurrency } from '@/contexts/CurrencyContext'
+
+function compact(value: number, currency: string): string {
+  try {
+    return new Intl.NumberFormat('en', { style: 'currency', currency, notation: 'compact', maximumFractionDigits: 1 }).format(value)
+  } catch {
+    return String(value)
+  }
+}
+
+export function NetWorthTrendCard({ walletIds = [], className = 'mb-6' }: { walletIds?: string[]; className?: string }) {
+  const [currency] = useDefaultCurrency()
+  const query = useQuery({
+    queryKey: ['net-worth', currency, walletIds],
+    queryFn: () => getNetWorth({ currency, months: 12, walletIds }),
+    staleTime: 60_000,
+  })
+
+  const data = query.data?.data
+  if (!data || data.series.length < 2) return null
+
+  return (
+    <section aria-label="Net worth trend" className={`flex flex-col rounded-[22px] border border-[var(--border-subtle)] bg-white px-4 py-4 ${className}`}>
+      <div className="flex items-baseline justify-between pb-2">
+        <p className="text-[15px] font-bold text-[var(--text-primary)]">Net worth · 12 months</p>
+        <span className="tabular text-[15px] font-bold text-[var(--text-primary)]">
+          {compact(data.total, data.currency)}
+        </span>
+      </div>
+      <div className="h-36 min-h-36 flex-1">
+        <ResponsiveContainer width="100%" height="100%" initialDimension={{ width: 320, height: 144 }}>
+          <LineChart data={data.series} margin={{ top: 4, right: 4, bottom: 0, left: 4 }}>
+            <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#6f695f' }} tickFormatter={(m) => new Date(`${m}-01T00:00:00Z`).toLocaleString('en-US', { month: 'short', timeZone: 'UTC' })} tickLine={false} axisLine={false} interval="preserveStartEnd" minTickGap={18} />
+            <YAxis hide domain={['auto', 'auto']} />
+            <Tooltip
+              formatter={(value) => [compact(Number(value), data.currency), 'Net worth']}
+              contentStyle={{ fontSize: 12, borderRadius: 8 }}
+            />
+            <Line type="monotone" dataKey="total" stroke="var(--accent-blue)" strokeWidth={2} dot={false} />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+    </section>
+  )
+}

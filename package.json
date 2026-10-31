@@ -1,0 +1,46 @@
+{
+  "name": "finance-os",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Open-source, AI-ready personal finance engine with wallet-based accounting and asset tracking.",
+  "workspaces": [
+    "apps/api",
+    "apps/web",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev:api",
+    "dev:api": "npm run dev --workspace @finance-os/api",
+    "dev:web": "npm run dev --workspace @finance-os/web",
+    "dev:docs": "npm --prefix apps/docs run dev",
+    "db:generate": "npm run db:generate --workspace @finance-os/db",
+    "db:migrate": "npm run db:migrate --workspace @finance-os/db",
+    "db:studio": "npm run db:studio --workspace @finance-os/db",
+    "db:seed": "npm run db:seed --workspace @finance-os/db",
+    "db:seed:demo": "npm run db:seed:demo --workspace @finance-os/db",
+    "finance": "tsx packages/cli/src/cli.ts",
+    "mcp:finance": "tsx packages/cli/src/mcp.ts",
+    "audit:ci": "node scripts/audit-ci.mjs",
+    "lint": "npm run lint --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present && npm run test:yahoo-proxy",
+    "test:yahoo-proxy": "node --test infra/yahoo-proxy/worker.test.mjs"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/pg": "^8.15.1"
+  },
+  "overrides": {
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "fast-uri": "3.1.8",
+    "react-router": "7.18.2",
+    "ip-address": "10.7.3",
+    "js-yaml": "4.3.2",
+    "undici": "7.30.1",
+    "body-parser": "2.4.0"
+  }
+}

@@ -1,0 +1,184 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "./styles/shadcn-tailwind.css";
+@import "@fontsource-variable/onest";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * Finance OS · Ink + Cream (warm)
+ *
+ * Ink is the brand surface: headers, primary buttons, the add button, the active tab.
+ * Cream is the single accent and is reserved for small marks on ink (gain chip, + icon,
+ * primary button labels) and the selected state in quick add. It is never a background
+ * for large areas; the warm tint does that job.
+ */
+:root {
+  color-scheme: light;
+
+  /* brand */
+  --ink: #0e1729;
+  --ink-2: #1c2740; /* raised surface on ink (pills on the header) */
+  --cream: #f5dfb3;
+  --tint: #f5f0e7; /* warm neutral for tiles, keys, chips, day bands */
+  --tint-strong: #ece5d8;
+
+  /* surfaces */
+  --bg-base: #fbf9f5;
+  --bg-elevated: #ffffff;
+  --bg-surface: rgba(255, 255, 255, 0.94);
+
+  /* text */
+  --text-primary: #121614;
+  --text-secondary: #5c574e;
+  --text-tertiary: #6f695f; /* still ≥4.5:1 on --tint */
+
+  /* lines */
+  --border-subtle: #ede7dc;
+  --border-medium: #ddd5c6;
+
+  /* semantic */
+  --positive: #12895a;
+  --negative: #c23a2b;
+
+  /* legacy aliases — older components still read these */
+  --accent-blue: var(--ink);
+  --accent-dim: var(--tint);
+  --bg-ice: var(--tint);
+  --bg-ice-light: var(--tint);
+
+  /* typography */
+  --font-display: 'Onest Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-code: ui-monospace, 'SFMono-Regular', Menlo, monospace;
+
+  /* elevation: quiet, no coloured glow */
+  --shadow-card: 0 1px 2px rgba(14, 23, 41, 0.04);
+  --shadow-stat: 0 1px 2px rgba(14, 23, 41, 0.04);
+
+  /* shadcn tokens */
+  --background: var(--bg-base);
+  --foreground: var(--text-primary);
+  --card: #ffffff;
+  --card-foreground: var(--text-primary);
+  --popover: #ffffff;
+  --popover-foreground: var(--text-primary);
+  --primary: var(--ink);
+  --primary-foreground: var(--cream);
+  --secondary: var(--tint);
+  --secondary-foreground: var(--text-primary);
+  --muted: var(--tint);
+  --muted-foreground: var(--text-tertiary);
+  --accent: var(--tint);
+  --accent-foreground: var(--text-primary);
+  --destructive: var(--negative);
+  --border: var(--border-subtle);
+  --input: var(--border-medium);
+  --ring: var(--ink);
+  --chart-1: #0e1729;
+  --chart-2: #12895a;
+  --chart-3: #c23a2b;
+  --chart-4: #d9a441;
+  --chart-5: #7d6bb0;
+  --radius: 0.875rem;
+  --sidebar: var(--bg-base);
+  --sidebar-foreground: var(--text-primary);
+  --sidebar-primary: var(--ink);
+  --sidebar-primary-foreground: var(--cream);
+  --sidebar-accent: var(--tint);
+  --sidebar-accent-foreground: var(--text-primary);
+  --sidebar-border: var(--border-subtle);
+  --sidebar-ring: var(--ink);
+}
+
+/* Phones: plain white canvas so the home sheet and every page read as one surface. */
+@media (max-width: 1023px) {
+  :root {
+    --bg-base: #ffffff;
+  }
+}
+
+@theme inline {
+  --font-heading: var(--font-display);
+  --font-sans: var(--font-display);
+  /* Numbers used to be set in JetBrains Mono. Onest with tabular figures keeps columns
+     aligned without a second typeface; real code still uses --font-code (see base). */
+  --font-mono: var(--font-display);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-cream: var(--cream);
+  --color-tint: var(--tint);
+  --color-tint-strong: var(--tint-strong);
+  --color-positive: var(--positive);
+  --color-negative: var(--negative);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-foreground: var(--foreground);
+  --color-background: var(--background);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    @apply font-sans antialiased;
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: var(--font-display);
+  }
+  .font-mono {
+    font-variant-numeric: tabular-nums;
+  }
+  code,
+  kbd,
+  pre,
+  samp {
+    font-family: var(--font-code);
+  }
+}
+
+@layer utilities {
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+  /* Bottom padding that clears the mobile tab bar and the iOS home indicator. */
+  .pb-tabbar {
+    padding-bottom: calc(6rem + env(safe-area-inset-bottom));
+  }
+}

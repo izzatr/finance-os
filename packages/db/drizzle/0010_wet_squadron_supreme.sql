@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "transaction_user_recurring_ref_unique" ON "transactions" USING btree ("user_id","external_ref") WHERE external_ref LIKE 'recurring:%';

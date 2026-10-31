@@ -1,0 +1,167 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1774564490786,
+      "tag": "0000_watery_pixie",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1774654943879,
+      "tag": "0001_heavy_mercury",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1774718088076,
+      "tag": "0002_small_sphinx",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1783159553196,
+      "tag": "0003_perpetual_adam_warlock",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1783161395163,
+      "tag": "0004_wide_mesmero",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1783163719633,
+      "tag": "0005_graceful_lightspeed",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1783168512527,
+      "tag": "0006_left_karma",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1783188646948,
+      "tag": "0007_tiresome_clint_barton",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1783191116530,
+      "tag": "0008_nosy_ronan",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1783193264679,
+      "tag": "0009_sparkling_namora",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1783196267576,
+      "tag": "0010_wet_squadron_supreme",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1784326985946,
+      "tag": "0011_overrated_richard_fisk",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1784328056920,
+      "tag": "0012_charming_maximus",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1784331964125,
+      "tag": "0013_regular_the_anarchist",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1784333506271,
+      "tag": "0014_burly_nemesis",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1785576600000,
+      "tag": "0015_agent_api_key_rate_limits",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1791729567308,
+      "tag": "0016_shared_expenses",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1791734497679,
+      "tag": "0017_invite_signup_once",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1791742372952,
+      "tag": "0018_comment_import",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1791747757353,
+      "tag": "0019_dark_felicia_hardy",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1791826613302,
+      "tag": "0020_account_currency_settings",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1792014650799,
+      "tag": "0021_split_quarterly_repeat",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1793227081244,
+      "tag": "0022_better_auth_1_7_account_columns",
+      "breakpoints": true
+    }
+  ]
+}

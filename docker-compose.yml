@@ -1,0 +1,51 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: finance-os-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: finance_os
+      POSTGRES_USER: finance
+      POSTGRES_PASSWORD: finance
+    ports:
+      - "127.0.0.1:27033:5432"
+    volumes:
+      - finance_os_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U finance -d finance_os"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    container_name: finance-os-api
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:27032:27032"
+    environment:
+      DATABASE_URL: postgres://finance:finance@postgres:5432/finance_os
+      PORT: "27032"
+      FINANCE_OS_EDITION: community
+      BETTER_AUTH_SECRET: dev-secret-change-in-production-min-32-chars
+      BETTER_AUTH_URL: http://localhost:27032
+      WEB_ORIGIN: http://localhost:27031
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    container_name: finance-os-web
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:27031:3000"
+    depends_on:
+      - api
+
+volumes:
+  finance_os_postgres_data:
