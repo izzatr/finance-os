@@ -1,6 +1,6 @@
 import { useMemo, useState, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { format, subDays } from 'date-fns'
+import { format, parseISO, subDays } from 'date-fns'
 import { Plus, RefreshCw } from 'lucide-react'
 import {
   createPortfolioHolding,
@@ -19,7 +19,7 @@ import { DeleteHoldingDialog } from '../DeleteHoldingDialog'
 import { EditHoldingDialog } from '../EditHoldingDialog'
 import { HoldingAvatar } from './HoldingAvatar'
 import { HoldingSheet } from './HoldingSheet'
-import { ValueChart } from './ValueChart'
+import { ValueChart, type ValueScrub } from './ValueChart'
 import type { InvestmentHolding } from './types'
 
 type Wallet = { id: string; name: string; currency: string; balance: number; subtitle: string }
@@ -61,6 +61,7 @@ export function InvestmentWalletView({ wallet, ledgerTrend, icon, actions }: { w
   const summaryQuery = useQuery({ queryKey: ['portfolio-summary', wallet.id, currency], queryFn: () => getPortfolioSummary(wallet.id, currency), staleTime: 60_000 })
   const historyQuery = useQuery({ queryKey: ['portfolio-history', wallet.id, currency, historyFrom, historyTo], queryFn: () => getPortfolioHistory(wallet.id, currency, historyFrom, historyTo), staleTime: 300_000 })
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [scrub, setScrub] = useState<ValueScrub | null>(null)
   const [adding, setAdding] = useState(false)
   const [editing, setEditing] = useState<InvestmentHolding | null>(null)
   const [deleting, setDeleting] = useState<InvestmentHolding | null>(null)
@@ -107,7 +108,10 @@ export function InvestmentWalletView({ wallet, ledgerTrend, icon, actions }: { w
     await invalidate()
   }
 
-  const hero = splitDecimals(formatMoney(total, currency))
+  const hero = splitDecimals(formatMoney(scrub ? scrub.value : total, currency))
+  // While scrubbing only the date is shown: the wallet value includes deposits and withdrawals,
+  // so a change versus the range start would count new money as gains.
+  const chip = !scrub && totalReturn !== null && totalReturnPercent !== null ? { amount: totalReturn, percent: totalReturnPercent, label: 'all time' } : null
   const allocation = holdingsValue && holdingsValue > 0
     ? [...holdings.filter((holding) => (holding.baseValue ?? 0) > 0).map((holding) => ({ key: holding.id, label: displayName(holding), value: holding.baseValue! })), ...(cash > 0 ? [{ key: 'cash', label: 'Cash', value: cash }] : [])]
     : []
@@ -128,18 +132,20 @@ export function InvestmentWalletView({ wallet, ledgerTrend, icon, actions }: { w
         <p className="tabular mt-6 text-[40px] font-bold leading-none tracking-[-0.03em]" aria-label={`Value ${formatMoney(total, currency)}`}>
           {hero.main}<span className="text-[26px] text-white/55">{hero.decimals}</span>
         </p>
-        {totalReturn !== null && totalReturnPercent !== null ? (
-          <p className="mt-3 flex flex-wrap items-center gap-2 text-[13px]">
-            <span className={`tabular rounded-full px-2.5 py-1 font-semibold ${totalReturn >= 0 ? 'bg-[var(--cream)] text-[var(--ink)]' : 'bg-[#ffb4a8]/15 text-[#ffb4a8]'}`}>
-              {totalReturn >= 0 ? '▲' : '▼'} {formatMoney(Math.abs(totalReturn), currency)} · {formatPercent(Math.abs(totalReturnPercent), false)}
+        {scrub ? (
+          <p className="mt-3 flex min-h-7 items-center text-[13px] font-semibold text-white/75" aria-live="polite">{format(parseISO(scrub.date), 'EEE, d MMM yyyy')}</p>
+        ) : chip ? (
+          <p className="mt-3 flex min-h-7 flex-wrap items-center gap-2 text-[13px]" aria-live="polite">
+            <span className={`tabular rounded-full px-2.5 py-1 font-semibold ${chip.amount >= 0 ? 'bg-[var(--cream)] text-[var(--ink)]' : 'bg-[#ffb4a8]/15 text-[#ffb4a8]'}`}>
+              {chip.amount >= 0 ? '▲' : '▼'} {formatMoney(Math.abs(chip.amount), currency)}{chip.percent !== null ? ` · ${formatPercent(Math.abs(chip.percent), false)}` : ''}
             </span>
-            <span className="text-white/55">all time</span>
+            <span className="text-white/55">{chip.label}</span>
           </p>
         ) : summary && holdings.length === 0 ? (
-          <p className="mt-3 text-[13px] text-white/55">Cash balance</p>
+          <p className="mt-3 min-h-7 text-[13px] text-white/55">Cash balance</p>
         ) : null}
 
-        <ValueChart points={trend} currency={currency} />
+        <ValueChart points={trend} onScrub={setScrub} />
       </header>
 
       {holdings.length > 0 && (
