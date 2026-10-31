@@ -7,6 +7,9 @@ const searchPayload = {
     { symbol: 'VWCE.DE', longname: 'Vanguard FTSE All-World UCITS ETF', quoteType: 'ETF', exchange: 'GER', exchDisp: 'XETRA', currency: 'EUR', exchangeTimezoneName: 'Europe/Berlin' },
     { symbol: null, quoteType: 'EQUITY' },
     { symbol: 'EURUSD=X', quoteType: 'CURRENCY' },
+    { symbol: 'BTC-EUR', shortname: 'Bitcoin EUR', quoteType: 'CRYPTOCURRENCY', exchange: 'CCC', exchDisp: 'CCC', currency: 'EUR', exchangeTimezoneName: 'Europe/London' },
+    { symbol: 'GC=F', shortname: 'Gold', quoteType: 'FUTURE', exchange: 'CMX', exchDisp: 'COMEX', currency: 'USD', exchangeTimezoneName: 'America/New_York' },
+    { symbol: '0P0000V2MI.SA', quoteType: 'MUTUALFUND', currency: 'BRL', exchangeTimezoneName: 'America/Sao_Paulo' },
   ],
 }
 
@@ -48,6 +51,8 @@ describe('YahooMarketDataProvider', () => {
     expect(results).toEqual([
       { provider: 'yahoo', providerSymbol: 'BBCA.JK', name: 'Bank Central Asia Tbk', instrumentType: 'stock', exchangeCode: 'JKT', exchangeName: 'Jakarta', mic: null, currency: 'IDR', timezone: 'Asia/Jakarta' },
       { provider: 'yahoo', providerSymbol: 'VWCE.DE', name: 'Vanguard FTSE All-World UCITS ETF', instrumentType: 'etf', exchangeCode: 'GER', exchangeName: 'XETRA', mic: null, currency: 'EUR', timezone: 'Europe/Berlin' },
+      { provider: 'yahoo', providerSymbol: 'BTC-EUR', name: 'Bitcoin EUR', instrumentType: 'crypto', exchangeCode: 'CCC', exchangeName: 'CCC', mic: null, currency: 'EUR', timezone: 'Europe/London' },
+      { provider: 'yahoo', providerSymbol: 'GC=F', name: 'Gold', instrumentType: 'commodity', exchangeCode: 'CMX', exchangeName: 'COMEX', mic: null, currency: 'USD', timezone: 'America/New_York' },
     ])
   })
 

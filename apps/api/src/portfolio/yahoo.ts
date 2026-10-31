@@ -1,4 +1,14 @@
-export type InstrumentType = 'stock' | 'etf'
+export type InstrumentType = 'stock' | 'etf' | 'crypto' | 'commodity'
+
+// Yahoo quote types we can value from a daily close. Crypto pairs (BTC-EUR) and commodity
+// futures (GC=F gold, priced per troy ounce) sit beside stocks/ETFs so non-security
+// holdings get live prices too; currencies, indices and mutual funds stay excluded.
+const SUPPORTED_QUOTE_TYPES: Record<string, InstrumentType> = {
+  EQUITY: 'stock',
+  ETF: 'etf',
+  CRYPTOCURRENCY: 'crypto',
+  FUTURE: 'commodity',
+}
 
 export interface MarketSearchResult {
   provider: 'yahoo'
@@ -59,13 +69,14 @@ export class YahooMarketDataProvider implements MarketDataProvider {
     const output: MarketSearchResult[] = []
     for (const raw of payload.quotes ?? []) {
       const q = raw as Record<string, unknown>
-      if (typeof q.symbol !== 'string' || (q.quoteType !== 'EQUITY' && q.quoteType !== 'ETF')) continue
+      const instrumentType = typeof q.quoteType === 'string' ? SUPPORTED_QUOTE_TYPES[q.quoteType] : undefined
+      if (typeof q.symbol !== 'string' || !instrumentType) continue
       const name = typeof q.longname === 'string' ? q.longname : typeof q.shortname === 'string' ? q.shortname : q.symbol
       output.push({
         provider: 'yahoo',
         providerSymbol: q.symbol,
         name,
-        instrumentType: q.quoteType === 'ETF' ? 'etf' : 'stock',
+        instrumentType,
         exchangeCode: typeof q.exchange === 'string' ? q.exchange : 'UNKNOWN',
         exchangeName: typeof q.exchDisp === 'string' ? q.exchDisp : typeof q.exchange === 'string' ? q.exchange : 'Unknown',
         // Yahoo does not return an ISO 10383 MIC in search results.

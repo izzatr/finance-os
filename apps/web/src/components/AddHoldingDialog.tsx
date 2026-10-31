@@ -10,7 +10,7 @@ export type InstrumentCandidate = {
   providerSymbol: string
   symbol: string
   name: string
-  type: 'stock' | 'etf'
+  type: 'stock' | 'etf' | 'crypto' | 'commodity'
   exchange: string
   exchangeCode: string
   quoteCurrency: string
@@ -105,7 +105,7 @@ export function AddHoldingDialog({ open, onClose, onSearch, onSubmit }: Props) {
 
         <form onSubmit={handleSubmit} className="grid gap-5">
           <div className="grid gap-2">
-            <label htmlFor="holding-search" className="text-[13px] font-semibold text-[var(--text-secondary)]">Search stocks and ETFs</label>
+            <label htmlFor="holding-search" className="text-[13px] font-semibold text-[var(--text-secondary)]">Search stocks, ETFs, crypto and commodities</label>
             <div className="flex gap-2">
               <Input id="holding-search" value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') void handleSearch(event) }} placeholder="BBCA, Bank Central Asia, VWCE..." autoComplete="off" />
               <Button type="button" variant="outline" onClick={(event) => void handleSearch(event)} disabled={!query.trim() || searching} className="min-h-11">
@@ -128,7 +128,7 @@ export function AddHoldingDialog({ open, onClose, onSearch, onSubmit }: Props) {
               })}
             </div>
           )}
-          {searched && results.length === 0 && <p className="text-xs text-muted-foreground">No Yahoo stock or ETF listings found.</p>}
+          {searched && results.length === 0 && <p className="text-xs text-muted-foreground">No matching Yahoo listings found.</p>}
 
           {selected && (
             <div className="grid gap-4 rounded-xl border border-border/70 bg-white p-4 sm:grid-cols-2">
