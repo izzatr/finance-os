@@ -590,7 +590,7 @@ export type PortfolioSearchResult = {
   provider: 'yahoo'
   providerSymbol: string
   name: string
-  instrumentType: 'stock' | 'etf'
+  instrumentType: 'stock' | 'etf' | 'crypto' | 'commodity'
   exchangeCode: string
   exchangeName: string
   mic: string | null
@@ -615,7 +615,7 @@ export type PortfolioHoldingApi = {
     exchangeName: string
     timezone: string
     instrumentName: string
-    instrumentType: 'stock' | 'etf'
+    instrumentType: 'stock' | 'etf' | 'crypto' | 'commodity'
     lastRefreshAt: string | null
     lastSuccessAt: string | null
     refreshError: string | null
